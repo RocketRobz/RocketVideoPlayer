@@ -59,6 +59,7 @@ char filePath[PATH_MAX];
 FILE* rvid;
 bool videoPlaying = false;
 bool loadFrame = false;
+int videoYpos = 0;
 int currentFrame = 0;
 int currentFrameInBuffer = 0;
 int loadedFrames = 0;
@@ -78,7 +79,7 @@ void renderFrames(void) {
 		}
 		if (loadFrame) {
 			if (currentFrame < (int)rvidHeader.frames) {
-				dmaCopyAsynch(frameBuffer+(currentFrameInBuffer*(0x200*rvidHeader.vRes)), BG_GFX_SUB, 0x200*rvidHeader.vRes);
+				dmaCopyAsynch(frameBuffer+(currentFrameInBuffer*(0x200*rvidHeader.vRes)), (u16*)BG_GFX_SUB+(256*videoYpos), 0x200*rvidHeader.vRes);
 			}
 			currentFrame++;
 			currentFrameInBuffer++;
@@ -92,6 +93,15 @@ void renderFrames(void) {
 }
 
 void playRvid(FILE* rvid) {
+	videoYpos = 0;
+
+	if (rvidHeader.vRes <= 190) {
+		// Adjust video positioning
+		for (int i = rvidHeader.vRes; i < 192; i += 2) {
+			videoYpos++;
+		}
+	}
+
 	fseek(rvid, 0x200, SEEK_SET);
 	fread(frameBuffer, 1, (0x200*rvidHeader.vRes)*15, rvid);
 	loadedFrames = 14;
@@ -171,6 +181,8 @@ int main(int argc, char **argv) {
 	irqEnable(IRQ_VBLANK);
 
 	while(1) {
+
+		dmaFillWords(0, BG_GFX_SUB, 0x18000);	// Clear top screen
 
 		filename = browseForFile(extensionList);
 
