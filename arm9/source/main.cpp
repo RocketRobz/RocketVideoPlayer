@@ -32,6 +32,7 @@
 #include "file_browse.h"
 
 u16 frameBuffer[30][256*192];
+bool useBufferHalf = true;
 
 typedef struct rvidHeaderInfo {
 	u32 formatString;	// "RVID" string
@@ -133,9 +134,15 @@ int main(int argc, char **argv) {
 				videoPlaying = true;
 				while (1) {
 					if ((currentFrame % 30) >= 0 && (currentFrame % 30) < 15) {
-						fread(frameBuffer[15], 1, 0x168000, rvid);
+						if (useBufferHalf) {
+							fread(frameBuffer[15], 1, 0x168000, rvid);
+							useBufferHalf = false;
+						}
 					} else if ((currentFrame % 30) >= 15 && (currentFrame % 30) < 30) {
-						fread(frameBuffer[0], 1, 0x168000, rvid);
+						if (!useBufferHalf) {
+							fread(frameBuffer[0], 1, 0x168000, rvid);
+							useBufferHalf = true;
+						}
 					}
 					scanKeys();
 					if (currentFrame > (int)rvidHeader.frames || keysDown() & KEY_B) {
@@ -146,6 +153,7 @@ int main(int argc, char **argv) {
 				fclose(rvid);
 
 				videoPlaying = false;
+				useBufferHalf = true;
 				loadFrame = false;
 				currentFrame = 0;
 				frameDelay = 1;
