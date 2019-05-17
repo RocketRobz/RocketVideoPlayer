@@ -68,21 +68,11 @@ void renderFrames(void) {
 	if (videoPlaying && currentFrame <= loadedFrames) {
 		frameDelay++;
 		switch (rvidHeader.fps) {
-			case 1:
-			default:
-				loadFrame = (frameDelay == 60);
-				break;
-			case 2:
-				loadFrame = (frameDelay == 30);
-				break;
-			case 6:
-				loadFrame = (frameDelay == 10);
-				break;
-			case 10:
-				loadFrame = (frameDelay == 6);
-				break;
 			case 24:
 				loadFrame = (frameDelay == 2+frameDelayEven);
+				break;
+			default:
+				loadFrame = (frameDelay == 60/rvidHeader.fps);
 				break;
 		}
 		if (loadFrame) {
