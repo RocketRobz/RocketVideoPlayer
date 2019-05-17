@@ -1,0 +1,13 @@
+*.exe
+*.cia
+*.nds
+*.o
+*.arm7
+Thumbs.db
+*.arm9
+*.elf
+*.d
+*.map
+arm7/build
+arm9/build/
+desktop.ini
