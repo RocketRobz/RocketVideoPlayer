@@ -31,7 +31,7 @@
 
 #include "file_browse.h"
 
-u16 frameBuffer[30][256*192];
+u8 frameBuffer[0x2D0000];
 bool useBufferHalf = true;
 
 typedef struct rvidHeaderInfo {
@@ -60,6 +60,7 @@ FILE* rvid;
 bool videoPlaying = false;
 bool loadFrame = false;
 int currentFrame = 0;
+int currentFrameInBuffer = 0;
 int loadedFrames = 0;
 int frameDelay = 0;
 bool frameDelayEven = true;
@@ -77,9 +78,13 @@ void renderFrames(void) {
 		}
 		if (loadFrame) {
 			if (currentFrame < (int)rvidHeader.frames) {
-				dmaCopyAsynch(frameBuffer[currentFrame % 30], BG_GFX_SUB, 0x18000);
+				dmaCopyAsynch(frameBuffer+(currentFrameInBuffer*(0x200*rvidHeader.vRes)), BG_GFX_SUB, 0x200*rvidHeader.vRes);
 			}
 			currentFrame++;
+			currentFrameInBuffer++;
+			if (currentFrameInBuffer == 30) {
+				currentFrameInBuffer = 0;
+			}
 			frameDelayEven = !frameDelayEven;
 			frameDelay = 0;
 		}
@@ -88,7 +93,7 @@ void renderFrames(void) {
 
 void playRvid(FILE* rvid) {
 	fseek(rvid, 0x200, SEEK_SET);
-	fread(frameBuffer[0], 1, 0x168000, rvid);
+	fread(frameBuffer, 1, (0x200*rvidHeader.vRes)*15, rvid);
 	loadedFrames = 14;
 	consoleClear();
 	printf("Loaded successfully!\n");
@@ -99,7 +104,7 @@ void playRvid(FILE* rvid) {
 		if ((currentFrame % 30) >= 0 && (currentFrame % 30) < 15) {
 			if (useBufferHalf) {
 				for (int i = 15; i < 30; i++) {
-					fread(frameBuffer[i], 1, 0x18000, rvid);
+					fread(frameBuffer+(i*(0x200*rvidHeader.vRes)), 1, 0x200*rvidHeader.vRes, rvid);
 					loadedFrames++;
 				}
 				useBufferHalf = false;
@@ -107,7 +112,7 @@ void playRvid(FILE* rvid) {
 		} else if ((currentFrame % 30) >= 15 && (currentFrame % 30) < 30) {
 			if (!useBufferHalf) {
 				for (int i = 0; i < 15; i++) {
-					fread(frameBuffer[i], 1, 0x18000, rvid);
+					fread(frameBuffer+(i*(0x200*rvidHeader.vRes)), 1, 0x200*rvidHeader.vRes, rvid);
 					loadedFrames++;
 				}
 				useBufferHalf = true;
@@ -124,6 +129,7 @@ void playRvid(FILE* rvid) {
 	useBufferHalf = true;
 	loadFrame = false;
 	currentFrame = 0;
+	currentFrameInBuffer = 0;
 	frameDelay = 0;
 	frameDelayEven = true;
 }
