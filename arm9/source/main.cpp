@@ -93,6 +93,8 @@ void renderFrames(void) {
 }
 
 void playRvid(FILE* rvid) {
+	bool confirmStop = false;
+
 	videoYpos = 0;
 
 	if (rvidHeader.vRes <= 190) {
@@ -108,6 +110,7 @@ void playRvid(FILE* rvid) {
 	consoleClear();
 	printf("Loaded successfully!\n");
 	printf("\n");
+	printf("A: Pause\n");
 	printf("B: Stop");
 	videoPlaying = true;
 	while (1) {
@@ -116,6 +119,17 @@ void playRvid(FILE* rvid) {
 				for (int i = 15; i < 30; i++) {
 					fread(frameBuffer+(i*(0x200*rvidHeader.vRes)), 1, 0x200*rvidHeader.vRes, rvid);
 					loadedFrames++;
+
+					scanKeys();
+					if (keysDown() & KEY_A) {
+						videoPlaying = !videoPlaying;
+						printf ("\x1b[2;0H");
+						printf(videoPlaying ? "A: Pause" : "A: Play ");
+					}
+					if (keysDown() & KEY_B) {
+						confirmStop = true;
+						break;
+					}
 				}
 				useBufferHalf = false;
 			}
@@ -124,12 +138,28 @@ void playRvid(FILE* rvid) {
 				for (int i = 0; i < 15; i++) {
 					fread(frameBuffer+(i*(0x200*rvidHeader.vRes)), 1, 0x200*rvidHeader.vRes, rvid);
 					loadedFrames++;
+
+					scanKeys();
+					if (keysDown() & KEY_A) {
+						videoPlaying = !videoPlaying;
+						printf ("\x1b[2;0H");
+						printf(videoPlaying ? "A: Pause" : "A: Play ");
+					}
+					if (keysDown() & KEY_B) {
+						confirmStop = true;
+						break;
+					}
 				}
 				useBufferHalf = true;
 			}
 		}
 		scanKeys();
-		if (currentFrame > (int)rvidHeader.frames || keysDown() & KEY_B) {
+		if (keysDown() & KEY_A) {
+			videoPlaying = !videoPlaying;
+			printf ("\x1b[2;0H");
+			printf(videoPlaying ? "A: Pause" : "A: Play ");
+		}
+		if (currentFrame > (int)rvidHeader.frames || confirmStop || keysDown() & KEY_B) {
 			break;
 		}
 		swiWaitForVBlank();
