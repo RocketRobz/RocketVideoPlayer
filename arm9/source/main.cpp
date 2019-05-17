@@ -63,19 +63,56 @@ int currentFrame = 0;
 int frameDelay = 1;
 bool frameDelayEven = false;
 
-void playFrames(void) {
+void renderFrames(void) {
 	if (videoPlaying) {
 		frameDelay++;
 		if (rvidHeader.fps == 24) {
 			loadFrame = (frameDelay == 2+frameDelayEven);
 		}
 		if (loadFrame) {
-			dmaCopyAsynch(frameBuffer[currentFrame % 30], BG_GFX_SUB, 0x18000);
+			if (currentFrame < (int)rvidHeader.frames) {
+				dmaCopyAsynch(frameBuffer[currentFrame % 30], BG_GFX_SUB, 0x18000);
+			}
 			currentFrame++;
 			frameDelayEven = !frameDelayEven;
 			frameDelay = 0;
 		}
 	}
+}
+
+void playRvid(FILE* rvid) {
+	fseek(rvid, 0x200, SEEK_SET);
+	fread(frameBuffer[0], 1, 0x168000, rvid);
+	consoleClear();
+	printf("Loaded successfully!\n");
+	printf("\n");
+	printf("B: Stop");
+	videoPlaying = true;
+	while (1) {
+		if ((currentFrame % 30) >= 0 && (currentFrame % 30) < 15) {
+			if (useBufferHalf) {
+				fread(frameBuffer[15], 1, 0x168000, rvid);
+				useBufferHalf = false;
+			}
+		} else if ((currentFrame % 30) >= 15 && (currentFrame % 30) < 30) {
+			if (!useBufferHalf) {
+				fread(frameBuffer[0], 1, 0x168000, rvid);
+				useBufferHalf = true;
+			}
+		}
+		scanKeys();
+		if (currentFrame > (int)rvidHeader.frames || keysDown() & KEY_B) {
+			break;
+		}
+		swiWaitForVBlank();
+	}
+
+	videoPlaying = false;
+	useBufferHalf = true;
+	loadFrame = false;
+	currentFrame = 0;
+	frameDelay = 1;
+	frameDelayEven = false;
 }
 
 //---------------------------------------------------------------------------------
@@ -111,7 +148,7 @@ int main(int argc, char **argv) {
 	vector<string> extensionList;
 	extensionList.push_back(".rvid");
 
-	irqSet(IRQ_VBLANK, playFrames);
+	irqSet(IRQ_VBLANK, renderFrames);
 	irqEnable(IRQ_VBLANK);
 
 	while(1) {
@@ -119,45 +156,26 @@ int main(int argc, char **argv) {
 		filename = browseForFile(extensionList);
 
 		if ( strcasecmp (filename.c_str() + filename.size() - 5, ".rvid") != 0 ) {
-			iprintf("no rvid file specified\n");
+			iprintf("No .rvid file specified.\n");
+			for (int i = 0; i < 60*2; i++) {
+				swiWaitForVBlank();
+			}
 		} else {
 			printf("Loading...");
 			rvid = fopen(filename.c_str(), "rb");
 			if (rvid) {
 				fread(&rvidHeader, 1, sizeof(rvidHeaderInfo), rvid);
-				fseek(rvid, 0x200, SEEK_SET);
-				fread(frameBuffer[0], 1, 0x168000, rvid);
-				consoleClear();
-				printf("Loaded successfully!\n");
-				printf("\n");
-				printf("B: Stop");
-				videoPlaying = true;
-				while (1) {
-					if ((currentFrame % 30) >= 0 && (currentFrame % 30) < 15) {
-						if (useBufferHalf) {
-							fread(frameBuffer[15], 1, 0x168000, rvid);
-							useBufferHalf = false;
-						}
-					} else if ((currentFrame % 30) >= 15 && (currentFrame % 30) < 30) {
-						if (!useBufferHalf) {
-							fread(frameBuffer[0], 1, 0x168000, rvid);
-							useBufferHalf = true;
-						}
+				if (rvidHeader.formatString != 0x44495652) {
+					consoleClear();
+					printf("Not a Rocket Video file!");
+					fclose(rvid);
+					for (int i = 0; i < 60*2; i++) {
+						swiWaitForVBlank();
 					}
-					scanKeys();
-					if (currentFrame > (int)rvidHeader.frames || keysDown() & KEY_B) {
-						break;
-					}
-					swiWaitForVBlank();
+				} else {
+					playRvid(rvid);
+					fclose(rvid);
 				}
-				fclose(rvid);
-
-				videoPlaying = false;
-				useBufferHalf = true;
-				loadFrame = false;
-				currentFrame = 0;
-				frameDelay = 1;
-				frameDelayEven = false;
 			}
 		}
 
