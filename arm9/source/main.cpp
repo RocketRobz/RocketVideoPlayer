@@ -60,14 +60,30 @@ FILE* rvid;
 bool videoPlaying = false;
 bool loadFrame = false;
 int currentFrame = 0;
-int frameDelay = 1;
-bool frameDelayEven = false;
+int loadedFrames = 0;
+int frameDelay = 0;
+bool frameDelayEven = true;
 
 void renderFrames(void) {
-	if (videoPlaying) {
+	if (videoPlaying && currentFrame <= loadedFrames) {
 		frameDelay++;
-		if (rvidHeader.fps == 24) {
-			loadFrame = (frameDelay == 2+frameDelayEven);
+		switch (rvidHeader.fps) {
+			case 1:
+			default:
+				loadFrame = (frameDelay == 60);
+				break;
+			case 2:
+				loadFrame = (frameDelay == 30);
+				break;
+			case 6:
+				loadFrame = (frameDelay == 10);
+				break;
+			case 10:
+				loadFrame = (frameDelay == 6);
+				break;
+			case 24:
+				loadFrame = (frameDelay == 2+frameDelayEven);
+				break;
 		}
 		if (loadFrame) {
 			if (currentFrame < (int)rvidHeader.frames) {
@@ -83,6 +99,7 @@ void renderFrames(void) {
 void playRvid(FILE* rvid) {
 	fseek(rvid, 0x200, SEEK_SET);
 	fread(frameBuffer[0], 1, 0x168000, rvid);
+	loadedFrames = 14;
 	consoleClear();
 	printf("Loaded successfully!\n");
 	printf("\n");
@@ -91,12 +108,18 @@ void playRvid(FILE* rvid) {
 	while (1) {
 		if ((currentFrame % 30) >= 0 && (currentFrame % 30) < 15) {
 			if (useBufferHalf) {
-				fread(frameBuffer[15], 1, 0x168000, rvid);
+				for (int i = 15; i < 30; i++) {
+					fread(frameBuffer[i], 1, 0x18000, rvid);
+					loadedFrames++;
+				}
 				useBufferHalf = false;
 			}
 		} else if ((currentFrame % 30) >= 15 && (currentFrame % 30) < 30) {
 			if (!useBufferHalf) {
-				fread(frameBuffer[0], 1, 0x168000, rvid);
+				for (int i = 0; i < 15; i++) {
+					fread(frameBuffer[i], 1, 0x18000, rvid);
+					loadedFrames++;
+				}
 				useBufferHalf = true;
 			}
 		}
@@ -111,8 +134,8 @@ void playRvid(FILE* rvid) {
 	useBufferHalf = true;
 	loadFrame = false;
 	currentFrame = 0;
-	frameDelay = 1;
-	frameDelayEven = false;
+	frameDelay = 0;
+	frameDelayEven = true;
 }
 
 //---------------------------------------------------------------------------------
