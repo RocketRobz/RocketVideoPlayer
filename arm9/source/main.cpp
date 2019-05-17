@@ -131,17 +131,19 @@ int main(int argc, char **argv) {
 				printf("\n");
 				printf("B: Stop");
 				videoPlaying = true;
-				fread(frameBuffer[15], 1, 0x168000, rvid);
-				fclose(rvid);
 				while (1) {
-					//fread(frameBuffer[15], 1, 0x168000, rvid);
+					if ((currentFrame % 30) >= 0 && (currentFrame % 30) < 15) {
+						fread(frameBuffer[15], 1, 0x168000, rvid);
+					} else if ((currentFrame % 30) >= 15 && (currentFrame % 30) < 30) {
+						fread(frameBuffer[0], 1, 0x168000, rvid);
+					}
 					scanKeys();
-					if (keysDown() & KEY_B) {
+					if (currentFrame > (int)rvidHeader.frames || keysDown() & KEY_B) {
 						break;
 					}
 					swiWaitForVBlank();
 				}
-				//fclose(rvid);
+				fclose(rvid);
 
 				videoPlaying = false;
 				loadFrame = false;
