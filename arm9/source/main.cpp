@@ -66,6 +66,14 @@ int loadedFrames = 0;
 int frameDelay = 0;
 bool frameDelayEven = true;
 
+int hourMark = -1;
+int minuteMark = 59;
+int secondMark = 59;
+
+int videoHourMark = -1;
+int videoMinuteMark = 59;
+int videoSecondMark = 59;
+
 void renderFrames(void) {
 	if (videoPlaying && currentFrame <= loadedFrames) {
 		frameDelay++;
@@ -81,6 +89,57 @@ void renderFrames(void) {
 			if (currentFrame < (int)rvidHeader.frames) {
 				dmaCopyAsynch(frameBuffer+(currentFrameInBuffer*(0x200*rvidHeader.vRes)), (u16*)BG_GFX_SUB+(256*videoYpos), 0x200*rvidHeader.vRes);
 			}
+			if ((currentFrame % rvidHeader.fps) == 0) {
+				secondMark++;
+				if (secondMark == 60) {
+					secondMark = 0;
+					minuteMark++;
+					if (minuteMark == 60) {
+						minuteMark = 0;
+						hourMark++;
+					}
+				}
+			}
+
+			printf ("\x1b[2;0H");
+			// Current time stamp
+			if (hourMark < 10) {
+				printf("0%i", hourMark);
+			} else {
+				printf("%i", hourMark);
+			}
+			printf(":");
+			if (minuteMark < 10) {
+				printf("0%i", minuteMark);
+			} else {
+				printf("%i", minuteMark);
+			}
+			printf(":");
+			if (secondMark < 10) {
+				printf("0%i", secondMark);
+			} else {
+				printf("%i", secondMark);
+			}
+			printf("/");
+			// Full time stamp
+			if (videoHourMark < 10) {
+				printf("0%i", videoHourMark);
+			} else {
+				printf("%i", videoHourMark);
+			}
+			printf(":");
+			if (videoMinuteMark < 10) {
+				printf("0%i", videoMinuteMark);
+			} else {
+				printf("%i", videoMinuteMark);
+			}
+			printf(":");
+			if (videoSecondMark < 10) {
+				printf("0%i", videoSecondMark);
+			} else {
+				printf("%i", videoSecondMark);
+			}
+
 			currentFrame++;
 			currentFrameInBuffer++;
 			if (currentFrameInBuffer == 30) {
@@ -92,7 +151,7 @@ void renderFrames(void) {
 	}
 }
 
-void playRvid(FILE* rvid) {
+void playRvid(FILE* rvid, const char* filename) {
 	bool confirmStop = false;
 
 	videoYpos = 0;
@@ -103,12 +162,32 @@ void playRvid(FILE* rvid) {
 			videoYpos++;
 		}
 	}
+	
+	videoHourMark = -1;
+	videoMinuteMark = 59;
+	videoSecondMark = 59;
+
+	// Get full time stamp
+	for (int i = 0; i <= (int)rvidHeader.frames; i += rvidHeader.fps) {
+		videoSecondMark++;
+		if (videoSecondMark == 60) {
+			videoSecondMark = 0;
+			videoMinuteMark++;
+			if (videoMinuteMark == 60) {
+				videoMinuteMark = 0;
+				videoHourMark++;
+			}
+		}
+	}
 
 	fseek(rvid, 0x200, SEEK_SET);
 	fread(frameBuffer, 1, (0x200*rvidHeader.vRes)*15, rvid);
 	loadedFrames = 14;
 	consoleClear();
-	printf("Loaded successfully!\n");
+	printf(filename);
+	printf("\n");
+	printf("\n");
+	printf("\n");
 	printf("\n");
 	printf("A: Pause\n");
 	printf("B: Stop");
@@ -123,7 +202,7 @@ void playRvid(FILE* rvid) {
 					scanKeys();
 					if (keysDown() & KEY_A) {
 						videoPlaying = !videoPlaying;
-						printf ("\x1b[2;0H");
+						printf ("\x1b[4;0H");
 						printf(videoPlaying ? "A: Pause" : "A: Play ");
 					}
 					if (keysDown() & KEY_B) {
@@ -142,7 +221,7 @@ void playRvid(FILE* rvid) {
 					scanKeys();
 					if (keysDown() & KEY_A) {
 						videoPlaying = !videoPlaying;
-						printf ("\x1b[2;0H");
+						printf ("\x1b[4;0H");
 						printf(videoPlaying ? "A: Pause" : "A: Play ");
 					}
 					if (keysDown() & KEY_B) {
@@ -156,7 +235,7 @@ void playRvid(FILE* rvid) {
 		scanKeys();
 		if (keysDown() & KEY_A) {
 			videoPlaying = !videoPlaying;
-			printf ("\x1b[2;0H");
+			printf ("\x1b[4;0H");
 			printf(videoPlaying ? "A: Pause" : "A: Play ");
 		}
 		if (currentFrame > (int)rvidHeader.frames || confirmStop || keysDown() & KEY_B) {
@@ -172,6 +251,10 @@ void playRvid(FILE* rvid) {
 	currentFrameInBuffer = 0;
 	frameDelay = 0;
 	frameDelayEven = true;
+
+	hourMark = -1;
+	minuteMark = 59;
+	secondMark = 59;
 }
 
 //---------------------------------------------------------------------------------
@@ -234,7 +317,7 @@ int main(int argc, char **argv) {
 						swiWaitForVBlank();
 					}
 				} else {
-					playRvid(rvid);
+					playRvid(rvid, filename.c_str());
 					fclose(rvid);
 				}
 			}
