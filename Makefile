@@ -9,6 +9,7 @@ include $(DEVKITARM)/ds_rules
 
 export TARGET		:=	RocketVideoPlayer
 export TOPDIR		:=	$(CURDIR)
+export NITRODATA	:=	nitrofiles
 
 export VERSION_MAJOR	:= 1
 export VERSION_MINOR	:= 99
@@ -27,7 +28,7 @@ export PATH		:=	$(DEVKITARM)/bin:$(PATH)
 all: $(TARGET).nds
 
 $(TARGET).nds	:	$(TARGET).arm7 $(TARGET).arm9
-	ndstool	-c $(TARGET).nds -7 arm7/$(TARGET).arm7.elf -9 arm9/$(TARGET).arm9.elf \
+	ndstool	-c $(TARGET).nds -7 arm7/$(TARGET).arm7.elf -9 arm9/$(TARGET).arm9.elf -d $(NITRODATA) \
 			-b $(CURDIR)/icon.bmp "Rocket Video Player;RocketRobz"
 	python patch_ndsheader_dsiware.py $(CURDIR)/$(TARGET).nds --accessControl 0x00000038
 

@@ -30,6 +30,7 @@
 #include <unistd.h>
 
 #include "file_browse.h"
+#include "nitrofs.h"
 
 u8 frameBuffer[0x2D0000];
 bool useBufferHalf = true;
@@ -43,6 +44,27 @@ typedef struct rvidHeaderInfo {
 } rvidHeaderInfo;
 
 rvidHeaderInfo rvidHeader;
+
+bool fadeType = false;
+
+int screenBrightness = 31;
+
+void clearBrightness(void) {
+	fadeType = true;
+	screenBrightness = 0;
+}
+
+// Ported from PAlib (obsolete)
+void SetBrightness(u8 screen, s8 bright) {
+	u16 mode = 1 << 14;
+
+	if (bright < 0) {
+		mode = 2 << 14;
+		bright = -bright;
+	}
+	if (bright > 31) bright = 31;
+	*(u16*)(0x0400006C + (0x1000 * screen)) = bright + mode;
+}
 
 using namespace std;
 
@@ -75,6 +97,16 @@ int videoMinuteMark = 59;
 int videoSecondMark = 59;
 
 void renderFrames(void) {
+	if(fadeType == true) {
+		screenBrightness--;
+		if (screenBrightness < 0) screenBrightness = 0;
+	} else {
+		screenBrightness++;
+		if (screenBrightness > 31) screenBrightness = 31;
+	}
+	SetBrightness(0, screenBrightness);
+	SetBrightness(1, screenBrightness);
+
 	if (videoPlaying && currentFrame <= loadedFrames) {
 		frameDelay++;
 		switch (rvidHeader.fps) {
@@ -257,20 +289,70 @@ void playRvid(FILE* rvid, const char* filename) {
 	secondMark = 59;
 }
 
+void LoadBMP(bool top, const char* filename) {
+	FILE* file = fopen(filename, "rb");
+
+	if (file) {
+		// Start loading
+		fseek(file, 0xe, SEEK_SET);
+		u8 pixelStart = (u8)fgetc(file) + 0xe;
+		fseek(file, pixelStart, SEEK_SET);
+		fread(frameBuffer, 2, 0x18000, file);
+		u16* src = (u16*)frameBuffer;
+		int x = 0;
+		int y = 191;
+		for (int i=0; i<256*192; i++) {
+			if (x >= 256) {
+				x = 0;
+				y--;
+			}
+			u16 val = *(src++);
+			if (top) {
+				BG_GFX[y*256+x] = ((val>>10)&31) | (val&31<<5) | (val&31)<<10 | BIT(15);
+			} else {
+				BG_GFX_SUB[y*256+x] = ((val>>10)&31) | (val&31<<5) | (val&31)<<10 | BIT(15);
+			}
+			x++;
+		}
+	}
+
+	fclose(file);
+}
+
 //---------------------------------------------------------------------------------
 int main(int argc, char **argv) {
 //---------------------------------------------------------------------------------
 
 	std::string filename;
 
-	lcdMainOnBottom();
+	if (!fatInitDefault()) {
+		consoleDemoInit();
+		iprintf ("fatinitDefault failed!\n");
+		stop();
+	}
 
-	videoSetMode(MODE_0_2D);
-	vramSetBankG(VRAM_G_MAIN_BG);
-	consoleInit(NULL, 0, BgType_Text4bpp, BgSize_T_256x256, 15, 0, true, true);
+	bool nitroFSInited = nitroFSInit(argv[0]);
 
+	*(u16*)(0x0400006C) |= BIT(14);
+	*(u16*)(0x0400006C) &= BIT(15);
+	SetBrightness(0, 31);
+	SetBrightness(1, 31);
+
+	irqSet(IRQ_VBLANK, renderFrames);
+	irqEnable(IRQ_VBLANK);
+
+	videoSetMode(MODE_5_2D | DISPLAY_BG3_ACTIVE);
 	videoSetModeSub(MODE_3_2D | DISPLAY_BG3_ACTIVE);
 	vramSetBankC(VRAM_C_SUB_BG_0x06200000);
+	vramSetBankD(VRAM_D_MAIN_BG_0x06000000);
+
+	REG_BG3CNT = BG_MAP_BASE(0) | BG_BMP16_256x256 | BG_PRIORITY(0);
+	REG_BG3X = 0;
+	REG_BG3Y = 0;
+	REG_BG3PA = 1<<8;
+	REG_BG3PB = 0;
+	REG_BG3PC = 0;
+	REG_BG3PD = 1<<8;
 
 	REG_BG3CNT_SUB = BG_MAP_BASE(0) | BG_BMP16_256x256 | BG_PRIORITY(0);
 	REG_BG3X_SUB = 0;
@@ -279,21 +361,38 @@ int main(int argc, char **argv) {
 	REG_BG3PB_SUB = 0;
 	REG_BG3PC_SUB = 0;
 	REG_BG3PD_SUB = 1<<8;
+	
+	if (nitroFSInited) {
+		LoadBMP(true, "nitro:/logo_rocketrobz.bmp");
+		LoadBMP(false, "nitro:/logo_rocketvideo.bmp");
 
-	if (!fatInitDefault()) {
-		iprintf ("fatinitDefault failed!\n");
-		stop();
+		fadeType = true;
+		for (int i = 0; i < 60*3; i++) {
+			swiWaitForVBlank();
+		}
+
+		fadeType = false;
+		for (int i = 0; i < 25; i++) {
+			swiWaitForVBlank();
+		}
 	}
+
+	dmaFillWords(0, BG_GFX, 0x18000);		// Clear top screen
+	dmaFillWords(0, BG_GFX_SUB, 0x18000);	// Clear bottom screen
+
+	lcdMainOnBottom();
 
 	keysSetRepeat(25,5);
 
 	vector<string> extensionList;
 	extensionList.push_back(".rvid");
 
-	irqSet(IRQ_VBLANK, renderFrames);
-	irqEnable(IRQ_VBLANK);
-
 	while(1) {
+		clearBrightness();
+	
+		videoSetMode(MODE_0_2D);
+		vramSetBankG(VRAM_G_MAIN_BG);
+		consoleInit(NULL, 0, BgType_Text4bpp, BgSize_T_256x256, 15, 0, true, true);
 
 		dmaFillWords(0, BG_GFX_SUB, 0x18000);	// Clear top screen
 
