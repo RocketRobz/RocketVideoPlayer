@@ -30,6 +30,8 @@
 #include <unistd.h>
 
 #include "file_browse.h"
+#include "gl2d.h"
+#include "gui.h"
 #include "nitrofs.h"
 
 u8 frameBuffer[0x2D0000];
@@ -79,6 +81,7 @@ void stop (void) {
 char filePath[PATH_MAX];
 
 FILE* rvid;
+bool showVideoGui = false;
 bool videoPlaying = false;
 bool loadFrame = false;
 int videoYpos = 0;
@@ -133,7 +136,7 @@ void renderFrames(void) {
 				}
 			}
 
-			printf ("\x1b[2;0H");
+			/*printf ("\x1b[2;0H");
 			// Current time stamp
 			if (hourMark < 10) {
 				printf("0%i", hourMark);
@@ -170,7 +173,7 @@ void renderFrames(void) {
 				printf("0%i", videoSecondMark);
 			} else {
 				printf("%i", videoSecondMark);
-			}
+			}*/
 
 			currentFrame++;
 			currentFrameInBuffer++;
@@ -180,6 +183,10 @@ void renderFrames(void) {
 			frameDelayEven = !frameDelayEven;
 			frameDelay = 0;
 		}
+	}
+
+	if (showVideoGui) {
+		renderGui();
 	}
 }
 
@@ -216,13 +223,15 @@ void playRvid(FILE* rvid, const char* filename) {
 	fread(frameBuffer, 1, (0x200*rvidHeader.vRes)*15, rvid);
 	loadedFrames = 14;
 	consoleClear();
-	printf(filename);
+	videoSetMode(MODE_5_3D);
+	showVideoGui = true;
+	/*printf(filename);
 	printf("\n");
 	printf("\n");
 	printf("\n");
 	printf("\n");
 	printf("A: Pause\n");
-	printf("B: Stop");
+	printf("B: Stop");*/
 	videoPlaying = true;
 	while (1) {
 		if ((currentFrame % 30) >= 0 && (currentFrame % 30) < 15) {
@@ -234,8 +243,8 @@ void playRvid(FILE* rvid, const char* filename) {
 					scanKeys();
 					if (keysDown() & KEY_A) {
 						videoPlaying = !videoPlaying;
-						printf ("\x1b[4;0H");
-						printf(videoPlaying ? "A: Pause" : "A: Play ");
+						//printf ("\x1b[4;0H");
+						//printf(videoPlaying ? "A: Pause" : "A: Play ");
 					}
 					if (keysDown() & KEY_B) {
 						confirmStop = true;
@@ -253,8 +262,8 @@ void playRvid(FILE* rvid, const char* filename) {
 					scanKeys();
 					if (keysDown() & KEY_A) {
 						videoPlaying = !videoPlaying;
-						printf ("\x1b[4;0H");
-						printf(videoPlaying ? "A: Pause" : "A: Play ");
+						//printf ("\x1b[4;0H");
+						//printf(videoPlaying ? "A: Pause" : "A: Play ");
 					}
 					if (keysDown() & KEY_B) {
 						confirmStop = true;
@@ -267,15 +276,30 @@ void playRvid(FILE* rvid, const char* filename) {
 		scanKeys();
 		if (keysDown() & KEY_A) {
 			videoPlaying = !videoPlaying;
-			printf ("\x1b[4;0H");
-			printf(videoPlaying ? "A: Pause" : "A: Play ");
+			//printf ("\x1b[4;0H");
+			//printf(videoPlaying ? "A: Pause" : "A: Play ");
 		}
-		if (currentFrame > (int)rvidHeader.frames || confirmStop || keysDown() & KEY_B) {
+		if (currentFrame > (int)rvidHeader.frames) {
+			videoPlaying = false;
+			useBufferHalf = true;
+			loadFrame = false;
+			currentFrame = 0;
+			currentFrameInBuffer = 0;
+			frameDelay = 0;
+			frameDelayEven = true;
+
+			// Reload video
+			fseek(rvid, 0x200, SEEK_SET);
+			fread(frameBuffer, 1, (0x200*rvidHeader.vRes)*15, rvid);
+			loadedFrames = 14;
+		}
+		if (confirmStop || keysDown() & KEY_B) {
 			break;
 		}
 		swiWaitForVBlank();
 	}
 
+	showVideoGui = false;
 	videoPlaying = false;
 	useBufferHalf = true;
 	loadFrame = false;
@@ -343,6 +367,19 @@ int main(int argc, char **argv) {
 
 	videoSetMode(MODE_5_2D | DISPLAY_BG3_ACTIVE);
 	videoSetModeSub(MODE_3_2D | DISPLAY_BG3_ACTIVE);
+
+	// Initialize gl2d
+	glScreen2D();
+	// Make gl2d render on transparent stage.
+	glClearColor(31,31,31,0);
+	glDisable(GL_CLEAR_BMP);
+
+	// Clear the GL texture state
+	glResetTextures();
+
+	// sprites
+	vramSetBankA(VRAM_A_TEXTURE);
+	vramSetBankB(VRAM_B_TEXTURE);
 	vramSetBankC(VRAM_C_SUB_BG_0x06200000);
 	vramSetBankD(VRAM_D_MAIN_BG_0x06000000);
 
