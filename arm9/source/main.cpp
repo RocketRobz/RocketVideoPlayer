@@ -158,25 +158,6 @@ void renderFrames(void) {
 			} else {
 				snprintf(numberMark[2], sizeof(numberMark[2]), "%i", secondMark);
 			}
-			//printf("/");
-			// Full time stamp
-			if (videoHourMark < 10) {
-				snprintf(numberMark[3], sizeof(numberMark[3]), "0%i", videoHourMark);
-			} else {
-				snprintf(numberMark[3], sizeof(numberMark[3]), "%i", videoHourMark);
-			}
-			//printf(":");
-			if (videoMinuteMark < 10) {
-				snprintf(numberMark[4], sizeof(numberMark[4]), "0%i", videoMinuteMark);
-			} else {
-				snprintf(numberMark[4], sizeof(numberMark[4]), "%i", videoMinuteMark);
-			}
-			//printf(":");
-			if (videoSecondMark < 10) {
-				snprintf(numberMark[5], sizeof(numberMark[5]), "0%i", videoSecondMark);
-			} else {
-				snprintf(numberMark[5], sizeof(numberMark[5]), "%i", videoSecondMark);
-			}
 
 			snprintf(timeStamp, sizeof(timeStamp), "%s:%s:%s/%s:%s:%s",
 			numberMark[0], numberMark[1], numberMark[2], numberMark[3], numberMark[4], numberMark[5]);
@@ -332,6 +313,9 @@ void playRvid(FILE* rvid, const char* filename) {
 			currentFrameInBuffer = 0;
 			frameDelay = 0;
 			frameDelayEven = true;
+
+			snprintf(timeStamp, sizeof(timeStamp), "00:00:00/%s:%s:%s",
+			numberMark[3], numberMark[4], numberMark[5]);
 
 			// Reload video
 			fseek(rvid, 0x200, SEEK_SET);
