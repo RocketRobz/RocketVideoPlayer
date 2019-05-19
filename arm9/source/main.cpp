@@ -433,6 +433,9 @@ int main(int argc, char **argv) {
 	vramSetBankB(VRAM_B_TEXTURE);
 	vramSetBankC(VRAM_C_SUB_BG_0x06200000);
 	vramSetBankD(VRAM_D_MAIN_BG_0x06000000);
+	vramSetBankE(VRAM_E_TEX_PALETTE);
+	vramSetBankF(VRAM_F_TEX_PALETTE_SLOT4);
+	vramSetBankG(VRAM_G_TEX_PALETTE_SLOT5); // 16Kb of palette ram, and font textures take up 8*16 bytes.
 
 	REG_BG3CNT = BG_MAP_BASE(0) | BG_BMP16_256x256 | BG_PRIORITY(0);
 	REG_BG3X = 0;
