@@ -91,6 +91,10 @@ int loadedFrames = 0;
 int frameDelay = 0;
 bool frameDelayEven = true;
 
+char numberMark[6][6];
+
+char timeStamp[32];
+
 int hourMark = -1;
 int minuteMark = 59;
 int secondMark = 59;
@@ -136,44 +140,46 @@ void renderFrames(void) {
 				}
 			}
 
-			/*printf ("\x1b[2;0H");
 			// Current time stamp
 			if (hourMark < 10) {
-				printf("0%i", hourMark);
+				snprintf(numberMark[0], sizeof(numberMark[0]), "0%i", hourMark);
 			} else {
-				printf("%i", hourMark);
+				snprintf(numberMark[0], sizeof(numberMark[0]), "%i", hourMark);
 			}
-			printf(":");
+			//printf(":");
 			if (minuteMark < 10) {
-				printf("0%i", minuteMark);
+				snprintf(numberMark[1], sizeof(numberMark[1]), "0%i", minuteMark);
 			} else {
-				printf("%i", minuteMark);
+				snprintf(numberMark[1], sizeof(numberMark[1]), "%i", minuteMark);
 			}
-			printf(":");
+			//printf(":");
 			if (secondMark < 10) {
-				printf("0%i", secondMark);
+				snprintf(numberMark[2], sizeof(numberMark[2]), "0%i", secondMark);
 			} else {
-				printf("%i", secondMark);
+				snprintf(numberMark[2], sizeof(numberMark[2]), "%i", secondMark);
 			}
-			printf("/");
+			//printf("/");
 			// Full time stamp
 			if (videoHourMark < 10) {
-				printf("0%i", videoHourMark);
+				snprintf(numberMark[3], sizeof(numberMark[3]), "0%i", videoHourMark);
 			} else {
-				printf("%i", videoHourMark);
+				snprintf(numberMark[3], sizeof(numberMark[3]), "%i", videoHourMark);
 			}
-			printf(":");
+			//printf(":");
 			if (videoMinuteMark < 10) {
-				printf("0%i", videoMinuteMark);
+				snprintf(numberMark[4], sizeof(numberMark[4]), "0%i", videoMinuteMark);
 			} else {
-				printf("%i", videoMinuteMark);
+				snprintf(numberMark[4], sizeof(numberMark[4]), "%i", videoMinuteMark);
 			}
-			printf(":");
+			//printf(":");
 			if (videoSecondMark < 10) {
-				printf("0%i", videoSecondMark);
+				snprintf(numberMark[5], sizeof(numberMark[5]), "0%i", videoSecondMark);
 			} else {
-				printf("%i", videoSecondMark);
-			}*/
+				snprintf(numberMark[5], sizeof(numberMark[5]), "%i", videoSecondMark);
+			}
+
+			snprintf(timeStamp, sizeof(timeStamp), "%s:%s:%s/%s:%s:%s",
+			numberMark[0], numberMark[1], numberMark[2], numberMark[3], numberMark[4], numberMark[5]);
 
 			currentFrame++;
 			currentFrameInBuffer++;
@@ -219,12 +225,50 @@ void playRvid(FILE* rvid, const char* filename) {
 		}
 	}
 
+	// Full time stamp
+	if (videoHourMark < 10) {
+		snprintf(numberMark[3], sizeof(numberMark[3]), "0%i", videoHourMark);
+	} else {
+		snprintf(numberMark[3], sizeof(numberMark[3]), "%i", videoHourMark);
+	}
+	//printf(":");
+	if (videoMinuteMark < 10) {
+		snprintf(numberMark[4], sizeof(numberMark[4]), "0%i", videoMinuteMark);
+	} else {
+		snprintf(numberMark[4], sizeof(numberMark[4]), "%i", videoMinuteMark);
+	}
+	//printf(":");
+	if (videoSecondMark < 10) {
+		snprintf(numberMark[5], sizeof(numberMark[5]), "0%i", videoSecondMark);
+	} else {
+		snprintf(numberMark[5], sizeof(numberMark[5]), "%i", videoSecondMark);
+	}
+
+	snprintf(timeStamp, sizeof(timeStamp), "00:00:00/%s:%s:%s",
+	numberMark[3], numberMark[4], numberMark[5]);
+
 	fseek(rvid, 0x200, SEEK_SET);
 	fread(frameBuffer, 1, (0x200*rvidHeader.vRes)*15, rvid);
 	loadedFrames = 14;
-	consoleClear();
+
+	if (fadeType) {
+		fadeType = false;
+		for (int i = 0; i < 25; i++) {
+			swiWaitForVBlank();
+		}
+		consoleClear();
+	}
+
+	dmaFillHalfWords(0xFFFF, BG_GFX_SUB, 0x18000);	// Fill top screen with white
+
 	videoSetMode(MODE_5_3D);
 	showVideoGui = true;
+
+	fadeType = true;
+	for (int i = 0; i < 25; i++) {
+		swiWaitForVBlank();
+	}
+
 	/*printf(filename);
 	printf("\n");
 	printf("\n");
@@ -232,6 +276,7 @@ void playRvid(FILE* rvid, const char* filename) {
 	printf("\n");
 	printf("A: Pause\n");
 	printf("B: Stop");*/
+	dmaFillHalfWords(0, BG_GFX_SUB, 0x18000);	// Fill top screen with black
 	videoPlaying = true;
 	while (1) {
 		if ((currentFrame % 30) >= 0 && (currentFrame % 30) < 15) {
@@ -299,8 +344,14 @@ void playRvid(FILE* rvid, const char* filename) {
 		swiWaitForVBlank();
 	}
 
-	showVideoGui = false;
 	videoPlaying = false;
+
+	fadeType = false;
+	for (int i = 0; i < 25; i++) {
+		swiWaitForVBlank();
+	}
+
+	showVideoGui = false;
 	useBufferHalf = true;
 	loadFrame = false;
 	currentFrame = 0;
@@ -399,6 +450,8 @@ int main(int argc, char **argv) {
 	REG_BG3PC_SUB = 0;
 	REG_BG3PD_SUB = 1<<8;
 	
+	loadGraphics();
+	
 	if (nitroFSInited) {
 		LoadBMP(true, "nitro:/logo_rocketrobz.bmp");
 		LoadBMP(false, "nitro:/logo_rocketvideo.bmp");
@@ -414,8 +467,8 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	dmaFillWords(0, BG_GFX, 0x18000);		// Clear top screen
-	dmaFillWords(0, BG_GFX_SUB, 0x18000);	// Clear bottom screen
+	dmaFillHalfWords(0, BG_GFX, 0x18000);		// Clear top screen
+	dmaFillHalfWords(0, BG_GFX_SUB, 0x18000);	// Clear bottom screen
 
 	lcdMainOnBottom();
 
@@ -431,7 +484,7 @@ int main(int argc, char **argv) {
 		vramSetBankG(VRAM_G_MAIN_BG);
 		consoleInit(NULL, 0, BgType_Text4bpp, BgSize_T_256x256, 15, 0, true, true);
 
-		dmaFillWords(0, BG_GFX_SUB, 0x18000);	// Clear top screen
+		dmaFillHalfWords(0, BG_GFX_SUB, 0x18000);	// Clear top screen
 
 		filename = browseForFile(extensionList);
 

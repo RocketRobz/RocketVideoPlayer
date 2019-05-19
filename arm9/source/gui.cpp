@@ -1,6 +1,7 @@
 #include <nds.h>
 
 #include "gl2d.h"
+#include "graphics/fontHandler.h"
 
 typedef struct rvidHeaderInfo {
 	u32 formatString;	// "RVID" string
@@ -13,7 +14,16 @@ typedef struct rvidHeaderInfo {
 extern rvidHeaderInfo rvidHeader;
 extern int currentFrame;
 
+extern char timeStamp[32];
+
+void loadGraphics(void) {
+	fontInit();
+}
+
 void renderGui(void) {
+	clearText(false);
+	printSmallCentered(false, 120, timeStamp);
+
 	glBegin2D();
 	{
 		glBoxFilled(0, 0, 255, 191, RGB15(255/8, 255/8, 255/8));		// BG
@@ -30,6 +40,7 @@ void renderGui(void) {
 		glBoxFilled(14+(currentFrame/(rvidHeader.frames/184)), 136, 17+(currentFrame/(rvidHeader.frames/184)), 151, RGB15(255/8, 255/8, 255/8));	// Play bar slider
 		glBoxFilled(14+(currentFrame/(rvidHeader.frames/184)), 148, 17+(currentFrame/(rvidHeader.frames/184)), 151, RGB15(216/8, 216/8, 216/8));	// Play bar slider shading
 		*/
+		updateText(false);
 		glColor(RGB15(31, 31, 31));
 	}
 	glEnd2D();
