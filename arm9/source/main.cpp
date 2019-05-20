@@ -480,15 +480,19 @@ int main(int argc, char **argv) {
 	extensionList.push_back(".rvid");
 
 	while(1) {
-		clearBrightness();
-	
-		videoSetMode(MODE_0_2D);
-		vramSetBankG(VRAM_G_MAIN_BG);
-		consoleInit(NULL, 0, BgType_Text4bpp, BgSize_T_256x256, 15, 0, true, true);
+		if (argc >= 2) {
+			filename = argv[1];
+		} else {
+			clearBrightness();
+		
+			videoSetMode(MODE_0_2D);
+			vramSetBankG(VRAM_G_MAIN_BG);
+			consoleInit(NULL, 0, BgType_Text4bpp, BgSize_T_256x256, 15, 0, true, true);
 
-		dmaFillHalfWords(0, BG_GFX_SUB, 0x18000);	// Clear top screen
+			dmaFillHalfWords(0, BG_GFX_SUB, 0x18000);	// Clear top screen
 
-		filename = browseForFile(extensionList);
+			filename = browseForFile(extensionList);
+		}
 
 		if ( strcasecmp (filename.c_str() + filename.size() - 5, ".rvid") != 0 ) {
 			iprintf("No .rvid file specified.\n");
