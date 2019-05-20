@@ -31,10 +31,11 @@
 
 #include "file_browse.h"
 #include "gl2d.h"
+#include "sound.h"
 #include "gui.h"
 #include "nitrofs.h"
 
-u8 frameBuffer[0x2D0000];
+u8 frameBuffer[0x18000*28];
 bool useBufferHalf = true;
 
 typedef struct rvidHeaderInfo {
@@ -166,7 +167,7 @@ void renderFrames(void) {
 
 			currentFrame++;
 			currentFrameInBuffer++;
-			if (currentFrameInBuffer == 30) {
+			if (currentFrameInBuffer == 28) {
 				currentFrameInBuffer = 0;
 			}
 			frameDelayEven = !frameDelayEven;
@@ -231,8 +232,8 @@ void playRvid(FILE* rvid, const char* filename) {
 	numberMark[3], numberMark[4], numberMark[5]);
 
 	fseek(rvid, 0x200, SEEK_SET);
-	fread(frameBuffer, 1, (0x200*rvidHeader.vRes)*15, rvid);
-	loadedFrames = 14;
+	fread(frameBuffer, 1, (0x200*rvidHeader.vRes)*14, rvid);
+	loadedFrames = 13;
 
 	if (fadeType) {
 		fadeType = false;
@@ -261,10 +262,12 @@ void playRvid(FILE* rvid, const char* filename) {
 	printf("B: Stop");*/
 	dmaFillHalfWords(0, BG_GFX_SUB, 0x18000);	// Fill top screen with black
 	videoPlaying = true;
+	snd().beginStream();
 	while (1) {
-		if ((currentFrame % 30) >= 0 && (currentFrame % 30) < 15) {
+		if ((currentFrame % 28) >= 0 && (currentFrame % 28) < 14) {
 			if (useBufferHalf) {
-				for (int i = 15; i < 30; i++) {
+				for (int i = 14; i < 28; i++) {
+					snd().updateStream();
 					fread(frameBuffer+(i*(0x200*rvidHeader.vRes)), 1, 0x200*rvidHeader.vRes, rvid);
 					loadedFrames++;
 
@@ -284,9 +287,10 @@ void playRvid(FILE* rvid, const char* filename) {
 				}
 				useBufferHalf = false;
 			}
-		} else if ((currentFrame % 30) >= 15 && (currentFrame % 30) < 30) {
+		} else if ((currentFrame % 28) >= 14 && (currentFrame % 28) < 28) {
 			if (!useBufferHalf) {
-				for (int i = 0; i < 15; i++) {
+				for (int i = 0; i < 14; i++) {
+					snd().updateStream();
 					fread(frameBuffer+(i*(0x200*rvidHeader.vRes)), 1, 0x200*rvidHeader.vRes, rvid);
 					loadedFrames++;
 
@@ -316,6 +320,7 @@ void playRvid(FILE* rvid, const char* filename) {
 			//printf(videoPlaying ? "A: Pause" : "A: Play ");
 		}
 		if (currentFrame > (int)rvidHeader.frames) {
+			snd().stopStream();
 			videoPlaying = false;
 			useBufferHalf = true;
 			loadFrame = false;
@@ -333,8 +338,8 @@ void playRvid(FILE* rvid, const char* filename) {
 
 			// Reload video
 			fseek(rvid, 0x200, SEEK_SET);
-			fread(frameBuffer, 1, (0x200*rvidHeader.vRes)*15, rvid);
-			loadedFrames = 14;
+			fread(frameBuffer, 1, (0x200*rvidHeader.vRes)*14, rvid);
+			loadedFrames = 13;
 		}
 		if (confirmStop || keysDown() & KEY_B
 		|| ((keysDown() & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
@@ -343,6 +348,7 @@ void playRvid(FILE* rvid, const char* filename) {
 		swiWaitForVBlank();
 	}
 
+	snd().stopStream();
 	videoPlaying = false;
 
 	fadeType = false;
@@ -471,6 +477,7 @@ int main(int argc, char **argv) {
 
 	dmaFillHalfWords(0, BG_GFX, 0x18000);		// Clear top screen
 	dmaFillHalfWords(0, BG_GFX_SUB, 0x18000);	// Clear bottom screen
+	snd();
 
 	lcdMainOnBottom();
 

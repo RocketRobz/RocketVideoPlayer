@@ -28,6 +28,7 @@
 
 ---------------------------------------------------------------------------------*/
 #include <nds.h>
+#include <maxmod7.h>
 
 //---------------------------------------------------------------------------------
 void VblankHandler(void) {
@@ -71,6 +72,7 @@ int main() {
 	touchInit();
 	fifoInit();
 	
+	mmInstall(FIFO_MAXMOD);
 	SetYtrigger(80);
 	
 	installSoundFIFO();
