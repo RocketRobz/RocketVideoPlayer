@@ -393,11 +393,11 @@ void LoadBMP(bool top, const char* filename) {
 	fclose(file);
 }
 
+std::string filename;
+
 //---------------------------------------------------------------------------------
 int main(int argc, char **argv) {
 //---------------------------------------------------------------------------------
-
-	std::string filename;
 
 	if (!fatInitDefault()) {
 		consoleDemoInit();
@@ -481,7 +481,18 @@ int main(int argc, char **argv) {
 
 	while(1) {
 		if (argc >= 2) {
+			std::string vidFolder = argv[1];
+			while (!vidFolder.empty() && vidFolder[vidFolder.size()-1] != '/') {
+				vidFolder.resize(vidFolder.size()-1);
+			}
+			chdir(vidFolder.c_str());
+
 			filename = argv[1];
+			const size_t last_slash_idx = filename.find_last_of("/");
+			if (std::string::npos != last_slash_idx)
+			{
+				filename.erase(0, last_slash_idx + 1);
+			}
 		} else {
 			clearBrightness();
 		

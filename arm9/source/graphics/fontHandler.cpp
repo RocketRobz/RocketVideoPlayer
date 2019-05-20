@@ -29,9 +29,11 @@
 
 // GRIT auto-genrated arrays of images
 #include "small_font.h"
+#include "large_font.h"
 
 // Texture UV coords
 #include "uvcoord_date_time_font.h"
+#include "uvcoord_large_font.h"
 #include "TextPane.h"
 
 using namespace std;
@@ -40,6 +42,7 @@ FontGraphic smallFont;
 FontGraphic largeFont;
 
 glImage smallFontImages[DATE_TIME_FONT_NUM_IMAGES];
+glImage largeFontImages[LARGE_FONT_NUM_IMAGES];
 
 list<TextEntry> topText, bottomText;
 list<TextPane> panes;
@@ -62,9 +65,9 @@ void fontInit()
 				);
 
 	//Do the same with our bigger texture
-	/*largeFont.load(1, largeFontImages,
-				SMALL_FONT_NUM_IMAGES,
-				small_font_texcoords,
+	largeFont.load(1, largeFontImages,
+				LARGE_FONT_NUM_IMAGES,
+				large_font_texcoords,
 				GL_RGB16,
 				TEXTURE_SIZE_512,
 				TEXTURE_SIZE_256,
@@ -72,8 +75,8 @@ void fontInit()
 				4,
 				(u16*) large_fontPal,
 				(u8*) large_fontBitmap,
-				small_utf16_lookup_table
-				);*/
+				large_utf16_lookup_table
+				);
 }
 
 TextPane &createTextPane(int startX, int startY, int shownElements)

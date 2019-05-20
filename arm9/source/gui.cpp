@@ -18,6 +18,8 @@ extern rvidHeaderInfo rvidHeader;
 extern bool videoPlaying;
 extern int currentFrame;
 
+extern std::string filename;
+
 extern char timeStamp[32];
 
 static int buttonTexID[2];
@@ -58,6 +60,7 @@ void loadGraphics(void) {
 
 void renderGui(void) {
 	clearText(false);
+	printLarge(false, 4, 20, filename.c_str());
 	printSmallCentered(false, 120, timeStamp);
 
 	glBegin2D();
