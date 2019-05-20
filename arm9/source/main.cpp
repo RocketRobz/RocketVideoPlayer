@@ -80,6 +80,8 @@ void stop (void) {
 
 char filePath[PATH_MAX];
 
+touchPosition touch;
+
 FILE* rvid;
 bool showVideoGui = false;
 bool videoPlaying = false;
@@ -267,7 +269,9 @@ void playRvid(FILE* rvid, const char* filename) {
 					loadedFrames++;
 
 					scanKeys();
-					if (keysDown() & KEY_A) {
+					touchRead(&touch);
+					if (keysDown() & KEY_A
+					|| ((keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
 						videoPlaying = !videoPlaying;
 						//printf ("\x1b[4;0H");
 						//printf(videoPlaying ? "A: Pause" : "A: Play ");
@@ -286,7 +290,9 @@ void playRvid(FILE* rvid, const char* filename) {
 					loadedFrames++;
 
 					scanKeys();
-					if (keysDown() & KEY_A) {
+					touchRead(&touch);
+					if (keysDown() & KEY_A
+					|| ((keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
 						videoPlaying = !videoPlaying;
 						//printf ("\x1b[4;0H");
 						//printf(videoPlaying ? "A: Pause" : "A: Play ");
@@ -300,7 +306,9 @@ void playRvid(FILE* rvid, const char* filename) {
 			}
 		}
 		scanKeys();
-		if (keysDown() & KEY_A) {
+		touchRead(&touch);
+		if (keysDown() & KEY_A
+		|| ((keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
 			videoPlaying = !videoPlaying;
 			//printf ("\x1b[4;0H");
 			//printf(videoPlaying ? "A: Pause" : "A: Play ");
@@ -313,6 +321,10 @@ void playRvid(FILE* rvid, const char* filename) {
 			currentFrameInBuffer = 0;
 			frameDelay = 0;
 			frameDelayEven = true;
+
+			hourMark = -1;
+			minuteMark = 59;
+			secondMark = 59;
 
 			snprintf(timeStamp, sizeof(timeStamp), "00:00:00/%s:%s:%s",
 			numberMark[3], numberMark[4], numberMark[5]);
