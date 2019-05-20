@@ -276,7 +276,8 @@ void playRvid(FILE* rvid, const char* filename) {
 						//printf ("\x1b[4;0H");
 						//printf(videoPlaying ? "A: Pause" : "A: Play ");
 					}
-					if (keysDown() & KEY_B) {
+					if (keysDown() & KEY_B
+					|| ((keysDown() & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
 						confirmStop = true;
 						break;
 					}
@@ -297,7 +298,8 @@ void playRvid(FILE* rvid, const char* filename) {
 						//printf ("\x1b[4;0H");
 						//printf(videoPlaying ? "A: Pause" : "A: Play ");
 					}
-					if (keysDown() & KEY_B) {
+					if (keysDown() & KEY_B
+					|| ((keysDown() & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
 						confirmStop = true;
 						break;
 					}
@@ -334,7 +336,8 @@ void playRvid(FILE* rvid, const char* filename) {
 			fread(frameBuffer, 1, (0x200*rvidHeader.vRes)*15, rvid);
 			loadedFrames = 14;
 		}
-		if (confirmStop || keysDown() & KEY_B) {
+		if (confirmStop || keysDown() & KEY_B
+		|| ((keysDown() & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
 			break;
 		}
 		swiWaitForVBlank();
