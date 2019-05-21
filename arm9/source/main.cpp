@@ -491,6 +491,10 @@ int main(int argc, char **argv) {
 	vector<string> extensionList;
 	extensionList.push_back(".rvid");
 
+	if (argc < 2) {
+		chdir("/video");
+	}
+
 	while(1) {
 		if (argc >= 2) {
 			std::string vidFolder = argv[1];
@@ -507,7 +511,7 @@ int main(int argc, char **argv) {
 			}
 		} else {
 			clearBrightness();
-		
+
 			videoSetMode(MODE_0_2D);
 			vramSetBankG(VRAM_G_MAIN_BG);
 			consoleInit(NULL, 0, BgType_Text4bpp, BgSize_T_256x256, 15, 0, true, true);
