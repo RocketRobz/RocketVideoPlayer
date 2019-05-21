@@ -80,6 +80,7 @@ bool showVideoGui = false;
 bool videoPlaying = false;
 bool loadFrame = true;
 int videoYpos = 0;
+int frameOf60fps = 60;
 int currentFrame = 0;
 int currentFrameInBuffer = 0;
 int loadedFrames = 0;
@@ -110,11 +111,29 @@ void renderFrames(void) {
 	SetBrightness(1, screenBrightness);
 
 	if (videoPlaying && currentFrame <= loadedFrames) {
+		frameOf60fps++;
+		if (frameOf60fps > 60) frameOf60fps = 1;
 		if (!loadFrame) {
 			frameDelay++;
 			switch (rvidHeader.fps) {
+				case 11:
+					loadFrame = (frameDelay == 5+frameDelayEven);
+					break;
 				case 24:
+				case 25:
 					loadFrame = (frameDelay == 2+frameDelayEven);
+					break;
+				case 50:
+					loadFrame =   (frameOf60fps != 3
+								&& frameOf60fps != 9
+								&& frameOf60fps != 16
+								&& frameOf60fps != 22
+								&& frameOf60fps != 28
+								&& frameOf60fps != 34
+								&& frameOf60fps != 40
+								&& frameOf60fps != 46
+								&& frameOf60fps != 51
+								&& frameOf60fps != 58);
 					break;
 				default:
 					loadFrame = (frameDelay == 60/rvidHeader.fps);
@@ -164,7 +183,21 @@ void renderFrames(void) {
 			if (currentFrameInBuffer == 28) {
 				currentFrameInBuffer = 0;
 			}
-			frameDelayEven = !frameDelayEven;
+			switch (rvidHeader.fps) {
+				case 11:
+					if ((currentFrame % 10) < 10) {
+						frameDelayEven = !frameDelayEven;
+					}
+					break;
+				case 24:
+					frameDelayEven = !frameDelayEven;
+					break;
+				case 25:
+					if ((currentFrame % 24) != 10 && (currentFrame % 24) != 21) {
+						frameDelayEven = !frameDelayEven;
+					}
+					break;
+			}
 			frameDelay = 0;
 			loadFrame = false;
 		}
@@ -334,6 +367,7 @@ void playRvid(FILE* rvid, const char* filename) {
 
 			useBufferHalf = true;
 			loadFrame = true;
+			frameOf60fps = 60;
 			currentFrame = 0;
 			currentFrameInBuffer = 0;
 			frameDelay = 0;
@@ -364,6 +398,7 @@ void playRvid(FILE* rvid, const char* filename) {
 	showVideoGui = false;
 	useBufferHalf = true;
 	loadFrame = true;
+	frameOf60fps = 60;
 	currentFrame = 0;
 	currentFrameInBuffer = 0;
 	frameDelay = 0;
