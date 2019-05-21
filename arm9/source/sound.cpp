@@ -3,6 +3,7 @@
 #include "streamingaudio.h"
 #include "string.h"
 #include "tonccpy.h"
+#include "rvidHeader.h"
 #include <algorithm>
 
 #define MSL_NSONGS		0
@@ -32,6 +33,8 @@ extern char debug_buf[256];
 
 extern volatile u32 sample_delay_count;
 
+bool streamFound = false;
+
 mm_word SOUNDBANK[MSL_BANKSIZE] = {0};
 
 SoundControl::SoundControl()
@@ -44,18 +47,30 @@ SoundControl::SoundControl()
 	sys.fifo_channel = FIFO_MAXMOD;
 
 	mmInit(&sys);
+}
 
-	stream_source = fopen("nitro:/shopbg.pcm.raw", "rb");
+void SoundControl::loadStreamFromRvid(const char* filename) {
+	if (stream_source) fclose(stream_source);
+
+	stream_source = fopen(filename, "rb");
 	
+	if (!rvidHeader.hasSound) {
+		streamFound = false;
+		fclose(stream_source);
+		return;
+	}
 
-	fseek(stream_source, 0, SEEK_SET);
+	fseek(stream_source, (0x200*rvidHeader.vRes)*rvidHeader.frames, SEEK_SET);
 
-	stream.sampling_rate = 16000;	 		// 16000Hz
+	resetStreamSettings();
+
+	stream.sampling_rate = rvidHeader.sampleRate;
 	stream.buffer_length = 800;	  			// should be adequate
 	stream.callback = on_stream_request;    
 	stream.format = MM_STREAM_16BIT_MONO;  // select format
 	stream.timer = MM_TIMER0;	    	   // use timer0
 	stream.manual = false;	      		   // auto filling
+	streamFound = true;
 	
 	// Prep the first section of the stream
 	fread((void*)play_stream_buf, sizeof(s16), STREAMING_BUF_LENGTH, stream_source);
@@ -66,6 +81,8 @@ SoundControl::SoundControl()
 }
 
 void SoundControl::beginStream() {
+	if (!streamFound) return;
+
 	// open the stream
 	stream_is_playing = true;
 	mmStreamOpen(&stream);
@@ -73,15 +90,18 @@ void SoundControl::beginStream() {
 }
 
 void SoundControl::stopStream() {
+	if (!streamFound) return;
+
 	stream_is_playing = false;
 	mmStreamClose();
 }
 
 void SoundControl::resetStream() {
-	fseek(stream_source, 0, SEEK_SET);
+	if (!streamFound) return;
 
-	filled_samples = 0;
-	fill_requested = true;
+	fseek(stream_source, (0x200*rvidHeader.vRes)*rvidHeader.frames, SEEK_SET);
+
+	resetStreamSettings();
 
 	// Prep the first section of the stream
 	fread((void*)play_stream_buf, sizeof(s16), STREAMING_BUF_LENGTH, stream_source);
@@ -137,7 +157,7 @@ volatile void SoundControl::updateStream() {
 		// If we don't read enough samples, loop from the beginning of the file.
 		instance_filled = fread((s16*)fill_stream_buf + filled_samples, sizeof(s16), instance_to_fill, stream_source);		
 		if (instance_filled < instance_to_fill) {
-			fseek(stream_source, 0, SEEK_SET);
+			fseek(stream_source, (0x200*rvidHeader.vRes)*rvidHeader.frames, SEEK_SET);
 			instance_filled += fread((s16*)fill_stream_buf + filled_samples + instance_filled,
 				 sizeof(s16), (instance_to_fill - instance_filled), stream_source);
 		}

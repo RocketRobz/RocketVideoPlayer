@@ -19,6 +19,7 @@
 extern "C" {
 #endif
 
+void resetStreamSettings();
 mm_word on_stream_request(mm_word length, mm_addr dest, mm_stream_formats format);
 
 #ifdef __cplusplus

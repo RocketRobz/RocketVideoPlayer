@@ -6,15 +6,8 @@
 #include "buttons.h"
 #include "large_buttons.h"
 
-typedef struct rvidHeaderInfo {
-	u32 formatString;	// "RVID" string
-	u32 ver;			// File format version
-	u32 frames;			// Number of frames
-	u8 fps;				// Frames per second
-	u8 vRes;			// Vertical resolution
-} rvidHeaderInfo;
+#include "rvidHeader.h"
 
-extern rvidHeaderInfo rvidHeader;
 extern bool videoPlaying;
 extern int currentFrame;
 

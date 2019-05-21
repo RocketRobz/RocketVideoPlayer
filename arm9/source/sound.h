@@ -18,6 +18,7 @@ class SoundControl {
         // Refill the stream buffers
         volatile void updateStream();
 
+		void loadStreamFromRvid(const char* filename);
         void beginStream();
         void stopStream();
         void resetStream();

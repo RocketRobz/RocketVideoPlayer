@@ -35,18 +35,10 @@
 #include "gui.h"
 #include "nitrofs.h"
 
+#include "rvidHeader.h"
+
 u8 frameBuffer[0x18000*28];
 bool useBufferHalf = true;
-
-typedef struct rvidHeaderInfo {
-	u32 formatString;	// "RVID" string
-	u32 ver;			// File format version
-	u32 frames;			// Number of frames
-	u8 fps;				// Frames per second
-	u8 vRes;			// Vertical resolution
-} rvidHeaderInfo;
-
-rvidHeaderInfo rvidHeader;
 
 bool fadeType = false;
 
@@ -238,6 +230,8 @@ void playRvid(FILE* rvid, const char* filename) {
 	fread(frameBuffer, 1, (0x200*rvidHeader.vRes)*14, rvid);
 	loadedFrames = 13;
 
+	snd().loadStreamFromRvid(filename);
+
 	if (fadeType) {
 		fadeType = false;
 		for (int i = 0; i < 25; i++) {
@@ -329,6 +323,7 @@ void playRvid(FILE* rvid, const char* filename) {
 		}
 		if (currentFrame > (int)rvidHeader.frames) {
 			videoPlaying = false;
+			snd().stopStream();
 
 			hourMark = -1;
 			minuteMark = 59;
@@ -336,9 +331,6 @@ void playRvid(FILE* rvid, const char* filename) {
 
 			snprintf(timeStamp, sizeof(timeStamp), "00:00:00/%s:%s:%s",
 			numberMark[3], numberMark[4], numberMark[5]);
-
-			snd().stopStream();
-			snd().resetStream();
 
 			useBufferHalf = true;
 			loadFrame = true;
@@ -351,6 +343,8 @@ void playRvid(FILE* rvid, const char* filename) {
 			fseek(rvid, 0x200, SEEK_SET);
 			fread(frameBuffer, 1, (0x200*rvidHeader.vRes)*14, rvid);
 			loadedFrames = 13;
+
+			snd().resetStream();
 		}
 		if (confirmStop || keysDown() & KEY_B
 		|| ((keysDown() & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
@@ -366,8 +360,6 @@ void playRvid(FILE* rvid, const char* filename) {
 	for (int i = 0; i < 25; i++) {
 		swiWaitForVBlank();
 	}
-
-	snd().resetStream();
 
 	showVideoGui = false;
 	useBufferHalf = true;
