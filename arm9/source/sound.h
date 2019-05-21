@@ -20,6 +20,7 @@ class SoundControl {
 
         void beginStream();
         void stopStream();
+        void resetStream();
         void fadeOutStream();
         void cancelFadeOutStream();
 

@@ -86,7 +86,7 @@ touchPosition touch;
 FILE* rvid;
 bool showVideoGui = false;
 bool videoPlaying = false;
-bool loadFrame = false;
+bool loadFrame = true;
 int videoYpos = 0;
 int currentFrame = 0;
 int currentFrameInBuffer = 0;
@@ -112,20 +112,22 @@ void renderFrames(void) {
 		if (screenBrightness < 0) screenBrightness = 0;
 	} else {
 		screenBrightness++;
-		if (screenBrightness > 31) screenBrightness = 31;
+		if (screenBrightness > 25) screenBrightness = 25;
 	}
 	SetBrightness(0, screenBrightness);
 	SetBrightness(1, screenBrightness);
 
 	if (videoPlaying && currentFrame <= loadedFrames) {
-		frameDelay++;
-		switch (rvidHeader.fps) {
-			case 24:
-				loadFrame = (frameDelay == 2+frameDelayEven);
-				break;
-			default:
-				loadFrame = (frameDelay == 60/rvidHeader.fps);
-				break;
+		if (!loadFrame) {
+			frameDelay++;
+			switch (rvidHeader.fps) {
+				case 24:
+					loadFrame = (frameDelay == 2+frameDelayEven);
+					break;
+				default:
+					loadFrame = (frameDelay == 60/rvidHeader.fps);
+					break;
+			}
 		}
 		if (loadFrame) {
 			if (currentFrame < (int)rvidHeader.frames) {
@@ -172,6 +174,7 @@ void renderFrames(void) {
 			}
 			frameDelayEven = !frameDelayEven;
 			frameDelay = 0;
+			loadFrame = false;
 		}
 	}
 
@@ -253,13 +256,6 @@ void playRvid(FILE* rvid, const char* filename) {
 		swiWaitForVBlank();
 	}
 
-	/*printf(filename);
-	printf("\n");
-	printf("\n");
-	printf("\n");
-	printf("\n");
-	printf("A: Pause\n");
-	printf("B: Stop");*/
 	dmaFillHalfWords(0, BG_GFX_SUB, 0x18000);	// Fill top screen with black
 	videoPlaying = true;
 	snd().beginStream();
@@ -275,9 +271,13 @@ void playRvid(FILE* rvid, const char* filename) {
 					touchRead(&touch);
 					if (keysDown() & KEY_A
 					|| ((keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
-						videoPlaying = !videoPlaying;
-						//printf ("\x1b[4;0H");
-						//printf(videoPlaying ? "A: Pause" : "A: Play ");
+						if (videoPlaying) {
+							videoPlaying = false;
+							snd().stopStream();
+						} else {
+							videoPlaying = true;
+							snd().beginStream();
+						}
 					}
 					if (keysDown() & KEY_B
 					|| ((keysDown() & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
@@ -298,9 +298,13 @@ void playRvid(FILE* rvid, const char* filename) {
 					touchRead(&touch);
 					if (keysDown() & KEY_A
 					|| ((keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
-						videoPlaying = !videoPlaying;
-						//printf ("\x1b[4;0H");
-						//printf(videoPlaying ? "A: Pause" : "A: Play ");
+						if (videoPlaying) {
+							videoPlaying = false;
+							snd().stopStream();
+						} else {
+							videoPlaying = true;
+							snd().beginStream();
+						}
 					}
 					if (keysDown() & KEY_B
 					|| ((keysDown() & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
@@ -315,15 +319,20 @@ void playRvid(FILE* rvid, const char* filename) {
 		touchRead(&touch);
 		if (keysDown() & KEY_A
 		|| ((keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
-			videoPlaying = !videoPlaying;
-			//printf ("\x1b[4;0H");
-			//printf(videoPlaying ? "A: Pause" : "A: Play ");
+			if (videoPlaying) {
+				videoPlaying = false;
+				snd().stopStream();
+			} else {
+				videoPlaying = true;
+				snd().beginStream();
+			}
 		}
 		if (currentFrame > (int)rvidHeader.frames) {
-			snd().stopStream();
 			videoPlaying = false;
+			snd().stopStream();
+			snd().resetStream();
 			useBufferHalf = true;
-			loadFrame = false;
+			loadFrame = true;
 			currentFrame = 0;
 			currentFrameInBuffer = 0;
 			frameDelay = 0;
@@ -348,17 +357,19 @@ void playRvid(FILE* rvid, const char* filename) {
 		swiWaitForVBlank();
 	}
 
-	snd().stopStream();
 	videoPlaying = false;
+	snd().stopStream();
 
 	fadeType = false;
 	for (int i = 0; i < 25; i++) {
 		swiWaitForVBlank();
 	}
 
+	snd().resetStream();
+
 	showVideoGui = false;
 	useBufferHalf = true;
-	loadFrame = false;
+	loadFrame = true;
 	currentFrame = 0;
 	currentFrameInBuffer = 0;
 	frameDelay = 0;

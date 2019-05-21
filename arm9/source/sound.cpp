@@ -77,6 +77,19 @@ void SoundControl::stopStream() {
 	mmStreamClose();
 }
 
+void SoundControl::resetStream() {
+	fseek(stream_source, 0, SEEK_SET);
+
+	filled_samples = 0;
+	fill_requested = true;
+
+	// Prep the first section of the stream
+	fread((void*)play_stream_buf, sizeof(s16), STREAMING_BUF_LENGTH, stream_source);
+
+	// Fill the next section premptively
+	fread((void*)fill_stream_buf, sizeof(s16), STREAMING_BUF_LENGTH, stream_source);
+}
+
 void SoundControl::fadeOutStream() {
 	fade_out = true;
 }
