@@ -329,14 +329,6 @@ void playRvid(FILE* rvid, const char* filename) {
 		}
 		if (currentFrame > (int)rvidHeader.frames) {
 			videoPlaying = false;
-			snd().stopStream();
-			snd().resetStream();
-			useBufferHalf = true;
-			loadFrame = true;
-			currentFrame = 0;
-			currentFrameInBuffer = 0;
-			frameDelay = 0;
-			frameDelayEven = true;
 
 			hourMark = -1;
 			minuteMark = 59;
@@ -344,6 +336,16 @@ void playRvid(FILE* rvid, const char* filename) {
 
 			snprintf(timeStamp, sizeof(timeStamp), "00:00:00/%s:%s:%s",
 			numberMark[3], numberMark[4], numberMark[5]);
+
+			snd().stopStream();
+			snd().resetStream();
+
+			useBufferHalf = true;
+			loadFrame = true;
+			currentFrame = 0;
+			currentFrameInBuffer = 0;
+			frameDelay = 0;
+			frameDelayEven = true;
 
 			// Reload video
 			fseek(rvid, 0x200, SEEK_SET);
