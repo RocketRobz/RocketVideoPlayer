@@ -60,7 +60,7 @@ void SoundControl::loadStreamFromRvid(const char* filename) {
 		return;
 	}
 
-	fseek(stream_source, (0x200*rvidHeader.vRes)*rvidHeader.frames, SEEK_SET);
+	fseek(stream_source, 0x200+((0x200*rvidHeader.vRes)*rvidHeader.frames), SEEK_SET);
 
 	resetStreamSettings();
 
@@ -99,7 +99,7 @@ void SoundControl::stopStream() {
 void SoundControl::resetStream() {
 	if (!streamFound) return;
 
-	fseek(stream_source, (0x200*rvidHeader.vRes)*rvidHeader.frames, SEEK_SET);
+	fseek(stream_source, 0x200+((0x200*rvidHeader.vRes)*rvidHeader.frames), SEEK_SET);
 
 	resetStreamSettings();
 
@@ -157,7 +157,7 @@ volatile void SoundControl::updateStream() {
 		// If we don't read enough samples, loop from the beginning of the file.
 		instance_filled = fread((s16*)fill_stream_buf + filled_samples, sizeof(s16), instance_to_fill, stream_source);		
 		if (instance_filled < instance_to_fill) {
-			fseek(stream_source, (0x200*rvidHeader.vRes)*rvidHeader.frames, SEEK_SET);
+			fseek(stream_source, 0x200+((0x200*rvidHeader.vRes)*rvidHeader.frames), SEEK_SET);
 			instance_filled += fread((s16*)fill_stream_buf + filled_samples + instance_filled,
 				 sizeof(s16), (instance_to_fill - instance_filled), stream_source);
 		}
