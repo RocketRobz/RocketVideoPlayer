@@ -35,6 +35,8 @@
 #include "gui.h"
 #include "nitrofs.h"
 
+#include "myDma.h"
+
 #include "rvidHeader.h"
 
 u8 frameBuffer[0x18000*28];
@@ -283,9 +285,9 @@ void playRvid(FILE* rvid, const char* filename) {
 		swiWaitForVBlank();
 	}
 
-	dmaFillHalfWords(0, BG_GFX_SUB, 0x18000);	// Fill top screen with black
-	videoPlaying = true;
+	dmaFillHalfWordsAsynch(0, 0, BG_GFX_SUB, 0x18000);	// Fill top screen with black
 	snd().beginStream();
+	videoPlaying = true;
 	while (1) {
 		if ((currentFrame % 28) >= 0 && (currentFrame % 28) < 14) {
 			if (useBufferHalf) {

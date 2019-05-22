@@ -81,7 +81,7 @@ void SoundControl::loadStreamFromRvid(const char* filename) {
 }
 
 void SoundControl::beginStream() {
-	if (!streamFound) return;
+	if (!streamFound || stream_is_playing) return;
 
 	// open the stream
 	stream_is_playing = true;
@@ -90,7 +90,7 @@ void SoundControl::beginStream() {
 }
 
 void SoundControl::stopStream() {
-	if (!streamFound) return;
+	if (!streamFound || !stream_is_playing) return;
 
 	stream_is_playing = false;
 	mmStreamClose();
