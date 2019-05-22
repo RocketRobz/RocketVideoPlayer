@@ -40,6 +40,7 @@
 #include "rvidHeader.h"
 
 bool isRegularDS = true;
+bool hasMemoryExpansionPak = false;
 bool isDevConsole = false;
 bool extendedMemory = false;
 
@@ -225,6 +226,9 @@ int playRvid(const char* filename) {
 	bool confirmStop = false;
 
 	if (rvidHeader.fps > 24) {
+		if (!hasMemoryExpansionPak && !extendedMemory) {
+			return 2;
+		}
 		if ((0x200*rvidHeader.vRes)*(rvidHeader.frames+1) > rvidSizeAllowed) {
 			return 1;
 		}
@@ -584,7 +588,8 @@ int main(int argc, char **argv) {
 	if (isRegularDS) {
 		sysSetCartOwner (BUS_OWNER_ARM9);	// Allow arm9 to access GBA ROM (or in this case, the DS Memory Expansion Pak)
 		*(vu32*)(0x08240000) = 1;
-		if (*(vu32*)(0x08240000) == 1) {
+		hasMemoryExpansionPak = (*(vu32*)(0x08240000) == 1);
+		if (hasMemoryExpansionPak) {
 			frameBufferExtended = (u8*)0x09000000;
 		}
 	}
@@ -654,7 +659,29 @@ int main(int argc, char **argv) {
 				} else {
 					int err = playRvid(filename.c_str());
 					fclose(rvid);
-					if (err == 1) {
+					if (err == 2) {
+						consoleClear();
+						printf("Rocket Video file is above\n");
+						printf("24FPS.\n");
+						printf("\n");
+						if (isRegularDS) {
+							printf("Please insert the DS Memory\n");
+							printf("Expansion Pak, then restart\n");
+							printf("the app.\n");
+						} else {
+							printf("Please restart the app from\n");
+							printf("a DSi-mode flashcard, or the\n");
+							printf("SD card.\n");
+						}
+						printf("\n");
+						printf("A: OK\n");
+						while (1) {
+							scanKeys();
+							if ((keysDown() & KEY_A) && argc < 2) {
+								break;
+							}
+						}
+					} else if (err == 1) {
 						consoleClear();
 						printf("25-60FPS Rocket Video file\n");
 						printf("is too big!\n");
