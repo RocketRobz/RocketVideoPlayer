@@ -10,6 +10,7 @@
 
 extern bool videoPlaying;
 extern int currentFrame;
+extern int loadedFrames;
 
 extern std::string filename;
 
@@ -59,8 +60,13 @@ void renderGui(void) {
 	glBegin2D();
 	{
 		glBoxFilled(0, 0, 255, 191, RGB15(255/8, 255/8, 255/8));		// BG
-		glBoxFilled(0, 0, 255, 59, RGB15(0/8, 176/8, 248/8));			// Title bar
-		glBoxFilled(0, 58, 255, 58, RGB15(160/8, 224/8, 248/8));		// Title bar edge
+		/*if (currentFrame > loadedFrames) {
+			glBoxFilled(0, 0, 255, 59, RGB15(248/8, 0/8, 0/8));			// Title bar
+			glBoxFilled(0, 58, 255, 58, RGB15(255/8, 0/8, 0/8));		// Title bar edge
+		} else {*/
+			glBoxFilled(0, 0, 255, 59, RGB15(0/8, 176/8, 248/8));			// Title bar
+			glBoxFilled(0, 58, 255, 58, RGB15(160/8, 224/8, 248/8));		// Title bar edge
+		//}
 		glBoxFilled(0, 160, 255, 191, RGB15(184/8, 184/8, 184/8));	// Bottom gray bar
 		glBoxFilled(14, 142, 241, 145, RGB15(152/8, 152/8, 152/8));	// Play bar horizontal edge
 		glBoxFilled(15, 141, 240, 146, RGB15(152/8, 152/8, 152/8));	// Play bar mid edge

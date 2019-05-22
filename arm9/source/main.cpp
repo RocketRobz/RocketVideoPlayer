@@ -39,7 +39,8 @@
 
 #include "rvidHeader.h"
 
-u8 frameBuffer[0x18000*28];
+u8 frameBuffer[0x18000*28];					// 28 frames in buffer
+u8* frameBuffer_dsiMode = (u8*)0x02600000;	// 50 frames in buffer
 bool useBufferHalf = true;
 
 bool fadeType = false;
@@ -144,7 +145,11 @@ void renderFrames(void) {
 		}
 		if (loadFrame) {
 			if (currentFrame < (int)rvidHeader.frames) {
-				dmaCopyAsynch(frameBuffer+(currentFrameInBuffer*(0x200*rvidHeader.vRes)), (u16*)BG_GFX_SUB+(256*videoYpos), 0x200*rvidHeader.vRes);
+				if (isDSiMode()) {
+					dmaCopyAsynch(frameBuffer_dsiMode+(currentFrameInBuffer*(0x200*rvidHeader.vRes)), (u16*)BG_GFX_SUB+(256*videoYpos), 0x200*rvidHeader.vRes);
+				} else {
+					dmaCopyAsynch(frameBuffer+(currentFrameInBuffer*(0x200*rvidHeader.vRes)), (u16*)BG_GFX_SUB+(256*videoYpos), 0x200*rvidHeader.vRes);
+				}
 			}
 			if ((currentFrame % rvidHeader.fps) == 0) {
 				secondMark++;
@@ -182,7 +187,7 @@ void renderFrames(void) {
 
 			currentFrame++;
 			currentFrameInBuffer++;
-			if (currentFrameInBuffer == 28) {
+			if (currentFrameInBuffer == (isDSiMode() ? 50 : 28)) {
 				currentFrameInBuffer = 0;
 			}
 			switch (rvidHeader.fps) {
@@ -262,8 +267,13 @@ void playRvid(FILE* rvid, const char* filename) {
 	numberMark[3], numberMark[4], numberMark[5]);
 
 	fseek(rvid, 0x200, SEEK_SET);
-	fread(frameBuffer, 1, (0x200*rvidHeader.vRes)*14, rvid);
-	loadedFrames = 13;
+	if (isDSiMode()) {
+		fread(frameBuffer_dsiMode, 1, (0x200*rvidHeader.vRes)*25, rvid);
+		loadedFrames = 24;
+	} else {
+		fread(frameBuffer, 1, (0x200*rvidHeader.vRes)*14, rvid);
+		loadedFrames = 13;
+	}
 
 	snd().loadStreamFromRvid(filename);
 
@@ -285,15 +295,21 @@ void playRvid(FILE* rvid, const char* filename) {
 		swiWaitForVBlank();
 	}
 
-	dmaFillHalfWordsAsynch(0, 0, BG_GFX_SUB, 0x18000);	// Fill top screen with black
-	snd().beginStream();
+	if (rvidHeader.vRes < 192) {
+		dmaFillHalfWordsAsynch(3, 0, BG_GFX_SUB, 0x18000);	// Fill top screen with black
+	}
 	videoPlaying = true;
+	snd().beginStream();
 	while (1) {
-		if ((currentFrame % 28) >= 0 && (currentFrame % 28) < 14) {
+		if ((currentFrame % (isDSiMode() ? 50 : 28)) >= 0 && (currentFrame % (isDSiMode() ? 50 : 28)) < (isDSiMode() ? 25 : 14)) {
 			if (useBufferHalf) {
-				for (int i = 14; i < 28; i++) {
+				for (int i = (isDSiMode() ? 25 : 14); i < (isDSiMode() ? 50 : 28); i++) {
 					snd().updateStream();
-					fread(frameBuffer+(i*(0x200*rvidHeader.vRes)), 1, 0x200*rvidHeader.vRes, rvid);
+					if (isDSiMode()) {
+						fread(frameBuffer_dsiMode+(i*(0x200*rvidHeader.vRes)), 1, 0x200*rvidHeader.vRes, rvid);
+					} else {
+						fread(frameBuffer+(i*(0x200*rvidHeader.vRes)), 1, 0x200*rvidHeader.vRes, rvid);
+					}
 					loadedFrames++;
 
 					scanKeys();
@@ -316,11 +332,15 @@ void playRvid(FILE* rvid, const char* filename) {
 				}
 				useBufferHalf = false;
 			}
-		} else if ((currentFrame % 28) >= 14 && (currentFrame % 28) < 28) {
+		} else if ((currentFrame % (isDSiMode() ? 50 : 28)) >= (isDSiMode() ? 25 : 14) && (currentFrame % (isDSiMode() ? 50 : 28)) < (isDSiMode() ? 50 : 28)) {
 			if (!useBufferHalf) {
-				for (int i = 0; i < 14; i++) {
+				for (int i = 0; i < (isDSiMode() ? 25 : 14); i++) {
 					snd().updateStream();
-					fread(frameBuffer+(i*(0x200*rvidHeader.vRes)), 1, 0x200*rvidHeader.vRes, rvid);
+					if (isDSiMode()) {
+						fread(frameBuffer_dsiMode+(i*(0x200*rvidHeader.vRes)), 1, 0x200*rvidHeader.vRes, rvid);
+					} else {
+						fread(frameBuffer+(i*(0x200*rvidHeader.vRes)), 1, 0x200*rvidHeader.vRes, rvid);
+					}
 					loadedFrames++;
 
 					scanKeys();
@@ -377,8 +397,13 @@ void playRvid(FILE* rvid, const char* filename) {
 
 			// Reload video
 			fseek(rvid, 0x200, SEEK_SET);
-			fread(frameBuffer, 1, (0x200*rvidHeader.vRes)*14, rvid);
-			loadedFrames = 13;
+			if (isDSiMode()) {
+				fread(frameBuffer_dsiMode, 1, (0x200*rvidHeader.vRes)*25, rvid);
+				loadedFrames = 24;
+			} else {
+				fread(frameBuffer, 1, (0x200*rvidHeader.vRes)*14, rvid);
+				loadedFrames = 13;
+			}
 
 			snd().resetStream();
 		}
