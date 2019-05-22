@@ -225,6 +225,10 @@ void renderFrames(void) {
 int playRvid(const char* filename) {
 	bool confirmStop = false;
 
+	if (rvidHeader.ver > 1) {
+		return 3;
+	}
+
 	if (rvidHeader.fps > 24) {
 		if (!hasMemoryExpansionPak && !extendedMemory) {
 			return 2;
@@ -661,10 +665,18 @@ int main(int argc, char **argv) {
 				} else {
 					int err = playRvid(filename.c_str());
 					fclose(rvid);
-					if (err == 2) {
+					if (err == 3) {
 						consoleClear();
-						printf("Rocket Video file is above\n");
-						printf("24FPS.\n");
+						printf("This Rocket Video file\n");
+						printf("contains a version higher than\n");
+						printf("the player supports.\n");
+						printf("\n");
+						printf("Please update the player to\n");
+						printf("the latest version.\n");
+					} else if (err == 2) {
+						consoleClear();
+						printf("This Rocket Video file is\n");
+						printf("above 24FPS.\n");
 						printf("\n");
 						if (isRegularDS) {
 							printf("Please insert the DS Memory\n");
@@ -675,21 +687,15 @@ int main(int argc, char **argv) {
 							printf("a DSi-mode flashcard, or the\n");
 							printf("SD card.\n");
 						}
-						printf("\n");
-						printf("A: OK\n");
-						while (1) {
-							scanKeys();
-							if ((keysDown() & KEY_A) && argc < 2) {
-								break;
-							}
-						}
 					} else if (err == 1) {
 						consoleClear();
-						printf("25-60FPS Rocket Video file\n");
-						printf("is too big!\n");
+						printf("This 25-60FPS Rocket Video\n");
+						printf("file is too big!\n");
 						printf("\n");
 						printf("Please use less frames, and/or\n");
 						printf("reduce vertical resolution.\n");
+					}
+					if (err > 0) {
 						printf("\n");
 						printf("A: OK\n");
 						while (1) {
