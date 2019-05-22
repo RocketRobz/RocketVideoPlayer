@@ -233,6 +233,8 @@ int playRvid(const char* filename) {
 			return 1;
 		}
 		rvidInRam = true;
+	} else {
+		rvidInRam = false;
 	}
 
 	videoYpos = 0;
