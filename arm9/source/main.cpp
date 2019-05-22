@@ -39,8 +39,12 @@
 
 #include "rvidHeader.h"
 
+bool isRegularDS = true;
+bool isDevConsole = false;
+bool extendedMemory = false;
+
 u8 frameBuffer[0x18000*28];					// 28 frames in buffer
-u8* frameBuffer_dsiMode = (u8*)0x02600000;	// 50 frames in buffer
+u8* frameBufferExtended = (u8*)0x02600000;	// 50 frames in buffer
 bool useBufferHalf = true;
 
 bool fadeType = false;
@@ -79,6 +83,8 @@ char filePath[PATH_MAX];
 touchPosition touch;
 
 FILE* rvid;
+bool rvidInRam = false;
+u32 rvidSizeAllowed = 0x800000;
 bool showVideoGui = false;
 bool videoPlaying = false;
 bool loadFrame = true;
@@ -145,8 +151,8 @@ void renderFrames(void) {
 		}
 		if (loadFrame) {
 			if (currentFrame < (int)rvidHeader.frames) {
-				if (isDSiMode()) {
-					dmaCopyAsynch(frameBuffer_dsiMode+(currentFrameInBuffer*(0x200*rvidHeader.vRes)), (u16*)BG_GFX_SUB+(256*videoYpos), 0x200*rvidHeader.vRes);
+				if (rvidInRam || extendedMemory) {
+					dmaCopyAsynch(frameBufferExtended+(currentFrameInBuffer*(0x200*rvidHeader.vRes)), (u16*)BG_GFX_SUB+(256*videoYpos), 0x200*rvidHeader.vRes);
 				} else {
 					dmaCopyAsynch(frameBuffer+(currentFrameInBuffer*(0x200*rvidHeader.vRes)), (u16*)BG_GFX_SUB+(256*videoYpos), 0x200*rvidHeader.vRes);
 				}
@@ -187,7 +193,7 @@ void renderFrames(void) {
 
 			currentFrame++;
 			currentFrameInBuffer++;
-			if (currentFrameInBuffer == (isDSiMode() ? 50 : 28)) {
+			if (currentFrameInBuffer == (extendedMemory ? 50 : 28) && !rvidInRam) {
 				currentFrameInBuffer = 0;
 			}
 			switch (rvidHeader.fps) {
@@ -215,8 +221,15 @@ void renderFrames(void) {
 	}
 }
 
-void playRvid(FILE* rvid, const char* filename) {
+int playRvid(const char* filename) {
 	bool confirmStop = false;
+
+	if (rvidHeader.fps > 24) {
+		if ((0x200*rvidHeader.vRes)*(rvidHeader.frames+1) > rvidSizeAllowed) {
+			return 1;
+		}
+		rvidInRam = true;
+	}
 
 	videoYpos = 0;
 
@@ -267,8 +280,11 @@ void playRvid(FILE* rvid, const char* filename) {
 	numberMark[3], numberMark[4], numberMark[5]);
 
 	fseek(rvid, 0x200, SEEK_SET);
-	if (isDSiMode()) {
-		fread(frameBuffer_dsiMode, 1, (0x200*rvidHeader.vRes)*25, rvid);
+	if (rvidInRam) {
+		fread(frameBufferExtended, 1, (0x200*rvidHeader.vRes)*(rvidHeader.frames+1), rvid);
+		loadedFrames = rvidHeader.frames;
+	} else if (extendedMemory) {
+		fread(frameBufferExtended, 1, (0x200*rvidHeader.vRes)*25, rvid);
 		loadedFrames = 24;
 	} else {
 		fread(frameBuffer, 1, (0x200*rvidHeader.vRes)*14, rvid);
@@ -301,68 +317,76 @@ void playRvid(FILE* rvid, const char* filename) {
 	videoPlaying = true;
 	snd().beginStream();
 	while (1) {
-		if ((currentFrame % (isDSiMode() ? 50 : 28)) >= 0 && (currentFrame % (isDSiMode() ? 50 : 28)) < (isDSiMode() ? 25 : 14)) {
-			if (useBufferHalf) {
-				for (int i = (isDSiMode() ? 25 : 14); i < (isDSiMode() ? 50 : 28); i++) {
-					snd().updateStream();
-					if (isDSiMode()) {
-						fread(frameBuffer_dsiMode+(i*(0x200*rvidHeader.vRes)), 1, 0x200*rvidHeader.vRes, rvid);
-					} else {
-						fread(frameBuffer+(i*(0x200*rvidHeader.vRes)), 1, 0x200*rvidHeader.vRes, rvid);
-					}
-					loadedFrames++;
-
-					scanKeys();
-					touchRead(&touch);
-					if (keysDown() & KEY_A
-					|| ((keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
-						if (videoPlaying) {
-							videoPlaying = false;
-							snd().stopStream();
+		if (!rvidInRam) {
+			if ((currentFrame % (extendedMemory ? 50 : 28)) >= 0
+			&& (currentFrame % (extendedMemory ? 50 : 28)) < (extendedMemory ? 25 : 14))
+			{
+				if (useBufferHalf) {
+					for (int i = (extendedMemory ? 25 : 14); i < (extendedMemory ? 50 : 28); i++) {
+						snd().updateStream();
+						if (extendedMemory) {
+							fread(frameBufferExtended+(i*(0x200*rvidHeader.vRes)), 1, 0x200*rvidHeader.vRes, rvid);
 						} else {
-							videoPlaying = true;
-							snd().beginStream();
+							fread(frameBuffer+(i*(0x200*rvidHeader.vRes)), 1, 0x200*rvidHeader.vRes, rvid);
+						}
+						loadedFrames++;
+
+						scanKeys();
+						touchRead(&touch);
+						if (keysDown() & KEY_A
+						|| ((keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
+							if (videoPlaying) {
+								videoPlaying = false;
+								snd().stopStream();
+							} else {
+								videoPlaying = true;
+								snd().beginStream();
+							}
+						}
+						if (keysDown() & KEY_B
+						|| ((keysDown() & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
+							confirmStop = true;
+							break;
 						}
 					}
-					if (keysDown() & KEY_B
-					|| ((keysDown() & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
-						confirmStop = true;
-						break;
-					}
+					useBufferHalf = false;
 				}
-				useBufferHalf = false;
-			}
-		} else if ((currentFrame % (isDSiMode() ? 50 : 28)) >= (isDSiMode() ? 25 : 14) && (currentFrame % (isDSiMode() ? 50 : 28)) < (isDSiMode() ? 50 : 28)) {
-			if (!useBufferHalf) {
-				for (int i = 0; i < (isDSiMode() ? 25 : 14); i++) {
-					snd().updateStream();
-					if (isDSiMode()) {
-						fread(frameBuffer_dsiMode+(i*(0x200*rvidHeader.vRes)), 1, 0x200*rvidHeader.vRes, rvid);
-					} else {
-						fread(frameBuffer+(i*(0x200*rvidHeader.vRes)), 1, 0x200*rvidHeader.vRes, rvid);
-					}
-					loadedFrames++;
-
-					scanKeys();
-					touchRead(&touch);
-					if (keysDown() & KEY_A
-					|| ((keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
-						if (videoPlaying) {
-							videoPlaying = false;
-							snd().stopStream();
+			} else if ((currentFrame % (extendedMemory ? 50 : 28)) >= (extendedMemory ? 25 : 14)
+					&& (currentFrame % (extendedMemory ? 50 : 28)) < (extendedMemory ? 50 : 28))
+			{
+				if (!useBufferHalf) {
+					for (int i = 0; i < (extendedMemory ? 25 : 14); i++) {
+						snd().updateStream();
+						if (extendedMemory) {
+							fread(frameBufferExtended+(i*(0x200*rvidHeader.vRes)), 1, 0x200*rvidHeader.vRes, rvid);
 						} else {
-							videoPlaying = true;
-							snd().beginStream();
+							fread(frameBuffer+(i*(0x200*rvidHeader.vRes)), 1, 0x200*rvidHeader.vRes, rvid);
+						}
+						loadedFrames++;
+
+						scanKeys();
+						touchRead(&touch);
+						if (keysDown() & KEY_A
+						|| ((keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
+							if (videoPlaying) {
+								videoPlaying = false;
+								snd().stopStream();
+							} else {
+								videoPlaying = true;
+								snd().beginStream();
+							}
+						}
+						if (keysDown() & KEY_B
+						|| ((keysDown() & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
+							confirmStop = true;
+							break;
 						}
 					}
-					if (keysDown() & KEY_B
-					|| ((keysDown() & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
-						confirmStop = true;
-						break;
-					}
+					useBufferHalf = true;
 				}
-				useBufferHalf = true;
 			}
+		} else {
+			snd().updateStream();
 		}
 		scanKeys();
 		touchRead(&touch);
@@ -395,14 +419,16 @@ void playRvid(FILE* rvid, const char* filename) {
 			frameDelay = 0;
 			frameDelayEven = true;
 
-			// Reload video
-			fseek(rvid, 0x200, SEEK_SET);
-			if (isDSiMode()) {
-				fread(frameBuffer_dsiMode, 1, (0x200*rvidHeader.vRes)*25, rvid);
-				loadedFrames = 24;
-			} else {
-				fread(frameBuffer, 1, (0x200*rvidHeader.vRes)*14, rvid);
-				loadedFrames = 13;
+			if (!rvidInRam) {
+				// Reload video
+				fseek(rvid, 0x200, SEEK_SET);
+				if (extendedMemory) {
+					fread(frameBufferExtended, 1, (0x200*rvidHeader.vRes)*25, rvid);
+					loadedFrames = 24;
+				} else {
+					fread(frameBuffer, 1, (0x200*rvidHeader.vRes)*14, rvid);
+					loadedFrames = 13;
+				}
 			}
 
 			snd().resetStream();
@@ -434,6 +460,8 @@ void playRvid(FILE* rvid, const char* filename) {
 	hourMark = -1;
 	minuteMark = 59;
 	secondMark = 59;
+
+	return 0;
 }
 
 void LoadBMP(bool top, const char* filename) {
@@ -542,6 +570,25 @@ int main(int argc, char **argv) {
 		}
 	}
 
+	if (fifoGetValue32(FIFO_USER_07) != 0) isRegularDS = false;	// If sound frequency setting is found, then the console is not a DS Phat/Lite
+
+	if (isDSiMode()) {
+		extendedMemory = true;
+		*(vu32*)(0x0DFFFE0C) = 0x53524C41;		// Check for 32MB of RAM
+		isDevConsole = (*(vu32*)(0x0DFFFE0C) == 0x53524C41);
+		if (isDevConsole) {
+			frameBufferExtended = (u8*)0x0D000000;
+			rvidSizeAllowed = 0x1000000;
+		}
+	}
+	if (isRegularDS) {
+		sysSetCartOwner (BUS_OWNER_ARM9);	// Allow arm9 to access GBA ROM (or in this case, the DS Memory Expansion Pak)
+		*(vu32*)(0x08240000) = 1;
+		if (*(vu32*)(0x08240000) == 1) {
+			frameBufferExtended = (u8*)0x09000000;
+		}
+	}
+
 	dmaFillHalfWords(0, BG_GFX, 0x18000);		// Clear top screen
 	dmaFillHalfWords(0, BG_GFX_SUB, 0x18000);	// Clear bottom screen
 	snd();
@@ -585,8 +632,10 @@ int main(int argc, char **argv) {
 
 		if ( strcasecmp (filename.c_str() + filename.size() - 5, ".rvid") != 0 ) {
 			iprintf("No .rvid file specified.\n");
-			for (int i = 0; i < 60*2; i++) {
-				swiWaitForVBlank();
+			if (argc < 2) {
+				for (int i = 0; i < 60*2; i++) {
+					swiWaitForVBlank();
+				}
 			}
 		} else {
 			printf("Loading...");
@@ -597,12 +646,30 @@ int main(int argc, char **argv) {
 					consoleClear();
 					printf("Not a Rocket Video file!");
 					fclose(rvid);
-					for (int i = 0; i < 60*2; i++) {
-						swiWaitForVBlank();
+					if (argc < 2) {
+						for (int i = 0; i < 60*2; i++) {
+							swiWaitForVBlank();
+						}
 					}
 				} else {
-					playRvid(rvid, filename.c_str());
+					int err = playRvid(filename.c_str());
 					fclose(rvid);
+					if (err == 1) {
+						consoleClear();
+						printf("25-60FPS Rocket Video file\n");
+						printf("is too big!\n");
+						printf("\n");
+						printf("Please use less frames, and/or\n");
+						printf("reduce vertical resolution.\n");
+						printf("\n");
+						printf("A: OK\n");
+						while (1) {
+							scanKeys();
+							if ((keysDown() & KEY_A) && argc < 2) {
+								break;
+							}
+						}
+					}
 				}
 			}
 		}
