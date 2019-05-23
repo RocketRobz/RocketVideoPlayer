@@ -223,6 +223,7 @@ void renderFrames(void) {
 }
 
 int playRvid(const char* filename) {
+	bool confirmReturn = false;
 	bool confirmStop = false;
 
 	if (rvidHeader.ver > 1) {
@@ -355,6 +356,10 @@ int playRvid(const char* filename) {
 						}
 						if (keysDown() & KEY_B
 						|| ((keysDown() & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
+							confirmReturn = true;
+							break;
+						}
+						if (keysDown() & KEY_LEFT) {
 							confirmStop = true;
 							break;
 						}
@@ -388,6 +393,10 @@ int playRvid(const char* filename) {
 						}
 						if (keysDown() & KEY_B
 						|| ((keysDown() & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
+							confirmReturn = true;
+							break;
+						}
+						if (keysDown() & KEY_LEFT) {
 							confirmStop = true;
 							break;
 						}
@@ -410,7 +419,10 @@ int playRvid(const char* filename) {
 				snd().beginStream();
 			}
 		}
-		if (currentFrame > (int)rvidHeader.frames) {
+		if (keysDown() & KEY_LEFT) {
+			confirmStop = true;
+		}
+		if ((videoPlaying && confirmStop) || currentFrame > (int)rvidHeader.frames) {
 			videoPlaying = false;
 			snd().stopStream();
 
@@ -442,8 +454,9 @@ int playRvid(const char* filename) {
 			}
 
 			snd().resetStream();
+			confirmStop = false;
 		}
-		if (confirmStop || keysDown() & KEY_B
+		if (confirmReturn || keysDown() & KEY_B
 		|| ((keysDown() & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
 			break;
 		}
