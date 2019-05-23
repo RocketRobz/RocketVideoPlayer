@@ -359,7 +359,7 @@ int playRvid(const char* filename) {
 							confirmReturn = true;
 							break;
 						}
-						if (keysDown() & KEY_LEFT) {
+						if ((keysDown() & KEY_LEFT) && currentFrame > 0) {
 							confirmStop = true;
 							break;
 						}
@@ -396,7 +396,7 @@ int playRvid(const char* filename) {
 							confirmReturn = true;
 							break;
 						}
-						if (keysDown() & KEY_LEFT) {
+						if ((keysDown() & KEY_LEFT) && currentFrame > 0) {
 							confirmStop = true;
 							break;
 						}
@@ -419,10 +419,10 @@ int playRvid(const char* filename) {
 				snd().beginStream();
 			}
 		}
-		if (keysDown() & KEY_LEFT) {
+		if ((keysDown() & KEY_LEFT) && currentFrame > 0) {
 			confirmStop = true;
 		}
-		if ((videoPlaying && confirmStop) || currentFrame > (int)rvidHeader.frames) {
+		if (confirmStop || currentFrame > (int)rvidHeader.frames) {
 			videoPlaying = false;
 			snd().stopStream();
 
