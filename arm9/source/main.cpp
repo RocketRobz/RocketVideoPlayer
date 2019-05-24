@@ -39,6 +39,10 @@
 
 #include "rvidHeader.h"
 
+extern rvidHeaderCheckInfo rvidHeaderCheck;
+extern rvidHeaderInfo1 rvidHeader1;
+extern rvidHeaderInfo2 rvidHeader2;
+
 bool isRegularDS = true;
 bool hasMemoryExpansionPak = false;
 bool isDevConsole = false;
@@ -96,6 +100,7 @@ int currentFrameInBuffer = 0;
 int loadedFrames = 0;
 int frameDelay = 0;
 bool frameDelayEven = true;
+bool bottomField = false;
 
 char numberMark[6][6];
 
@@ -125,7 +130,7 @@ void renderFrames(void) {
 		if (frameOf60fps > 60) frameOf60fps = 1;
 		if (!loadFrame) {
 			frameDelay++;
-			switch (rvidHeader.fps) {
+			switch (rvidInterlaced ? rvidFps*2 : rvidFps) {
 				case 11:
 					loadFrame = (frameDelay == 5+frameDelayEven);
 					break;
@@ -146,19 +151,45 @@ void renderFrames(void) {
 								&& frameOf60fps != 58);
 					break;
 				default:
-					loadFrame = (frameDelay == 60/rvidHeader.fps);
+					loadFrame = (frameDelay == 60/(rvidInterlaced ? rvidFps*2 : rvidFps));
 					break;
 			}
 		}
 		if (loadFrame) {
-			if (currentFrame < (int)rvidHeader.frames) {
+			if (currentFrame < (int)rvidFrames) {
 				if (rvidInRam || extendedMemory) {
-					dmaCopyAsynch(frameBufferExtended+(currentFrameInBuffer*(0x200*rvidHeader.vRes)), (u16*)BG_GFX_SUB+(256*videoYpos), 0x200*rvidHeader.vRes);
+					if (rvidInterlaced) {
+						if (bottomField) {
+							dmaFillHalfWords(0, (u16*)BG_GFX_SUB+(256*videoYpos), 0x200);
+						}
+						for (int v = 0; v < rvidVRes; v += 2) {
+							dmaCopy(frameBufferExtended+(currentFrameInBuffer*(0x200*rvidVRes)+(0x200*v)+(0x200*bottomField)), (u16*)BG_GFX_SUB+(256*(videoYpos+v+bottomField)), 0x200);
+							dmaCopy(frameBufferExtended+(currentFrameInBuffer*(0x200*rvidVRes)+(0x200*v)+(0x200*bottomField)), (u16*)BG_GFX_SUB+(256*(videoYpos+v+1+bottomField)), 0x200);
+						}
+						if (!bottomField) {
+							dmaFillHalfWords(0, (u16*)BG_GFX_SUB+(256*(videoYpos+rvidVRes)), 0x200);
+						}
+					} else {
+						dmaCopyAsynch(frameBufferExtended+(currentFrameInBuffer*(0x200*rvidVRes)), (u16*)BG_GFX_SUB+(256*videoYpos), 0x200*rvidVRes);
+					}
 				} else {
-					dmaCopyAsynch(frameBuffer+(currentFrameInBuffer*(0x200*rvidHeader.vRes)), (u16*)BG_GFX_SUB+(256*videoYpos), 0x200*rvidHeader.vRes);
+					if (rvidInterlaced) {
+						if (bottomField) {
+							dmaFillHalfWords(0, (u16*)BG_GFX_SUB+(256*videoYpos), 0x200);
+						}
+						for (int v = 0; v < rvidVRes; v += 2) {
+							dmaCopy(frameBuffer+(currentFrameInBuffer*(0x200*rvidVRes)+(0x200*v)+(0x200*bottomField)), (u16*)BG_GFX_SUB+(256*(videoYpos+v+bottomField)), 0x200);
+							dmaCopy(frameBuffer+(currentFrameInBuffer*(0x200*rvidVRes)+(0x200*v)+(0x200*bottomField)), (u16*)BG_GFX_SUB+(256*(videoYpos+v+1+bottomField)), 0x200);
+						}
+						if (!bottomField) {
+							dmaFillHalfWords(0, (u16*)BG_GFX_SUB+(256*(videoYpos+rvidVRes)), 0x200);
+						}
+					} else {
+						dmaCopyAsynch(frameBuffer+(currentFrameInBuffer*(0x200*rvidVRes)), (u16*)BG_GFX_SUB+(256*videoYpos), 0x200*rvidVRes);
+					}
 				}
 			}
-			if ((currentFrame % rvidHeader.fps) == 0) {
+			if ((currentFrame % rvidFps) == 0) {
 				secondMark++;
 				if (secondMark == 60) {
 					secondMark = 0;
@@ -192,12 +223,20 @@ void renderFrames(void) {
 			snprintf(timeStamp, sizeof(timeStamp), "%s:%s:%s/%s:%s:%s",
 			numberMark[0], numberMark[1], numberMark[2], numberMark[3], numberMark[4], numberMark[5]);
 
-			currentFrame++;
-			currentFrameInBuffer++;
+			if (rvidInterlaced) {
+				if (bottomField) {
+					currentFrame++;
+					currentFrameInBuffer++;
+				}
+				bottomField = !bottomField;
+			} else {
+				currentFrame++;
+				currentFrameInBuffer++;
+			}
 			if (currentFrameInBuffer == (extendedMemory ? 50 : 28) && !rvidInRam) {
 				currentFrameInBuffer = 0;
 			}
-			switch (rvidHeader.fps) {
+			switch (rvidFps) {
 				case 11:
 					if ((currentFrame % 10) < 10) {
 						frameDelayEven = !frameDelayEven;
@@ -226,15 +265,21 @@ int playRvid(const char* filename) {
 	bool confirmReturn = false;
 	bool confirmStop = false;
 
-	if (rvidHeader.ver > 1) {
+	if (rvidHeaderCheck.ver == 0) {
+		return 0;
+	}
+
+	if (rvidHeaderCheck.ver > 2) {
 		return 3;
 	}
 
-	if (rvidHeader.fps > 24) {
+	readRvidHeader(rvid);
+
+	if (rvidFps > 24) {
 		if (!hasMemoryExpansionPak && !extendedMemory) {
 			return 2;
 		}
-		if ((0x200*rvidHeader.vRes)*(rvidHeader.frames+1) > rvidSizeAllowed) {
+		if ((u32)((0x200*rvidVRes)*(rvidFrames+1)) > rvidSizeAllowed) {
 			return 1;
 		}
 		rvidInRam = true;
@@ -244,9 +289,9 @@ int playRvid(const char* filename) {
 
 	videoYpos = 0;
 
-	if (rvidHeader.vRes <= 190) {
+	if (rvidVRes <= 190) {
 		// Adjust video positioning
-		for (int i = rvidHeader.vRes; i < 192; i += 2) {
+		for (int i = rvidVRes; i < 192; i += 2) {
 			videoYpos++;
 		}
 	}
@@ -256,7 +301,7 @@ int playRvid(const char* filename) {
 	videoSecondMark = 59;
 
 	// Get full time stamp
-	for (int i = 0; i <= (int)rvidHeader.frames; i += rvidHeader.fps) {
+	for (int i = 0; i <= (int)rvidFrames; i += rvidFps) {
 		videoSecondMark++;
 		if (videoSecondMark == 60) {
 			videoSecondMark = 0;
@@ -292,13 +337,13 @@ int playRvid(const char* filename) {
 
 	fseek(rvid, 0x200, SEEK_SET);
 	if (rvidInRam) {
-		fread(frameBufferExtended, 1, (0x200*rvidHeader.vRes)*(rvidHeader.frames+1), rvid);
-		loadedFrames = rvidHeader.frames;
+		fread(frameBufferExtended, 1, (0x200*rvidVRes)*(rvidFrames+1), rvid);
+		loadedFrames = rvidFrames;
 	} else if (extendedMemory) {
-		fread(frameBufferExtended, 1, (0x200*rvidHeader.vRes)*25, rvid);
+		fread(frameBufferExtended, 1, (0x200*rvidVRes)*25, rvid);
 		loadedFrames = 24;
 	} else {
-		fread(frameBuffer, 1, (0x200*rvidHeader.vRes)*14, rvid);
+		fread(frameBuffer, 1, (0x200*rvidVRes)*14, rvid);
 		loadedFrames = 13;
 	}
 
@@ -322,7 +367,7 @@ int playRvid(const char* filename) {
 		swiWaitForVBlank();
 	}
 
-	if (rvidHeader.vRes < 192) {
+	if (rvidVRes < 192) {
 		dmaFillHalfWordsAsynch(3, 0, BG_GFX_SUB, 0x18000);	// Fill top screen with black
 	}
 	videoPlaying = true;
@@ -336,9 +381,9 @@ int playRvid(const char* filename) {
 					for (int i = (extendedMemory ? 25 : 14); i < (extendedMemory ? 50 : 28); i++) {
 						snd().updateStream();
 						if (extendedMemory) {
-							fread(frameBufferExtended+(i*(0x200*rvidHeader.vRes)), 1, 0x200*rvidHeader.vRes, rvid);
+							fread(frameBufferExtended+(i*(0x200*rvidVRes)), 1, 0x200*rvidVRes, rvid);
 						} else {
-							fread(frameBuffer+(i*(0x200*rvidHeader.vRes)), 1, 0x200*rvidHeader.vRes, rvid);
+							fread(frameBuffer+(i*(0x200*rvidVRes)), 1, 0x200*rvidVRes, rvid);
 						}
 						loadedFrames++;
 
@@ -373,9 +418,9 @@ int playRvid(const char* filename) {
 					for (int i = 0; i < (extendedMemory ? 25 : 14); i++) {
 						snd().updateStream();
 						if (extendedMemory) {
-							fread(frameBufferExtended+(i*(0x200*rvidHeader.vRes)), 1, 0x200*rvidHeader.vRes, rvid);
+							fread(frameBufferExtended+(i*(0x200*rvidVRes)), 1, 0x200*rvidVRes, rvid);
 						} else {
-							fread(frameBuffer+(i*(0x200*rvidHeader.vRes)), 1, 0x200*rvidHeader.vRes, rvid);
+							fread(frameBuffer+(i*(0x200*rvidVRes)), 1, 0x200*rvidVRes, rvid);
 						}
 						loadedFrames++;
 
@@ -422,7 +467,7 @@ int playRvid(const char* filename) {
 		if ((keysDown() & KEY_LEFT) && currentFrame > 0) {
 			confirmStop = true;
 		}
-		if (confirmStop || currentFrame > (int)rvidHeader.frames) {
+		if (confirmStop || currentFrame > (int)rvidFrames) {
 			videoPlaying = false;
 			snd().stopStream();
 
@@ -440,15 +485,16 @@ int playRvid(const char* filename) {
 			currentFrameInBuffer = 0;
 			frameDelay = 0;
 			frameDelayEven = true;
+			bottomField = false;
 
 			if (!rvidInRam) {
 				// Reload video
 				fseek(rvid, 0x200, SEEK_SET);
 				if (extendedMemory) {
-					fread(frameBufferExtended, 1, (0x200*rvidHeader.vRes)*25, rvid);
+					fread(frameBufferExtended, 1, (0x200*rvidVRes)*25, rvid);
 					loadedFrames = 24;
 				} else {
-					fread(frameBuffer, 1, (0x200*rvidHeader.vRes)*14, rvid);
+					fread(frameBuffer, 1, (0x200*rvidVRes)*14, rvid);
 					loadedFrames = 13;
 				}
 			}
@@ -479,6 +525,7 @@ int playRvid(const char* filename) {
 	currentFrameInBuffer = 0;
 	frameDelay = 0;
 	frameDelayEven = true;
+	bottomField = false;
 
 	hourMark = -1;
 	minuteMark = 59;
@@ -665,8 +712,8 @@ int main(int argc, char **argv) {
 			printf("Loading...");
 			rvid = fopen(filename.c_str(), "rb");
 			if (rvid) {
-				fread(&rvidHeader, 1, sizeof(rvidHeaderInfo), rvid);
-				if (rvidHeader.formatString != 0x44495652) {
+				fread(&rvidHeaderCheck, 1, sizeof(rvidHeaderCheck), rvid);
+				if (rvidHeaderCheck.formatString != 0x44495652) {
 					consoleClear();
 					printf("Not a Rocket Video file!");
 					fclose(rvid);

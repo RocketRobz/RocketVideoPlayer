@@ -54,17 +54,17 @@ void SoundControl::loadStreamFromRvid(const char* filename) {
 
 	stream_source = fopen(filename, "rb");
 	
-	if (!rvidHeader.hasSound) {
+	if (!rvidHasSound) {
 		streamFound = false;
 		fclose(stream_source);
 		return;
 	}
 
-	fseek(stream_source, 0x200+((0x200*rvidHeader.vRes)*rvidHeader.frames), SEEK_SET);
+	fseek(stream_source, 0x200+((0x200*rvidVRes)*rvidFrames), SEEK_SET);
 
 	resetStreamSettings();
 
-	stream.sampling_rate = rvidHeader.sampleRate;
+	stream.sampling_rate = rvidSampleRate;
 	stream.buffer_length = 800;	  			// should be adequate
 	stream.callback = on_stream_request;    
 	stream.format = MM_STREAM_16BIT_MONO;  // select format
@@ -99,7 +99,7 @@ void SoundControl::stopStream() {
 void SoundControl::resetStream() {
 	if (!streamFound) return;
 
-	fseek(stream_source, 0x200+((0x200*rvidHeader.vRes)*rvidHeader.frames), SEEK_SET);
+	fseek(stream_source, 0x200+((0x200*rvidVRes)*rvidFrames), SEEK_SET);
 
 	resetStreamSettings();
 
@@ -157,7 +157,7 @@ volatile void SoundControl::updateStream() {
 		// If we don't read enough samples, loop from the beginning of the file.
 		instance_filled = fread((s16*)fill_stream_buf + filled_samples, sizeof(s16), instance_to_fill, stream_source);		
 		if (instance_filled < instance_to_fill) {
-			fseek(stream_source, 0x200+((0x200*rvidHeader.vRes)*rvidHeader.frames), SEEK_SET);
+			fseek(stream_source, 0x200+((0x200*rvidVRes)*rvidFrames), SEEK_SET);
 			instance_filled += fread((s16*)fill_stream_buf + filled_samples + instance_filled,
 				 sizeof(s16), (instance_to_fill - instance_filled), stream_source);
 		}
