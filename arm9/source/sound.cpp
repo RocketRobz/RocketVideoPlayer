@@ -154,12 +154,11 @@ volatile void SoundControl::updateStream() {
 		// Either fill the max amount, or fill up the buffer as much as possible.
 		int instance_to_fill = std::min(SAMPLES_LEFT_TO_FILL, SAMPLES_TO_FILL);
 
-		// If we don't read enough samples, loop from the beginning of the file.
+		// If we don't read enough samples, stop.
 		instance_filled = fread((s16*)fill_stream_buf + filled_samples, sizeof(s16), instance_to_fill, stream_source);		
 		if (instance_filled < instance_to_fill) {
-			fseek(stream_source, 0x200+((0x200*rvidVRes)*rvidFrames), SEEK_SET);
-			instance_filled += fread((s16*)fill_stream_buf + filled_samples + instance_filled,
-				 sizeof(s16), (instance_to_fill - instance_filled), stream_source);
+			instance_filled++;
+			toncset((s16*)fill_stream_buf + filled_samples + instance_filled, 0, (instance_to_fill - instance_filled));
 		}
 
 		#ifdef SOUND_DEBUG
