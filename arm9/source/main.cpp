@@ -189,7 +189,7 @@ void renderFrames(void) {
 					}
 				}
 			}
-			if ((currentFrame % rvidFps) == 0) {
+			if ((currentFrame % (rvidInterlaced ? rvidFps*2 : rvidFps)) == 0) {
 				secondMark++;
 				if (secondMark == 60) {
 					secondMark = 0;
