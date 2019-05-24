@@ -189,7 +189,8 @@ void renderFrames(void) {
 					}
 				}
 			}
-			if ((currentFrame % rvidFps) == 0) {
+			if ((!rvidInterlaced && (currentFrame % rvidFps) == 0)
+			|| (rvidInterlaced && !bottomField && (currentFrame % rvidFps) == 0)) {
 				secondMark++;
 				if (secondMark == 60) {
 					secondMark = 0;
