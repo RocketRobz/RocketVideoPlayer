@@ -138,6 +138,20 @@ void renderFrames(void) {
 				case 25:
 					loadFrame = (frameDelay == 2+frameDelayEven);
 					break;
+				case 48:
+					loadFrame =   (frameOf60fps != 3
+								&& frameOf60fps != 9
+								&& frameOf60fps != 16
+								&& frameOf60fps != 20
+								&& frameOf60fps != 23
+								&& frameOf60fps != 29
+								&& frameOf60fps != 35
+								&& frameOf60fps != 41
+								&& frameOf60fps != 44
+								&& frameOf60fps != 48
+								&& frameOf60fps != 53
+								&& frameOf60fps != 60);
+					break;
 				case 50:
 					loadFrame =   (frameOf60fps != 3
 								&& frameOf60fps != 9
