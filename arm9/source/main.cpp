@@ -253,7 +253,7 @@ void renderFrames(void) {
 			}
 			switch (rvidFps) {
 				case 11:
-					if ((currentFrame % 10) < 10) {
+					if ((currentFrame % 11) < 10) {
 						frameDelayEven = !frameDelayEven;
 					}
 					break;
