@@ -44,12 +44,11 @@ extern rvidHeaderInfo1 rvidHeader1;
 extern rvidHeaderInfo2 rvidHeader2;
 
 bool isRegularDS = true;
-bool hasMemoryExpansionPak = false;
 bool isDevConsole = false;
 bool extendedMemory = false;
 
 u8 frameBuffer[0x18000*28];					// 28 frames in buffer
-u8* frameBufferExtended = (u8*)0x02600000;	// 50 frames in buffer
+u8* frameSoundBufferExtended = (u8*)0x02600000;	// 50 frames in buffer
 bool useBufferHalf = true;
 
 bool fadeType = false;
@@ -126,9 +125,10 @@ void renderFrames(void) {
 	SetBrightness(1, screenBrightness);
 
 	if (videoPlaying && currentFrame <= loadedFrames) {
-		frameOf60fps++;
-		if (frameOf60fps > 60) frameOf60fps = 1;
 		if (!loadFrame) {
+			frameOf60fps++;
+			if (frameOf60fps > 60) frameOf60fps = 1;
+
 			frameDelay++;
 			switch (rvidInterlaced ? rvidFps*2 : rvidFps) {
 				case 11:
@@ -140,17 +140,17 @@ void renderFrames(void) {
 					break;
 				case 48:
 					loadFrame =   (frameOf60fps != 3
-								&& frameOf60fps != 9
-								&& frameOf60fps != 16
-								&& frameOf60fps != 20
+								&& frameOf60fps != 8
+								&& frameOf60fps != 13
+								&& frameOf60fps != 18
 								&& frameOf60fps != 23
-								&& frameOf60fps != 29
-								&& frameOf60fps != 35
-								&& frameOf60fps != 41
-								&& frameOf60fps != 44
+								&& frameOf60fps != 28
+								&& frameOf60fps != 33
+								&& frameOf60fps != 38
+								&& frameOf60fps != 43
 								&& frameOf60fps != 48
 								&& frameOf60fps != 53
-								&& frameOf60fps != 60);
+								&& frameOf60fps != 58);
 					break;
 				case 50:
 					loadFrame =   (frameOf60fps != 3
@@ -171,20 +171,20 @@ void renderFrames(void) {
 		}
 		if (loadFrame) {
 			if (currentFrame < (int)rvidFrames) {
-				if (rvidInRam || extendedMemory) {
+				if (rvidInRam) {
 					if (rvidInterlaced) {
 						if (bottomField) {
 							dmaFillHalfWords(0, (u16*)BG_GFX_SUB+(256*videoYpos), 0x200);
 						}
 						for (int v = 0; v < rvidVRes; v += 2) {
-							dmaCopy(frameBufferExtended+(currentFrameInBuffer*(0x200*rvidVRes)+(0x200*v)+(0x200*bottomField)), (u16*)BG_GFX_SUB+(256*(videoYpos+v+bottomField)), 0x200);
-							dmaCopy(frameBufferExtended+(currentFrameInBuffer*(0x200*rvidVRes)+(0x200*v)+(0x200*bottomField)), (u16*)BG_GFX_SUB+(256*(videoYpos+v+1+bottomField)), 0x200);
+							dmaCopy(frameSoundBufferExtended+(currentFrameInBuffer*(0x200*rvidVRes)+(0x200*v)+(0x200*bottomField)), (u16*)BG_GFX_SUB+(256*(videoYpos+v+bottomField)), 0x200);
+							dmaCopy(frameSoundBufferExtended+(currentFrameInBuffer*(0x200*rvidVRes)+(0x200*v)+(0x200*bottomField)), (u16*)BG_GFX_SUB+(256*(videoYpos+v+1+bottomField)), 0x200);
 						}
 						if (!bottomField) {
 							dmaFillHalfWords(0, (u16*)BG_GFX_SUB+(256*(videoYpos+rvidVRes)), 0x200);
 						}
 					} else {
-						dmaCopyAsynch(frameBufferExtended+(currentFrameInBuffer*(0x200*rvidVRes)), (u16*)BG_GFX_SUB+(256*videoYpos), 0x200*rvidVRes);
+						dmaCopyAsynch(frameSoundBufferExtended+(currentFrameInBuffer*(0x200*rvidVRes)), (u16*)BG_GFX_SUB+(256*videoYpos), 0x200*rvidVRes);
 					}
 				} else {
 					if (rvidInterlaced) {
@@ -248,7 +248,7 @@ void renderFrames(void) {
 				currentFrame++;
 				currentFrameInBuffer++;
 			}
-			if (currentFrameInBuffer == (extendedMemory ? 50 : 28) && !rvidInRam) {
+			if (currentFrameInBuffer == 28 && !rvidInRam) {
 				currentFrameInBuffer = 0;
 			}
 			switch (rvidFps) {
@@ -291,7 +291,7 @@ int playRvid(const char* filename) {
 	readRvidHeader(rvid);
 
 	if (rvidFps > 24) {
-		if (!hasMemoryExpansionPak && !extendedMemory) {
+		if (!extendedMemory) {
 			return 2;
 		}
 		if ((u32)((0x200*rvidVRes)*(rvidFrames+1)) > rvidSizeAllowed) {
@@ -352,11 +352,8 @@ int playRvid(const char* filename) {
 
 	fseek(rvid, 0x200, SEEK_SET);
 	if (rvidInRam) {
-		fread(frameBufferExtended, 1, (0x200*rvidVRes)*(rvidFrames+1), rvid);
+		fread(frameSoundBufferExtended, 1, (0x200*rvidVRes)*(rvidFrames+1), rvid);
 		loadedFrames = rvidFrames;
-	} else if (extendedMemory) {
-		fread(frameBufferExtended, 1, (0x200*rvidVRes)*25, rvid);
-		loadedFrames = 24;
 	} else {
 		fread(frameBuffer, 1, (0x200*rvidVRes)*14, rvid);
 		loadedFrames = 13;
@@ -389,17 +386,13 @@ int playRvid(const char* filename) {
 	snd().beginStream();
 	while (1) {
 		if (!rvidInRam) {
-			if ((currentFrame % (extendedMemory ? 50 : 28)) >= 0
-			&& (currentFrame % (extendedMemory ? 50 : 28)) < (extendedMemory ? 25 : 14))
+			if ((currentFrame % 28) >= 0
+			&& (currentFrame % 28) < 14)
 			{
 				if (useBufferHalf) {
-					for (int i = (extendedMemory ? 25 : 14); i < (extendedMemory ? 50 : 28); i++) {
+					for (int i = 14; i < 28; i++) {
 						snd().updateStream();
-						if (extendedMemory) {
-							fread(frameBufferExtended+(i*(0x200*rvidVRes)), 1, 0x200*rvidVRes, rvid);
-						} else {
-							fread(frameBuffer+(i*(0x200*rvidVRes)), 1, 0x200*rvidVRes, rvid);
-						}
+						fread(frameBuffer+(i*(0x200*rvidVRes)), 1, 0x200*rvidVRes, rvid);
 						loadedFrames++;
 
 						scanKeys();
@@ -426,17 +419,13 @@ int playRvid(const char* filename) {
 					}
 					useBufferHalf = false;
 				}
-			} else if ((currentFrame % (extendedMemory ? 50 : 28)) >= (extendedMemory ? 25 : 14)
-					&& (currentFrame % (extendedMemory ? 50 : 28)) < (extendedMemory ? 50 : 28))
+			} else if ((currentFrame % 28) >= 14
+					&& (currentFrame % 28) < 28)
 			{
 				if (!useBufferHalf) {
-					for (int i = 0; i < (extendedMemory ? 25 : 14); i++) {
+					for (int i = 0; i < 14; i++) {
 						snd().updateStream();
-						if (extendedMemory) {
-							fread(frameBufferExtended+(i*(0x200*rvidVRes)), 1, 0x200*rvidVRes, rvid);
-						} else {
-							fread(frameBuffer+(i*(0x200*rvidVRes)), 1, 0x200*rvidVRes, rvid);
-						}
+						fread(frameBuffer+(i*(0x200*rvidVRes)), 1, 0x200*rvidVRes, rvid);
 						loadedFrames++;
 
 						scanKeys();
@@ -505,13 +494,8 @@ int playRvid(const char* filename) {
 			if (!rvidInRam) {
 				// Reload video
 				fseek(rvid, 0x200, SEEK_SET);
-				if (extendedMemory) {
-					fread(frameBufferExtended, 1, (0x200*rvidVRes)*25, rvid);
-					loadedFrames = 24;
-				} else {
-					fread(frameBuffer, 1, (0x200*rvidVRes)*14, rvid);
-					loadedFrames = 13;
-				}
+				fread(frameBuffer, 1, (0x200*rvidVRes)*14, rvid);
+				loadedFrames = 13;
 			}
 
 			snd().resetStream();
@@ -662,16 +646,16 @@ int main(int argc, char **argv) {
 		*(vu32*)(0x0DFFFE0C) = 0x53524C41;		// Check for 32MB of RAM
 		isDevConsole = (*(vu32*)(0x0DFFFE0C) == 0x53524C41);
 		if (isDevConsole) {
-			frameBufferExtended = (u8*)0x0D000000;
+			frameSoundBufferExtended = (u8*)0x0D000000;
 			rvidSizeAllowed = 0x1000000;
 		}
 	}
 	if (isRegularDS) {
 		sysSetCartOwner (BUS_OWNER_ARM9);	// Allow arm9 to access GBA ROM (or in this case, the DS Memory Expansion Pak)
 		*(vu32*)(0x08240000) = 1;
-		hasMemoryExpansionPak = (*(vu32*)(0x08240000) == 1);
-		if (hasMemoryExpansionPak) {
-			frameBufferExtended = (u8*)0x09000000;
+		if (*(vu32*)(0x08240000) == 1) {
+			extendedMemory = true;
+			frameSoundBufferExtended = (u8*)0x09000000;
 		}
 	}
 
