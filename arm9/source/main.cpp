@@ -251,7 +251,7 @@ void renderFrames(void) {
 			if (currentFrameInBuffer == 28 && !rvidInRam) {
 				currentFrameInBuffer = 0;
 			}
-			switch (rvidFps) {
+			switch (rvidInterlaced ? rvidFps*2 : rvidFps) {
 				case 11:
 					if ((currentFrame % 11) < 10) {
 						frameDelayEven = !frameDelayEven;
