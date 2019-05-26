@@ -34,11 +34,11 @@ extern char debug_buf[256];
 
 extern volatile u32 sample_delay_count;
 
-extern u8* frameSoundBufferExtended;
+extern u8* soundBufferExtended;
 
 bool streamFound = false;
 bool streamInRam = false;
-extern u32 rvidSizeAllowed;
+extern u32 rvidSoundSizeAllowed;
 extern bool extendedMemory;
 extern bool rvidInRam;
 
@@ -89,15 +89,15 @@ void SoundControl::loadStreamFromRvid(const char* filename) {
 	positionInSoundFile = STREAMING_BUF_LENGTH*2;
 	
 	if (!rvidInRam && extendedMemory) {
-	if (soundSize <= rvidSizeAllowed) {
+	if (soundSize <= rvidSoundSizeAllowed) {
 		// Load sound stream into RAM
-		fread(frameSoundBufferExtended, 1, soundSize, stream_source);
+		fread(soundBufferExtended, 1, soundSize, stream_source);
 
 		// Prep the first section of the stream
-		tonccpy((void*)play_stream_buf, (s16*)frameSoundBufferExtended, STREAMING_BUF_LENGTH*sizeof(s16));
+		tonccpy((void*)play_stream_buf, (s16*)soundBufferExtended, STREAMING_BUF_LENGTH*sizeof(s16));
 
 		// Fill the next section premptively
-		tonccpy((void*)fill_stream_buf, (s16*)frameSoundBufferExtended+STREAMING_BUF_LENGTH, STREAMING_BUF_LENGTH*sizeof(s16));
+		tonccpy((void*)fill_stream_buf, (s16*)soundBufferExtended+STREAMING_BUF_LENGTH, STREAMING_BUF_LENGTH*sizeof(s16));
 
 		streamInRam = true;
 
@@ -139,10 +139,10 @@ void SoundControl::resetStream() {
 
 	if (streamInRam) {
 		// Prep the first section of the stream
-		tonccpy((void*)play_stream_buf, (s16*)frameSoundBufferExtended, STREAMING_BUF_LENGTH*sizeof(s16));
+		tonccpy((void*)play_stream_buf, (s16*)soundBufferExtended, STREAMING_BUF_LENGTH*sizeof(s16));
 
 		// Fill the next section premptively
-		tonccpy((void*)fill_stream_buf, (s16*)frameSoundBufferExtended+STREAMING_BUF_LENGTH, STREAMING_BUF_LENGTH*sizeof(s16));
+		tonccpy((void*)fill_stream_buf, (s16*)soundBufferExtended+STREAMING_BUF_LENGTH, STREAMING_BUF_LENGTH*sizeof(s16));
 
 		return;
 	}
@@ -204,7 +204,7 @@ volatile void SoundControl::updateStream() {
 
 		// If we don't read enough samples, stop.
 		if (streamInRam) {
-			tonccpy((s16*)fill_stream_buf + filled_samples, (s16*)frameSoundBufferExtended+positionInSoundFile, instance_to_fill*sizeof(s16));
+			tonccpy((s16*)fill_stream_buf + filled_samples, (s16*)soundBufferExtended+positionInSoundFile, instance_to_fill*sizeof(s16));
 			instance_filled = instance_to_fill;
 			positionInSoundFile += instance_to_fill;
 		} else {

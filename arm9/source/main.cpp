@@ -48,7 +48,9 @@ bool isDevConsole = false;
 bool extendedMemory = false;
 
 u8 frameBuffer[0x18000*28];					// 28 frames in buffer
-u8* frameSoundBufferExtended = (u8*)0x02600000;	// 50 frames in buffer
+u8* currentFrameBuffer;
+u8* frameBufferExtended[2] = {(u8*)0x09000000};
+u8* soundBufferExtended = (u8*)0x09000000;
 bool useBufferHalf = true;
 
 bool fadeType = false;
@@ -88,7 +90,8 @@ touchPosition touch;
 
 FILE* rvid;
 bool rvidInRam = false;
-u32 rvidSizeAllowed = 0x800000;
+u32 rvidSizeAllowed = 0xAA0000;		// 0x2A0000 + 0x800000
+u32 rvidSoundSizeAllowed = 0x800000;
 bool showVideoGui = false;
 bool videoPlaying = false;
 bool loadFrame = true;
@@ -96,7 +99,8 @@ int videoYpos = 0;
 int frameOf60fps = 60;
 int currentFrame = 0;
 int currentFrameInBuffer = 0;
-int loadedFrames = 0;
+int currentFrameBufferNo = 0;
+int loadedFrames[3] = {0};
 int frameDelay = 0;
 bool frameDelayEven = true;
 bool bottomField = false;
@@ -124,7 +128,7 @@ void renderFrames(void) {
 	SetBrightness(0, screenBrightness);
 	SetBrightness(1, screenBrightness);
 
-	if (videoPlaying && currentFrame <= loadedFrames) {
+	if (videoPlaying && currentFrame <= loadedFrames[currentFrameBufferNo]) {
 		if (!loadFrame) {
 			frameOf60fps++;
 			if (frameOf60fps > 60) frameOf60fps = 1;
@@ -171,36 +175,19 @@ void renderFrames(void) {
 		}
 		if (loadFrame) {
 			if (currentFrame < (int)rvidFrames) {
-				if (rvidInRam) {
-					if (rvidInterlaced) {
-						if (bottomField) {
-							dmaFillHalfWords(0, (u16*)BG_GFX_SUB+(256*videoYpos), 0x200);
-						}
-						for (int v = 0; v < rvidVRes; v += 2) {
-							dmaCopy(frameSoundBufferExtended+(currentFrameInBuffer*(0x200*rvidVRes)+(0x200*v)+(0x200*bottomField)), (u16*)BG_GFX_SUB+(256*(videoYpos+v+bottomField)), 0x200);
-							dmaCopy(frameSoundBufferExtended+(currentFrameInBuffer*(0x200*rvidVRes)+(0x200*v)+(0x200*bottomField)), (u16*)BG_GFX_SUB+(256*(videoYpos+v+1+bottomField)), 0x200);
-						}
-						if (!bottomField) {
-							dmaFillHalfWords(0, (u16*)BG_GFX_SUB+(256*(videoYpos+rvidVRes)), 0x200);
-						}
-					} else {
-						dmaCopyAsynch(frameSoundBufferExtended+(currentFrameInBuffer*(0x200*rvidVRes)), (u16*)BG_GFX_SUB+(256*videoYpos), 0x200*rvidVRes);
+				if (rvidInterlaced) {
+					if (bottomField) {
+						dmaFillHalfWords(0, (u16*)BG_GFX_SUB+(256*videoYpos), 0x200);
+					}
+					for (int v = 0; v < rvidVRes; v += 2) {
+						dmaCopy(currentFrameBuffer+(currentFrameInBuffer*(0x200*rvidVRes)+(0x200*v)+(0x200*bottomField)), (u16*)BG_GFX_SUB+(256*(videoYpos+v+bottomField)), 0x200);
+						dmaCopy(currentFrameBuffer+(currentFrameInBuffer*(0x200*rvidVRes)+(0x200*v)+(0x200*bottomField)), (u16*)BG_GFX_SUB+(256*(videoYpos+v+1+bottomField)), 0x200);
+					}
+					if (!bottomField) {
+						dmaFillHalfWords(0, (u16*)BG_GFX_SUB+(256*(videoYpos+rvidVRes)), 0x200);
 					}
 				} else {
-					if (rvidInterlaced) {
-						if (bottomField) {
-							dmaFillHalfWords(0, (u16*)BG_GFX_SUB+(256*videoYpos), 0x200);
-						}
-						for (int v = 0; v < rvidVRes; v += 2) {
-							dmaCopy(frameBuffer+(currentFrameInBuffer*(0x200*rvidVRes)+(0x200*v)+(0x200*bottomField)), (u16*)BG_GFX_SUB+(256*(videoYpos+v+bottomField)), 0x200);
-							dmaCopy(frameBuffer+(currentFrameInBuffer*(0x200*rvidVRes)+(0x200*v)+(0x200*bottomField)), (u16*)BG_GFX_SUB+(256*(videoYpos+v+1+bottomField)), 0x200);
-						}
-						if (!bottomField) {
-							dmaFillHalfWords(0, (u16*)BG_GFX_SUB+(256*(videoYpos+rvidVRes)), 0x200);
-						}
-					} else {
-						dmaCopyAsynch(frameBuffer+(currentFrameInBuffer*(0x200*rvidVRes)), (u16*)BG_GFX_SUB+(256*videoYpos), 0x200*rvidVRes);
-					}
+					dmaCopyAsynch(currentFrameBuffer+(currentFrameInBuffer*(0x200*rvidVRes)), (u16*)BG_GFX_SUB+(256*videoYpos), 0x200*rvidVRes);
 				}
 			}
 			if ((!rvidInterlaced && (currentFrame % rvidFps) == 0)
@@ -248,7 +235,18 @@ void renderFrames(void) {
 				currentFrame++;
 				currentFrameInBuffer++;
 			}
-			if (currentFrameInBuffer == 28 && !rvidInRam) {
+			if (rvidInRam) {
+				if (currentFrameInBuffer > loadedFrames[currentFrameBufferNo]) {
+					currentFrameBufferNo++;
+					if (currentFrameBufferNo > 1+isDevConsole) currentFrameBufferNo = 1+isDevConsole;
+					if (currentFrameBufferNo == 1) {
+						currentFrameBuffer = frameBufferExtended[0];
+					} else if (currentFrameBufferNo == 2) {
+						currentFrameBuffer = frameBufferExtended[1];
+					}
+					currentFrameInBuffer = 0;
+				}
+			} else if (currentFrameInBuffer == 28) {
 				currentFrameInBuffer = 0;
 			}
 			switch (rvidInterlaced ? rvidFps*2 : rvidFps) {
@@ -352,11 +350,49 @@ int playRvid(const char* filename) {
 
 	fseek(rvid, 0x200, SEEK_SET);
 	if (rvidInRam) {
-		fread(frameSoundBufferExtended, 1, (0x200*rvidVRes)*(rvidFrames+1), rvid);
-		loadedFrames = rvidFrames;
+		loadedFrames[0] = 0;
+		loadedFrames[1] = 0;
+		loadedFrames[2] = 0;
+		currentFrameBuffer = (u8*)frameBuffer;
+		int i = 0;
+		u32 frameBufferSize = 0;
+		while (1) {
+			frameBufferSize += (0x200*rvidVRes);
+			if (frameBufferSize+(0x200*rvidVRes) > sizeof(frameBuffer) || i > rvidFrames) {
+				break;
+			}
+			i++;
+			loadedFrames[0]++;
+		}
+		fread(frameBuffer, 1, frameBufferSize, rvid);
+		if (i < rvidFrames) {
+			frameBufferSize = 0;
+			while (1) {
+				frameBufferSize += (0x200*rvidVRes);
+				if (frameBufferSize+(0x200*rvidVRes) > 0xA60000 || i > rvidFrames) {
+					break;
+				}
+				i++;
+				loadedFrames[1]++;
+			}
+			fread(frameBufferExtended[0], 1, frameBufferSize, rvid);
+		}
+		if (i < rvidFrames && isDevConsole) {
+			frameBufferSize = 0;
+			while (1) {
+				frameBufferSize += (0x200*rvidVRes);
+				if (frameBufferSize+(0x200*rvidVRes) > 0x1000000 || i > rvidFrames) {
+					break;
+				}
+				i++;
+				loadedFrames[2]++;
+			}
+			fread(frameBufferExtended[1], 1, frameBufferSize, rvid);
+		}
 	} else {
+		currentFrameBuffer = (u8*)frameBuffer;
 		fread(frameBuffer, 1, (0x200*rvidVRes)*14, rvid);
-		loadedFrames = 13;
+		loadedFrames[0] = 13;
 	}
 
 	snd().loadStreamFromRvid(filename);
@@ -393,7 +429,7 @@ int playRvid(const char* filename) {
 					for (int i = 14; i < 28; i++) {
 						snd().updateStream();
 						fread(frameBuffer+(i*(0x200*rvidVRes)), 1, 0x200*rvidVRes, rvid);
-						loadedFrames++;
+						loadedFrames[0]++;
 
 						scanKeys();
 						touchRead(&touch);
@@ -426,7 +462,7 @@ int playRvid(const char* filename) {
 					for (int i = 0; i < 14; i++) {
 						snd().updateStream();
 						fread(frameBuffer+(i*(0x200*rvidVRes)), 1, 0x200*rvidVRes, rvid);
-						loadedFrames++;
+						loadedFrames[0]++;
 
 						scanKeys();
 						touchRead(&touch);
@@ -487,15 +523,18 @@ int playRvid(const char* filename) {
 			frameOf60fps = 60;
 			currentFrame = 0;
 			currentFrameInBuffer = 0;
+			currentFrameBufferNo = 0;
 			frameDelay = 0;
 			frameDelayEven = true;
 			bottomField = false;
 
-			if (!rvidInRam) {
+			if (rvidInRam) {
+				currentFrameBuffer = (u8*)frameBuffer;
+			} else {
 				// Reload video
 				fseek(rvid, 0x200, SEEK_SET);
 				fread(frameBuffer, 1, (0x200*rvidVRes)*14, rvid);
-				loadedFrames = 13;
+				loadedFrames[0] = 13;
 			}
 
 			snd().resetStream();
@@ -522,6 +561,7 @@ int playRvid(const char* filename) {
 	frameOf60fps = 60;
 	currentFrame = 0;
 	currentFrameInBuffer = 0;
+	currentFrameBufferNo = 0;
 	frameDelay = 0;
 	frameDelayEven = true;
 	bottomField = false;
@@ -646,8 +686,16 @@ int main(int argc, char **argv) {
 		*(vu32*)(0x0DFFFE0C) = 0x53524C41;		// Check for 32MB of RAM
 		isDevConsole = (*(vu32*)(0x0DFFFE0C) == 0x53524C41);
 		if (isDevConsole) {
-			frameSoundBufferExtended = (u8*)0x0D000000;
-			rvidSizeAllowed = 0x1000000;
+			frameBufferExtended[0] = (u8*)0x02420000;
+			frameBufferExtended[1] = (u8*)0x0D000000;
+			soundBufferExtended = (u8*)0x0D000000;
+			rvidSizeAllowed = 0x1D00000;	// 0x2A0000 + 0xA60000 + 0x1000000
+			rvidSoundSizeAllowed = 0x1000000;
+		} else {
+			frameBufferExtended[0] = (u8*)0x02420000;
+			soundBufferExtended = (u8*)0x02420000;
+			rvidSizeAllowed = 0xD00000;		// 0x2A0000 + 0xA60000
+			rvidSoundSizeAllowed = 0xA60000;
 		}
 	}
 	if (isRegularDS) {
@@ -655,7 +703,6 @@ int main(int argc, char **argv) {
 		*(vu32*)(0x08240000) = 1;
 		if (*(vu32*)(0x08240000) == 1) {
 			extendedMemory = true;
-			frameSoundBufferExtended = (u8*)0x09000000;
 		}
 	}
 
