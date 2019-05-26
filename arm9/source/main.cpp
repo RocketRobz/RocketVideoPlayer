@@ -117,6 +117,53 @@ int videoHourMark = -1;
 int videoMinuteMark = 59;
 int videoSecondMark = 59;
 
+void frameRateHandler(void) {
+	if (videoPlaying && currentFrame <= loadedFrames[currentFrameBufferNo] && !loadFrame) {
+		frameOf60fps++;
+		if (frameOf60fps > 60) frameOf60fps = 1;
+
+		frameDelay++;
+		switch (rvidInterlaced ? rvidFps*2 : rvidFps) {
+			case 11:
+				loadFrame = (frameDelay == 5+frameDelayEven);
+				break;
+			case 24:
+			case 25:
+				loadFrame = (frameDelay == 2+frameDelayEven);
+				break;
+			case 48:
+				loadFrame =   (frameOf60fps != 3
+							&& frameOf60fps != 8
+							&& frameOf60fps != 13
+							&& frameOf60fps != 18
+							&& frameOf60fps != 23
+							&& frameOf60fps != 28
+							&& frameOf60fps != 33
+							&& frameOf60fps != 38
+							&& frameOf60fps != 43
+							&& frameOf60fps != 48
+							&& frameOf60fps != 53
+							&& frameOf60fps != 58);
+				break;
+			case 50:
+				loadFrame =   (frameOf60fps != 3
+							&& frameOf60fps != 9
+							&& frameOf60fps != 16
+							&& frameOf60fps != 22
+							&& frameOf60fps != 28
+							&& frameOf60fps != 34
+							&& frameOf60fps != 40
+							&& frameOf60fps != 46
+							&& frameOf60fps != 51
+							&& frameOf60fps != 58);
+				break;
+			default:
+				loadFrame = (frameDelay == 60/(rvidInterlaced ? rvidFps*2 : rvidFps));
+				break;
+		}
+	}
+}
+
 void renderFrames(void) {
 	if(fadeType == true) {
 		screenBrightness--;
@@ -129,50 +176,6 @@ void renderFrames(void) {
 	SetBrightness(1, screenBrightness);
 
 	if (videoPlaying && currentFrame <= loadedFrames[currentFrameBufferNo]) {
-		if (!loadFrame) {
-			frameOf60fps++;
-			if (frameOf60fps > 60) frameOf60fps = 1;
-
-			frameDelay++;
-			switch (rvidInterlaced ? rvidFps*2 : rvidFps) {
-				case 11:
-					loadFrame = (frameDelay == 5+frameDelayEven);
-					break;
-				case 24:
-				case 25:
-					loadFrame = (frameDelay == 2+frameDelayEven);
-					break;
-				case 48:
-					loadFrame =   (frameOf60fps != 3
-								&& frameOf60fps != 8
-								&& frameOf60fps != 13
-								&& frameOf60fps != 18
-								&& frameOf60fps != 23
-								&& frameOf60fps != 28
-								&& frameOf60fps != 33
-								&& frameOf60fps != 38
-								&& frameOf60fps != 43
-								&& frameOf60fps != 48
-								&& frameOf60fps != 53
-								&& frameOf60fps != 58);
-					break;
-				case 50:
-					loadFrame =   (frameOf60fps != 3
-								&& frameOf60fps != 9
-								&& frameOf60fps != 16
-								&& frameOf60fps != 22
-								&& frameOf60fps != 28
-								&& frameOf60fps != 34
-								&& frameOf60fps != 40
-								&& frameOf60fps != 46
-								&& frameOf60fps != 51
-								&& frameOf60fps != 58);
-					break;
-				default:
-					loadFrame = (frameDelay == 60/(rvidInterlaced ? rvidFps*2 : rvidFps));
-					break;
-			}
-		}
 		if (loadFrame) {
 			if (currentFrame < (int)rvidFrames) {
 				if (rvidInterlaced) {
@@ -624,6 +627,9 @@ int main(int argc, char **argv) {
 
 	irqSet(IRQ_VBLANK, renderFrames);
 	irqEnable(IRQ_VBLANK);
+
+	irqSet(IRQ_VCOUNT, frameRateHandler);
+	irqEnable(IRQ_VCOUNT);
 
 	videoSetMode(MODE_5_2D | DISPLAY_BG3_ACTIVE);
 	videoSetModeSub(MODE_3_2D | DISPLAY_BG3_ACTIVE);
