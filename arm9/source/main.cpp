@@ -761,14 +761,17 @@ int main(int argc, char **argv) {
 						printf("Please use less frames, and/or\n");
 						printf("reduce vertical resolution.\n");
 					}
-					if (err > 0) {
+					if ((err > 0) && (argc < 2)) {
 						printf("\n");
 						printf("A: OK\n");
 						while (1) {
 							scanKeys();
-							if ((keysDown() & KEY_A) && argc < 2) {
+							if (keysDown() & KEY_A) {
 								break;
 							}
+						}
+						for (int i = 0; i < 25; i++) {
+							swiWaitForVBlank();
 						}
 					}
 				}
