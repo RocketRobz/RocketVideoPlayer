@@ -358,18 +358,18 @@ int playRvid(const char* filename) {
 		u32 frameBufferSize = 0;
 		while (1) {
 			frameBufferSize += (0x200*rvidVRes);
-			if (frameBufferSize+(0x200*rvidVRes) > sizeof(frameBuffer) || i > rvidFrames) {
+			if (frameBufferSize+(0x200*rvidVRes) > sizeof(frameBuffer) || i > rvidFrames+rvidFps) {
 				break;
 			}
 			i++;
 			loadedFrames[0]++;
 		}
 		fread(frameBuffer, 1, frameBufferSize, rvid);
-		if (i < rvidFrames) {
+		if (i <= rvidFrames+rvidFps) {
 			frameBufferSize = 0;
 			while (1) {
 				frameBufferSize += (0x200*rvidVRes);
-				if (frameBufferSize+(0x200*rvidVRes) > 0xA60000 || i > rvidFrames) {
+				if (frameBufferSize+(0x200*rvidVRes) > 0xA60000 || i > rvidFrames+rvidFps) {
 					break;
 				}
 				i++;
@@ -377,11 +377,11 @@ int playRvid(const char* filename) {
 			}
 			fread(frameBufferExtended[0], 1, frameBufferSize, rvid);
 		}
-		if (i < rvidFrames && isDevConsole) {
+		if (i <= rvidFrames+rvidFps && isDevConsole) {
 			frameBufferSize = 0;
 			while (1) {
 				frameBufferSize += (0x200*rvidVRes);
-				if (frameBufferSize+(0x200*rvidVRes) > 0x1000000 || i > rvidFrames) {
+				if (frameBufferSize+(0x200*rvidVRes) > 0x1000000 || i > rvidFrames+rvidFps) {
 					break;
 				}
 				i++;
