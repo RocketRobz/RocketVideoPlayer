@@ -74,9 +74,9 @@ void SoundControl::loadStreamFromRvid(const char* filename) {
 	resetStreamSettings();
 
 	fseek(stream_source, 0, SEEK_END);
-	soundSize = ftell(stream_source);			// Get sound stream size
-	soundSize -= 0x200+((0x200*rvidVRes)*rvidFrames);	// Fix size
-	fseek(stream_source, 0x200+((0x200*rvidVRes)*rvidFrames), SEEK_SET);
+	soundSize = ftell(stream_source);					// Get sound stream size
+	soundSize -= rvidSoundOffset;						// Fix size
+	fseek(stream_source, rvidSoundOffset, SEEK_SET);
 
 	stream.sampling_rate = rvidSampleRate;
 	stream.buffer_length = 800;	  			// should be adequate
@@ -147,7 +147,7 @@ void SoundControl::resetStream() {
 		return;
 	}
 
-	fseek(stream_source, 0x200+((0x200*rvidVRes)*rvidFrames), SEEK_SET);
+	fseek(stream_source, rvidSoundOffset, SEEK_SET);
 
 	if (rvidInRam || !streamInRam) {
 		// Prep the first section of the stream

@@ -12,6 +12,9 @@ int rvidVRes = 0;
 bool rvidInterlaced = false;
 bool rvidHasSound = false;
 u16 rvidSampleRate = 0;
+bool rvidCompressed = false;
+off_t rvidFramesOffset = 0;
+off_t rvidSoundOffset = 0;
 
 void readRvidHeader(FILE* rvid) {
 	fseek(rvid, 0, SEEK_SET);
@@ -24,6 +27,9 @@ void readRvidHeader(FILE* rvid) {
 			rvidInterlaced = false;
 			rvidHasSound = rvidHeader1.hasSound;
 			rvidSampleRate = rvidHeader1.sampleRate;
+			rvidCompressed = false;
+			rvidFramesOffset = 0x200;
+			rvidSoundOffset = 0x200+((0x200*rvidVRes)*rvidFrames);
 			break;
 		case 2:
 			fread(&rvidHeader2, 1, sizeof(rvidHeader2), rvid);
@@ -33,6 +39,9 @@ void readRvidHeader(FILE* rvid) {
 			rvidInterlaced = rvidHeader2.interlaced;
 			rvidHasSound = rvidHeader2.hasSound;
 			rvidSampleRate = rvidHeader2.sampleRate;
+			rvidCompressed = rvidHeader2.framesCompressed;
+			rvidFramesOffset = rvidHeader2.framesOffset;
+			rvidSoundOffset = rvidHeader2.soundOffset;
 			break;
 	}
 }

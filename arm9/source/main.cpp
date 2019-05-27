@@ -49,6 +49,8 @@ bool isDevConsole = false;
 bool extendedMemory = false;
 
 u8 compressedFrameBuffer[0x8000];
+u32 compressedFrameSizes[128];
+
 u8 frameBuffer[0x18000*28];					// 28 frames in buffer
 u8* frameSoundBufferExtended = (u8*)0x02420000;
 bool useBufferHalf = true;
@@ -89,6 +91,7 @@ char filePath[PATH_MAX];
 touchPosition touch;
 
 FILE* rvid;
+FILE* rvidFrameSizeTable;
 bool rvidInRam = false;
 u32 rvidSizeAllowed = 0xA60000;
 bool showVideoGui = false;
@@ -295,7 +298,7 @@ int playRvid(const char* filename) {
 
 	readRvidHeader(rvid);
 
-	if (rvidFps > 24) {
+	if (rvidFps > 24 && !rvidCompressed) {
 		if (!extendedMemory) {
 			return 2;
 		}
@@ -355,13 +358,25 @@ int playRvid(const char* filename) {
 	snprintf(timeStamp, sizeof(timeStamp), "00:00:00/%s:%s:%s",
 	numberMark[3], numberMark[4], numberMark[5]);
 
-	fseek(rvid, 0x200, SEEK_SET);
+	fseek(rvid, rvidFramesOffset, SEEK_SET);
 	if (rvidInRam) {
 		fread(frameSoundBufferExtended, 1, (0x200*rvidVRes)*(rvidFrames+1), rvid);
 		loadedFrames = rvidFrames;
 	} else {
-		fread(frameBuffer, 1, (0x200*rvidVRes)*14, rvid);
-		loadedFrames = 13;
+		if (rvidCompressed) {
+			loadedFrames = 0;
+			rvidFrameSizeTable = fopen(filename, "rb");
+			fseek(rvidFrameSizeTable, 0x200, SEEK_SET);
+			fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
+			for (int i = 0; i < 14; i++) {
+				fread(compressedFrameBuffer, 1, compressedFrameSizes[i], rvid);
+				swiDecompressLZSSWram(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
+				loadedFrames++;
+			}
+		} else {
+			fread(frameBuffer, 1, (0x200*rvidVRes)*14, rvid);
+			loadedFrames = 13;
+		}
 	}
 
 	snd().loadStreamFromRvid(filename);
@@ -397,7 +412,14 @@ int playRvid(const char* filename) {
 				if (useBufferHalf) {
 					for (int i = 14; i < 28; i++) {
 						snd().updateStream();
-						fread(frameBuffer+(i*(0x200*rvidVRes)), 1, 0x200*rvidVRes, rvid);
+						if (rvidCompressed) {
+							if (compressedFrameSizes[currentFrame+14 % 128] <= sizeof(compressedFrameBuffer)) {
+								fread(compressedFrameBuffer, 1, compressedFrameSizes[currentFrame+14 % 128], rvid);
+								swiDecompressLZSSWram(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
+							}
+						} else {
+							fread(frameBuffer+(i*(0x200*rvidVRes)), 1, 0x200*rvidVRes, rvid);
+						}
 						loadedFrames++;
 
 						scanKeys();
@@ -430,7 +452,17 @@ int playRvid(const char* filename) {
 				if (!useBufferHalf) {
 					for (int i = 0; i < 14; i++) {
 						snd().updateStream();
-						fread(frameBuffer+(i*(0x200*rvidVRes)), 1, 0x200*rvidVRes, rvid);
+						if (rvidCompressed) {
+							if ((currentFrame+14 % 128) == 0) {
+								fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
+							}
+							if (compressedFrameSizes[currentFrame+14 % 128] <= sizeof(compressedFrameBuffer)) {
+								fread(compressedFrameBuffer, 1, compressedFrameSizes[currentFrame+14 % 128], rvid);
+								swiDecompressLZSSWram(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
+							}
+						} else {
+							fread(frameBuffer+(i*(0x200*rvidVRes)), 1, 0x200*rvidVRes, rvid);
+						}
 						loadedFrames++;
 
 						scanKeys();
@@ -498,9 +530,20 @@ int playRvid(const char* filename) {
 
 			if (!rvidInRam) {
 				// Reload video
-				fseek(rvid, 0x200, SEEK_SET);
-				fread(frameBuffer, 1, (0x200*rvidVRes)*14, rvid);
-				loadedFrames = 13;
+				fseek(rvid, rvidFramesOffset, SEEK_SET);
+				if (rvidCompressed) {
+					loadedFrames = 0;
+					fseek(rvidFrameSizeTable, 0x200, SEEK_SET);
+					fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
+					for (int i = 0; i < 14; i++) {
+						fread(compressedFrameBuffer, 1, compressedFrameSizes[i], rvid);
+						swiDecompressLZSSWram(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
+						loadedFrames++;
+					}
+				} else {
+					fread(frameBuffer, 1, (0x200*rvidVRes)*14, rvid);
+					loadedFrames = 13;
+				}
 			}
 
 			snd().resetStream();
@@ -704,14 +747,15 @@ int main(int argc, char **argv) {
 			vramSetBankG(VRAM_G_MAIN_BG);
 			consoleInit(NULL, 0, BgType_Text4bpp, BgSize_T_256x256, 15, 0, true, true);
 
-			//dmaFillHalfWords(0, BG_GFX_SUB, 0x18000);	// Clear top screen
-
 			FILE* file = fopen("nitro:/test_comp.bin", "rb");
 
 			if (file) {
 				// Start loading
 				fread(compressedFrameBuffer, 1, sizeof(compressedFrameBuffer), file);
-				lzssDecompress(compressedFrameBuffer, (u8*)BG_GFX_SUB);
+				swiDecompressLZSSWram(compressedFrameBuffer, frameBuffer);
+				dmaCopyAsynch(frameBuffer, BG_GFX_SUB, 0x18000);
+			} else {
+				dmaFillHalfWords(0, BG_GFX_SUB, 0x18000);	// Clear top screen
 			}
 
 			fclose(file);
@@ -743,6 +787,7 @@ int main(int argc, char **argv) {
 				} else {
 					int err = playRvid(filename.c_str());
 					fclose(rvid);
+					fclose(rvidFrameSizeTable);
 					if (err == 3) {
 						consoleClear();
 						printf("This Rocket Video file\n");
