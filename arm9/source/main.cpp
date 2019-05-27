@@ -34,6 +34,7 @@
 #include "sound.h"
 #include "gui.h"
 #include "nitrofs.h"
+#include "lz77.h"
 
 #include "myDma.h"
 
@@ -47,6 +48,7 @@ bool isRegularDS = true;
 bool isDevConsole = false;
 bool extendedMemory = false;
 
+u8 compressedFrameBuffer[0x8000];
 u8 frameBuffer[0x18000*28];					// 28 frames in buffer
 u8* frameSoundBufferExtended = (u8*)0x02420000;
 bool useBufferHalf = true;
@@ -702,7 +704,17 @@ int main(int argc, char **argv) {
 			vramSetBankG(VRAM_G_MAIN_BG);
 			consoleInit(NULL, 0, BgType_Text4bpp, BgSize_T_256x256, 15, 0, true, true);
 
-			dmaFillHalfWords(0, BG_GFX_SUB, 0x18000);	// Clear top screen
+			//dmaFillHalfWords(0, BG_GFX_SUB, 0x18000);	// Clear top screen
+
+			FILE* file = fopen("nitro:/test_comp.bin", "rb");
+
+			if (file) {
+				// Start loading
+				fread(compressedFrameBuffer, 1, sizeof(compressedFrameBuffer), file);
+				lzssDecompress(compressedFrameBuffer, (u8*)BG_GFX_SUB);
+			}
+
+			fclose(file);
 
 			filename = browseForFile(extensionList);
 		}
