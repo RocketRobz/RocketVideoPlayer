@@ -48,7 +48,7 @@ bool isRegularDS = true;
 bool isDevConsole = false;
 bool extendedMemory = false;
 
-u8 compressedFrameBuffer[0x8000];
+u8 compressedFrameBuffer[0x10000];
 u32 compressedFrameSizes[128];
 
 u8 frameBuffer[0x18000*28];					// 28 frames in buffer
