@@ -413,12 +413,12 @@ int playRvid(const char* filename) {
 					for (int i = 14; i < 28; i++) {
 						snd().updateStream();
 						if (rvidCompressed) {
-							if ((currentFrame+14 % 128) == 0) {
+							if (((loadedFrames+1) % 128) == 0) {
 								fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
 							}
-							if (compressedFrameSizes[currentFrame+14 % 128] > 0
-							|| compressedFrameSizes[currentFrame+14 % 128] <= sizeof(compressedFrameBuffer)) {
-								fread(compressedFrameBuffer, 1, compressedFrameSizes[currentFrame+14 % 128], rvid);
+							if (compressedFrameSizes[(loadedFrames+1) % 128] > 0
+							|| compressedFrameSizes[(loadedFrames+1) % 128] <= sizeof(compressedFrameBuffer)) {
+								fread(compressedFrameBuffer, 1, compressedFrameSizes[(loadedFrames+1) % 128], rvid);
 								lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
 							}
 						} else {
@@ -457,12 +457,12 @@ int playRvid(const char* filename) {
 					for (int i = 0; i < 14; i++) {
 						snd().updateStream();
 						if (rvidCompressed) {
-							if ((currentFrame+14 % 128) == 0) {
+							if (((loadedFrames+1) % 128) == 0) {
 								fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
 							}
-							if (compressedFrameSizes[currentFrame+14 % 128] > 0
-							|| compressedFrameSizes[currentFrame+14 % 128] <= sizeof(compressedFrameBuffer)) {
-								fread(compressedFrameBuffer, 1, compressedFrameSizes[currentFrame+14 % 128], rvid);
+							if (compressedFrameSizes[(loadedFrames+1) % 128] > 0
+							|| compressedFrameSizes[(loadedFrames+1) % 128] <= sizeof(compressedFrameBuffer)) {
+								fread(compressedFrameBuffer, 1, compressedFrameSizes[(loadedFrames+1) % 128], rvid);
 								lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
 							}
 						} else {
