@@ -370,7 +370,7 @@ int playRvid(const char* filename) {
 			fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
 			for (int i = 0; i < 14; i++) {
 				fread(compressedFrameBuffer, 1, compressedFrameSizes[i], rvid);
-				swiDecompressLZSSWram(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
+				lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
 				loadedFrames++;
 			}
 		} else {
@@ -419,7 +419,7 @@ int playRvid(const char* filename) {
 							if (compressedFrameSizes[currentFrame+14 % 128] > 0
 							|| compressedFrameSizes[currentFrame+14 % 128] <= sizeof(compressedFrameBuffer)) {
 								fread(compressedFrameBuffer, 1, compressedFrameSizes[currentFrame+14 % 128], rvid);
-								swiDecompressLZSSWram(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
+								lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
 							}
 						} else {
 							fread(frameBuffer+(i*(0x200*rvidVRes)), 1, 0x200*rvidVRes, rvid);
@@ -463,7 +463,7 @@ int playRvid(const char* filename) {
 							if (compressedFrameSizes[currentFrame+14 % 128] > 0
 							|| compressedFrameSizes[currentFrame+14 % 128] <= sizeof(compressedFrameBuffer)) {
 								fread(compressedFrameBuffer, 1, compressedFrameSizes[currentFrame+14 % 128], rvid);
-								swiDecompressLZSSWram(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
+								lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
 							}
 						} else {
 							fread(frameBuffer+(i*(0x200*rvidVRes)), 1, 0x200*rvidVRes, rvid);
@@ -542,7 +542,7 @@ int playRvid(const char* filename) {
 					fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
 					for (int i = 0; i < 14; i++) {
 						fread(compressedFrameBuffer, 1, compressedFrameSizes[i], rvid);
-						swiDecompressLZSSWram(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
+						lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
 						loadedFrames++;
 					}
 				} else {
@@ -757,7 +757,7 @@ int main(int argc, char **argv) {
 			if (file) {
 				// Start loading
 				fread(compressedFrameBuffer, 1, sizeof(compressedFrameBuffer), file);
-				swiDecompressLZSSWram(compressedFrameBuffer, frameBuffer);
+				lzssDecompress(compressedFrameBuffer, frameBuffer);
 				dmaCopyAsynch(frameBuffer, BG_GFX_SUB, 0x18000);
 			} else {
 				dmaFillHalfWords(0, BG_GFX_SUB, 0x18000);	// Clear top screen

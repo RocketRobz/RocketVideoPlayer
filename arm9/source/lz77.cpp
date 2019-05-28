@@ -1,22 +1,23 @@
 #include <nds.h>
+#include "tonccpy.h"
 
 #define __itcm __attribute__((section(".itcm")))
 
 void __itcm
-lzssDecompress(byte source[], byte destination[]) {
-	uint32 leng = (uint)(source[1] | (source[2] << 8) | (source[3] << 16));
+lzssDecompress(u8* source, u8* destination) {
+	u32 leng = (source[1] | (source[2] << 8) | (source[3] << 16));
 	int Offs = 4;
 	int dstoffs = 0;
 	while (true)
 	{
-		byte header = source[Offs++];
+		u8 header = source[Offs++];
 		for (int i = 0; i < 8; i++)
 		{
 			if ((header & 0x80) == 0) destination[dstoffs++] = source[Offs++];
 			else
 			{
-				byte a = source[Offs++];
-				byte b = source[Offs++];
+				u8 a = source[Offs++];
+				u8 b = source[Offs++];
 				int offs = (((a & 0xF) << 8) | b) + 1;
 				int length = (a >> 4) + 3;
 				for (int j = 0; j < length; j++)
@@ -25,7 +26,7 @@ lzssDecompress(byte source[], byte destination[]) {
 					dstoffs++;
 				}
 			}
-			if (dstoffs >= leng) break;
+			if (dstoffs >= (int)leng) return;
 			header <<= 1;
 		}
 	}
