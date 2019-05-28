@@ -416,7 +416,8 @@ int playRvid(const char* filename) {
 							if ((currentFrame+14 % 128) == 0) {
 								fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
 							}
-							if (compressedFrameSizes[currentFrame+14 % 128] <= sizeof(compressedFrameBuffer)) {
+							if (compressedFrameSizes[currentFrame+14 % 128] > 0
+							|| compressedFrameSizes[currentFrame+14 % 128] <= sizeof(compressedFrameBuffer)) {
 								fread(compressedFrameBuffer, 1, compressedFrameSizes[currentFrame+14 % 128], rvid);
 								swiDecompressLZSSWram(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
 							}
@@ -459,7 +460,8 @@ int playRvid(const char* filename) {
 							if ((currentFrame+14 % 128) == 0) {
 								fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
 							}
-							if (compressedFrameSizes[currentFrame+14 % 128] <= sizeof(compressedFrameBuffer)) {
+							if (compressedFrameSizes[currentFrame+14 % 128] > 0
+							|| compressedFrameSizes[currentFrame+14 % 128] <= sizeof(compressedFrameBuffer)) {
 								fread(compressedFrameBuffer, 1, compressedFrameSizes[currentFrame+14 % 128], rvid);
 								swiDecompressLZSSWram(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
 							}
