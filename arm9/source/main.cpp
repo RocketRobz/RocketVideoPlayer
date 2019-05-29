@@ -178,7 +178,7 @@ void renderFrames(void) {
 
 	if (videoPlaying && currentFrame <= loadedFrames) {
 		if (loadFrame) {
-			if (currentFrame < (int)rvidFrames) {
+			if (currentFrame < rvidFrames) {
 				if (rvidInRam) {
 					if (rvidInterlaced) {
 						if (bottomField) {
@@ -412,19 +412,21 @@ int playRvid(const char* filename) {
 				if (useBufferHalf) {
 					for (int i = 14; i < 28; i++) {
 						snd().updateStream();
-						if (rvidCompressed) {
-							if ((loadedFrames % 128) == 0) {
-								fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
+						if (loadedFrames < rvidFrames) {
+							if (rvidCompressed) {
+								if ((loadedFrames % 128) == 0) {
+									fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
+								}
+								if (compressedFrameSizes[loadedFrames % 128] > 0
+								|| compressedFrameSizes[loadedFrames % 128] <= sizeof(compressedFrameBuffer)) {
+									fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedFrames % 128], rvid);
+									lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
+								}
+							} else {
+								fread(frameBuffer+(i*(0x200*rvidVRes)), 1, 0x200*rvidVRes, rvid);
 							}
-							if (compressedFrameSizes[loadedFrames % 128] > 0
-							|| compressedFrameSizes[loadedFrames % 128] <= sizeof(compressedFrameBuffer)) {
-								fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedFrames % 128], rvid);
-								lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
-							}
-						} else {
-							fread(frameBuffer+(i*(0x200*rvidVRes)), 1, 0x200*rvidVRes, rvid);
+							loadedFrames++;
 						}
-						loadedFrames++;
 
 						scanKeys();
 						touchRead(&touch);
@@ -456,19 +458,21 @@ int playRvid(const char* filename) {
 				if (!useBufferHalf) {
 					for (int i = 0; i < 14; i++) {
 						snd().updateStream();
-						if (rvidCompressed) {
-							if ((loadedFrames % 128) == 0) {
-								fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
+						if (loadedFrames < rvidFrames) {
+							if (rvidCompressed) {
+								if ((loadedFrames % 128) == 0) {
+									fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
+								}
+								if (compressedFrameSizes[loadedFrames % 128] > 0
+								|| compressedFrameSizes[loadedFrames % 128] <= sizeof(compressedFrameBuffer)) {
+									fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedFrames % 128], rvid);
+									lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
+								}
+							} else {
+								fread(frameBuffer+(i*(0x200*rvidVRes)), 1, 0x200*rvidVRes, rvid);
 							}
-							if (compressedFrameSizes[loadedFrames % 128] > 0
-							|| compressedFrameSizes[loadedFrames % 128] <= sizeof(compressedFrameBuffer)) {
-								fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedFrames % 128], rvid);
-								lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
-							}
-						} else {
-							fread(frameBuffer+(i*(0x200*rvidVRes)), 1, 0x200*rvidVRes, rvid);
+							loadedFrames++;
 						}
-						loadedFrames++;
 
 						scanKeys();
 						touchRead(&touch);
