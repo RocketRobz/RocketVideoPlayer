@@ -746,24 +746,11 @@ int main(int argc, char **argv) {
 				filename.erase(0, last_slash_idx + 1);
 			}
 		} else {
-			clearBrightness();
-
 			videoSetMode(MODE_0_2D);
 			vramSetBankG(VRAM_G_MAIN_BG);
 			consoleInit(NULL, 0, BgType_Text4bpp, BgSize_T_256x256, 15, 0, true, true);
-
-			FILE* file = fopen("nitro:/test_comp.bin", "rb");
-
-			if (file) {
-				// Start loading
-				fread(compressedFrameBuffer, 1, sizeof(compressedFrameBuffer), file);
-				lzssDecompress(compressedFrameBuffer, frameBuffer);
-				dmaCopyAsynch(frameBuffer, BG_GFX_SUB, 0x18000);
-			} else {
-				dmaFillHalfWords(0, BG_GFX_SUB, 0x18000);	// Clear top screen
-			}
-
-			fclose(file);
+			LoadBMP(false, "nitro:/logo_rocketvideoplayer.bmp");
+			fadeType = true;
 
 			filename = browseForFile(extensionList);
 		}
