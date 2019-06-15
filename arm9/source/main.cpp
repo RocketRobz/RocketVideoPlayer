@@ -298,7 +298,7 @@ int playRvid(const char* filename) {
 
 	readRvidHeader(rvid);
 
-	if (rvidFps > 24 && !rvidCompressed) {
+	if ((rvidFps > 24 && !rvidCompressed) || (rvidFps > 25 && rvidCompressed)) {
 		if (!extendedMemory) {
 			return 2;
 		}
@@ -795,7 +795,7 @@ int main(int argc, char **argv) {
 					} else if (err == 2) {
 						consoleClear();
 						printf("This Rocket Video file is\n");
-						printf("above 24FPS.\n");
+						printf("above %iFPS.\n", (rvidCompressed ? 25 : 24));
 						printf("\n");
 						if (isRegularDS) {
 							printf("Please insert the DS Memory\n");
@@ -808,7 +808,7 @@ int main(int argc, char **argv) {
 						}
 					} else if (err == 1) {
 						consoleClear();
-						printf("This 25-60FPS Rocket Video\n");
+						printf("This %i-60FPS Rocket Video\n", (rvidCompressed ? 30 : 25));
 						printf("file is too big!\n");
 						printf("\n");
 						printf("Please use less frames, and/or\n");
