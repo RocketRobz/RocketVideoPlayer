@@ -34,6 +34,7 @@
 #include "sound.h"
 #include "gui.h"
 #include "nitrofs.h"
+#include "tonccpy.h"
 #include "lz77.h"
 
 #include "myDma.h"
@@ -94,6 +95,7 @@ FILE* rvid;
 FILE* rvidFrameSizeTable;
 bool rvidInRam = false;
 u32 rvidSizeAllowed = 0xA60000;
+u32 rvidCurrentOffset = 0;
 bool showVideoGui = false;
 bool videoPlaying = false;
 bool loadFrame = true;
@@ -179,7 +181,7 @@ void renderFrames(void) {
 	if (videoPlaying && currentFrame <= loadedFrames) {
 		if (loadFrame) {
 			if (currentFrame < rvidFrames) {
-				if (rvidInRam) {
+				if (rvidInRam && !rvidCompressed) {
 					if (rvidInterlaced) {
 						if (bottomField) {
 							dmaFillHalfWords(0, (u16*)BG_GFX_SUB+(256*videoYpos), 0x200);
@@ -256,7 +258,8 @@ void renderFrames(void) {
 				currentFrame++;
 				currentFrameInBuffer++;
 			}
-			if (currentFrameInBuffer == 28 && !rvidInRam) {
+			if ((currentFrameInBuffer == 28 && !rvidInRam)
+			|| (currentFrameInBuffer == 28 && rvidCompressed)) {
 				currentFrameInBuffer = 0;
 			}
 			switch (rvidInterlaced ? rvidFps*2 : rvidFps) {
@@ -361,7 +364,21 @@ int playRvid(const char* filename) {
 	fseek(rvid, rvidFramesOffset, SEEK_SET);
 	if (rvidInRam) {
 		fread(frameSoundBufferExtended, 1, (0x200*rvidVRes)*(rvidFrames+1), rvid);
-		loadedFrames = rvidFrames;
+		if (rvidCompressed) {
+			loadedFrames = 0;
+			rvidCurrentOffset = 0;
+			rvidFrameSizeTable = fopen(filename, "rb");
+			fseek(rvidFrameSizeTable, 0x200, SEEK_SET);
+			fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
+			for (int i = 0; i < 14; i++) {
+				tonccpy(compressedFrameBuffer, (u8*)frameSoundBufferExtended+rvidCurrentOffset, compressedFrameSizes[i]);
+				lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
+				loadedFrames++;
+				rvidCurrentOffset += compressedFrameSizes[i];
+			}
+		} else {
+			loadedFrames = rvidFrames;
+		}
 	} else {
 		if (rvidCompressed) {
 			loadedFrames = 0;
@@ -405,7 +422,99 @@ int playRvid(const char* filename) {
 	videoPlaying = true;
 	snd().beginStream();
 	while (1) {
-		if (!rvidInRam) {
+		if (rvidInRam) {
+			if (rvidCompressed) {
+				if ((currentFrame % 28) >= 0
+				&& (currentFrame % 28) < 14)
+				{
+					if (useBufferHalf) {
+						for (int i = 14; i < 28; i++) {
+							snd().updateStream();
+							if (loadedFrames < rvidFrames) {
+								if ((loadedFrames % 128) == 0) {
+									fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
+								}
+								if (compressedFrameSizes[loadedFrames % 128] > 0
+								|| compressedFrameSizes[loadedFrames % 128] <= sizeof(compressedFrameBuffer)) {
+									tonccpy(compressedFrameBuffer, (u8*)frameSoundBufferExtended+rvidCurrentOffset, compressedFrameSizes[loadedFrames % 128]);
+									lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
+								}
+								loadedFrames++;
+								rvidCurrentOffset += compressedFrameSizes[loadedFrames % 128];
+							}
+
+							scanKeys();
+							touchRead(&touch);
+							if (keysDown() & KEY_A
+							|| ((keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
+								if (videoPlaying) {
+									videoPlaying = false;
+									snd().stopStream();
+								} else {
+									videoPlaying = true;
+									snd().beginStream();
+								}
+							}
+							if (keysDown() & KEY_B
+							|| ((keysDown() & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
+								confirmReturn = true;
+								break;
+							}
+							if ((keysDown() & KEY_LEFT) && currentFrame > 0) {
+								confirmStop = true;
+								break;
+							}
+						}
+						useBufferHalf = false;
+					}
+				} else if ((currentFrame % 28) >= 14
+						&& (currentFrame % 28) < 28)
+				{
+					if (!useBufferHalf) {
+						for (int i = 0; i < 14; i++) {
+							snd().updateStream();
+							if (loadedFrames < rvidFrames) {
+								if ((loadedFrames % 128) == 0) {
+									fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
+								}
+								if (compressedFrameSizes[loadedFrames % 128] > 0
+								|| compressedFrameSizes[loadedFrames % 128] <= sizeof(compressedFrameBuffer)) {
+									tonccpy(compressedFrameBuffer, (u8*)frameSoundBufferExtended+rvidCurrentOffset, compressedFrameSizes[loadedFrames % 128]);
+									lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
+								}
+								loadedFrames++;
+								rvidCurrentOffset += compressedFrameSizes[loadedFrames % 128];
+							}
+
+							scanKeys();
+							touchRead(&touch);
+							if (keysDown() & KEY_A
+							|| ((keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
+								if (videoPlaying) {
+									videoPlaying = false;
+									snd().stopStream();
+								} else {
+									videoPlaying = true;
+									snd().beginStream();
+								}
+							}
+							if (keysDown() & KEY_B
+							|| ((keysDown() & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
+								confirmReturn = true;
+								break;
+							}
+							if ((keysDown() & KEY_LEFT) && currentFrame > 0) {
+								confirmStop = true;
+								break;
+							}
+						}
+						useBufferHalf = true;
+					}
+				}
+			} else {
+				snd().updateStream();
+			}
+		} else {
 			if ((currentFrame % 28) >= 0
 			&& (currentFrame % 28) < 14)
 			{
@@ -499,8 +608,6 @@ int playRvid(const char* filename) {
 					useBufferHalf = true;
 				}
 			}
-		} else {
-			snd().updateStream();
 		}
 		scanKeys();
 		touchRead(&touch);
@@ -537,7 +644,21 @@ int playRvid(const char* filename) {
 			frameDelayEven = true;
 			bottomField = false;
 
-			if (!rvidInRam) {
+			if (rvidInRam) {
+				if (rvidCompressed) {
+					// Reload video
+					loadedFrames = 0;
+					rvidCurrentOffset = 0;
+					fseek(rvidFrameSizeTable, 0x200, SEEK_SET);
+					fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
+					for (int i = 0; i < 14; i++) {
+						tonccpy(compressedFrameBuffer, (u8*)frameSoundBufferExtended+rvidCurrentOffset, compressedFrameSizes[i]);
+						lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
+						loadedFrames++;
+						rvidCurrentOffset += compressedFrameSizes[i];
+					}
+				}
+			} else {
 				// Reload video
 				fseek(rvid, rvidFramesOffset, SEEK_SET);
 				if (rvidCompressed) {
