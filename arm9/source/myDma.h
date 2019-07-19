@@ -1,4 +1,4 @@
-#include <dma.h>
+#include <nds/dma.h>
 
 inline void dmaFillWordsAsynch(uint8 channel, u32 value, void* dest, uint32 size) {
 	DMA_FILL(channel) = (uint32)value;
