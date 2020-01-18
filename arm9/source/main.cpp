@@ -121,7 +121,7 @@ int videoHourMark = -1;
 int videoMinuteMark = 59;
 int videoSecondMark = 59;
 
-void frameRateHandler(void) {
+ITCM_CODE void frameRateHandler(void) {
 	if (videoPlaying && currentFrame <= loadedFrames && !loadFrame) {
 		frameOf60fps++;
 		if (frameOf60fps > 60) frameOf60fps = 1;
@@ -168,7 +168,7 @@ void frameRateHandler(void) {
 	}
 }
 
-void renderFrames(void) {
+ITCM_CODE void renderFrames(void) {
 	if(fadeType == true) {
 		screenBrightness--;
 		if (screenBrightness < 0) screenBrightness = 0;
@@ -883,7 +883,7 @@ int main(int argc, char **argv) {
 
 	dmaFillHalfWords(0, BG_GFX, 0x18000);		// Clear top screen
 	dmaFillHalfWords(0, BG_GFX_SUB, 0x18000);	// Clear bottom screen
-	snd();
+	//snd();
 
 	lcdMainOnBottom();
 

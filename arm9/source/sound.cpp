@@ -36,6 +36,7 @@ extern volatile u32 sample_delay_count;
 
 extern u8* frameSoundBufferExtended;
 
+static bool sndInited = false;
 bool streamFound = false;
 bool streamInRam = false;
 extern u32 rvidSizeAllowed;
@@ -58,10 +59,14 @@ SoundControl::SoundControl()
 	sys.fifo_channel = FIFO_MAXMOD;
 
 	mmInit(&sys);
+
+	sndInited = true;
 }
 
 void SoundControl::loadStreamFromRvid(const char* filename) {
 	if (stream_source) fclose(stream_source);
+
+	if (!sndInited) return;
 
 	stream_source = fopen(filename, "rb");
 	

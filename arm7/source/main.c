@@ -56,11 +56,11 @@ int main() {
     nocashMessage("ARM7 main.c main");
 	
 	// clear sound registers
-	dmaFillWords(0, (void*)0x04000400, 0x100);
+	/*dmaFillWords(0, (void*)0x04000400, 0x100);
 
 	REG_SOUNDCNT |= SOUND_ENABLE;
 	writePowerManagement(PM_CONTROL_REG, ( readPowerManagement(PM_CONTROL_REG) & ~PM_SOUND_MUTE ) | PM_SOUND_AMP );
-	powerOn(POWER_SOUND);
+	powerOn(POWER_SOUND);*/
 
 	readUserSettings();
 	ledBlink(0);
@@ -72,10 +72,10 @@ int main() {
 	touchInit();
 	fifoInit();
 	
-	mmInstall(FIFO_MAXMOD);
+	//mmInstall(FIFO_MAXMOD);
 	SetYtrigger(80);
 	
-	installSoundFIFO();
+	//installSoundFIFO();
 	installSystemFIFO();
 
 	irqSet(IRQ_VCOUNT, VcountHandler);
@@ -85,6 +85,8 @@ int main() {
 
 	setPowerButtonCB(powerButtonCB);
 	
+	fifoSendValue32(FIFO_USER_07, *(u16*)(0x4004700));
+
 	// Keep the ARM7 mostly idle
 	while (!exitflag) {
 		if ( 0 == (REG_KEYINPUT & (KEY_SELECT | KEY_START | KEY_L | KEY_R))) {
