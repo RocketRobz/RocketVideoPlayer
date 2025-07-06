@@ -14,7 +14,7 @@ extern int loadedFrames;
 
 extern std::string filename;
 
-extern char timeStamp[32];
+extern char timeStamp[96];
 
 static int buttonTexID[2];
 

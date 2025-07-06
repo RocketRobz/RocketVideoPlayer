@@ -110,9 +110,9 @@ int frameDelay = 0;
 bool frameDelayEven = true;
 bool bottomField = false;
 
-char numberMark[6][6];
+char numberMark[6][16];
 
-char timeStamp[32];
+char timeStamp[96];
 
 int hourMark = -1;
 int minuteMark = 59;
@@ -230,21 +230,21 @@ ITCM_CODE void renderFrames(void) {
 
 			// Current time stamp
 			if (hourMark < 10) {
-				snprintf(numberMark[0], sizeof(numberMark[0]), "0%i", hourMark);
+				sprintf(numberMark[0], "0%i", hourMark);
 			} else {
-				snprintf(numberMark[0], sizeof(numberMark[0]), "%i", hourMark);
+				sprintf(numberMark[0], "%i", hourMark);
 			}
 			//printf(":");
 			if (minuteMark < 10) {
-				snprintf(numberMark[1], sizeof(numberMark[1]), "0%i", minuteMark);
+				sprintf(numberMark[1], "0%i", minuteMark);
 			} else {
-				snprintf(numberMark[1], sizeof(numberMark[1]), "%i", minuteMark);
+				sprintf(numberMark[1], "%i", minuteMark);
 			}
 			//printf(":");
 			if (secondMark < 10) {
-				snprintf(numberMark[2], sizeof(numberMark[2]), "0%i", secondMark);
+				sprintf(numberMark[2], "0%i", secondMark);
 			} else {
-				snprintf(numberMark[2], sizeof(numberMark[2]), "%i", secondMark);
+				sprintf(numberMark[2], "%i", secondMark);
 			}
 
 			sprintf(timeStamp, "%s:%s:%s/%s:%s:%s",
@@ -356,21 +356,21 @@ int playRvid(const char* filename) {
 
 	// Full time stamp
 	if (videoHourMark < 10) {
-		snprintf(numberMark[3], sizeof(numberMark[3]), "0%i", videoHourMark);
+		sprintf(numberMark[3], "0%i", videoHourMark);
 	} else {
-		snprintf(numberMark[3], sizeof(numberMark[3]), "%i", videoHourMark);
+		sprintf(numberMark[3], "%i", videoHourMark);
 	}
 	//printf(":");
 	if (videoMinuteMark < 10) {
-		snprintf(numberMark[4], sizeof(numberMark[4]), "0%i", videoMinuteMark);
+		sprintf(numberMark[4], "0%i", videoMinuteMark);
 	} else {
-		snprintf(numberMark[4], sizeof(numberMark[4]), "%i", videoMinuteMark);
+		sprintf(numberMark[4], "%i", videoMinuteMark);
 	}
 	//printf(":");
 	if (videoSecondMark < 10) {
-		snprintf(numberMark[5], sizeof(numberMark[5]), "0%i", videoSecondMark);
+		sprintf(numberMark[5], "0%i", videoSecondMark);
 	} else {
-		snprintf(numberMark[5], sizeof(numberMark[5]), "%i", videoSecondMark);
+		sprintf(numberMark[5], "%i", videoSecondMark);
 	}
 
 	sprintf(timeStamp, "00:00:00/%s:%s:%s",
