@@ -98,6 +98,7 @@ u32 rvidSizeAllowed = 0xA60000;
 u32 rvidSizeProcessed = 0;
 u32 rvidCurrentOffset = 0;
 bool showVideoGui = false;
+bool updateVideoGuiFrame = true;
 bool videoPlaying = false;
 bool loadFrame = true;
 int videoYpos = 0;
@@ -246,8 +247,9 @@ ITCM_CODE void renderFrames(void) {
 				snprintf(numberMark[2], sizeof(numberMark[2]), "%i", secondMark);
 			}
 
-			snprintf(timeStamp, sizeof(timeStamp), "%s:%s:%s/%s:%s:%s",
+			sprintf(timeStamp, "%s:%s:%s/%s:%s:%s",
 			numberMark[0], numberMark[1], numberMark[2], numberMark[3], numberMark[4], numberMark[5]);
+			updateVideoGuiFrame = true;
 
 			if (rvidInterlaced) {
 				if (bottomField) {
@@ -290,8 +292,9 @@ ITCM_CODE void renderFrames(void) {
 		}
 	}
 
-	if (showVideoGui) {
+	if (showVideoGui && updateVideoGuiFrame) {
 		renderGui();
+		updateVideoGuiFrame = false;
 	}
 }
 
@@ -370,8 +373,9 @@ int playRvid(const char* filename) {
 		snprintf(numberMark[5], sizeof(numberMark[5]), "%i", videoSecondMark);
 	}
 
-	snprintf(timeStamp, sizeof(timeStamp), "00:00:00/%s:%s:%s",
+	sprintf(timeStamp, "00:00:00/%s:%s:%s",
 	numberMark[3], numberMark[4], numberMark[5]);
+	updateVideoGuiFrame = true;
 
 	fseek(rvid, rvidFramesOffset, SEEK_SET);
 	if (rvidInRam) {
@@ -431,6 +435,7 @@ int playRvid(const char* filename) {
 
 	videoSetMode(MODE_5_3D);
 	showVideoGui = true;
+	updateVideoGuiFrame = true;
 
 	fadeType = true;
 	for (int i = 0; i < 25; i++) {
@@ -470,9 +475,11 @@ int playRvid(const char* filename) {
 							|| ((keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
 								if (videoPlaying) {
 									videoPlaying = false;
+									updateVideoGuiFrame = true;
 									snd().stopStream();
 								} else {
 									videoPlaying = true;
+									updateVideoGuiFrame = true;
 									snd().beginStream();
 								}
 							}
@@ -513,9 +520,11 @@ int playRvid(const char* filename) {
 							|| ((keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
 								if (videoPlaying) {
 									videoPlaying = false;
+									updateVideoGuiFrame = true;
 									snd().stopStream();
 								} else {
 									videoPlaying = true;
+									updateVideoGuiFrame = true;
 									snd().beginStream();
 								}
 							}
@@ -569,9 +578,11 @@ int playRvid(const char* filename) {
 						|| ((keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
 							if (videoPlaying) {
 								videoPlaying = false;
+								updateVideoGuiFrame = true;
 								snd().stopStream();
 							} else {
 								videoPlaying = true;
+								updateVideoGuiFrame = true;
 								snd().beginStream();
 							}
 						}
@@ -615,9 +626,11 @@ int playRvid(const char* filename) {
 						|| ((keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
 							if (videoPlaying) {
 								videoPlaying = false;
+								updateVideoGuiFrame = true;
 								snd().stopStream();
 							} else {
 								videoPlaying = true;
+								updateVideoGuiFrame = true;
 								snd().beginStream();
 							}
 						}
@@ -641,9 +654,11 @@ int playRvid(const char* filename) {
 		|| ((keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
 			if (videoPlaying) {
 				videoPlaying = false;
+				updateVideoGuiFrame = true;
 				snd().stopStream();
 			} else {
 				videoPlaying = true;
+				updateVideoGuiFrame = true;
 				snd().beginStream();
 			}
 		}
@@ -658,8 +673,9 @@ int playRvid(const char* filename) {
 			minuteMark = 59;
 			secondMark = 59;
 
-			snprintf(timeStamp, sizeof(timeStamp), "00:00:00/%s:%s:%s",
+			sprintf(timeStamp, "00:00:00/%s:%s:%s",
 			numberMark[3], numberMark[4], numberMark[5]);
+			updateVideoGuiFrame = true;
 
 			useBufferHalf = true;
 			loadFrame = true;
