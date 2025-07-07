@@ -169,8 +169,85 @@ ITCM_CODE void frameRateHandler(void) {
 	}
 }
 
+ITCM_CODE void renderFramesH(void) {
+	int scanline = REG_VCOUNT;
+	if (scanline > videoYpos+rvidVRes) {
+		return;
+	} else if (rvidVRes == 192 && scanline == rvidVRes) {
+		dmaCopyAsynch(frameBuffer+(currentFrameInBuffer*(0x200*rvidVRes)), BG_PALETTE_SUB, 256*2);
+	} else {
+		scanline++;
+		if (scanline < videoYpos || scanline >= videoYpos+rvidVRes) {
+			dmaFillWordsAsynch(3, 0, BG_PALETTE_SUB, 256*2);
+		} else {
+			dmaCopyAsynch(frameBuffer+(currentFrameInBuffer*(0x200*rvidVRes))+((scanline-videoYpos)*0x200), BG_PALETTE_SUB, 256*2);
+		}
+	}
+}
+
+ITCM_CODE void renderFramesH_RAM(void) {
+	int scanline = REG_VCOUNT;
+	if (scanline > videoYpos+rvidVRes) {
+		return;
+	} else if (rvidVRes == 192 && scanline == rvidVRes) {
+		dmaCopyAsynch(frameSoundBufferExtended+(currentFrameInBuffer*(0x200*rvidVRes)), BG_PALETTE_SUB, 256*2);
+	} else {
+		scanline++;
+		if (scanline < videoYpos || scanline >= videoYpos+rvidVRes) {
+			dmaFillWordsAsynch(3, 0, BG_PALETTE_SUB, 256*2);
+		} else {
+			dmaCopyAsynch(frameSoundBufferExtended+(currentFrameInBuffer*(0x200*rvidVRes))+((scanline-videoYpos)*0x200), BG_PALETTE_SUB, 256*2);
+		}
+	}
+}
+
+ITCM_CODE void renderInterlacedFramesH(void) {
+	int scanline = REG_VCOUNT;
+	if (scanline > videoYpos+rvidVRes) {
+		return;
+	} else if (rvidVRes == 192 && scanline == rvidVRes) {
+		if (bottomField) {
+			dmaFillWordsAsynch(3, 0, BG_PALETTE_SUB, 256*2);
+		} else {
+			dmaCopyAsynch(frameBuffer+(currentFrameInBuffer*(0x200*rvidVRes)), BG_PALETTE_SUB, 256*2);
+		}
+	} else {
+		scanline++;
+		if (scanline < videoYpos || scanline >= videoYpos+rvidVRes) {
+			dmaFillWordsAsynch(3, 0, BG_PALETTE_SUB, 256*2);
+		} else {
+			if ((scanline % 2) != 0) scanline--;
+			dmaCopyAsynch(frameBuffer+(currentFrameInBuffer*(0x200*rvidVRes))+((scanline-videoYpos)*0x200)+(0x200*bottomField), BG_PALETTE_SUB, 256*2);
+		}
+	}
+}
+
+ITCM_CODE void renderInterlacedFramesH_RAM(void) {
+	int scanline = REG_VCOUNT;
+	if (scanline > videoYpos+rvidVRes) {
+		return;
+	} else if (rvidVRes == 192 && scanline == rvidVRes) {
+		if (bottomField) {
+			dmaFillWordsAsynch(3, 0, BG_PALETTE_SUB, 256*2);
+		} else {
+			dmaCopyAsynch(frameSoundBufferExtended+(currentFrameInBuffer*(0x200*rvidVRes)), BG_PALETTE_SUB, 256*2);
+		}
+	} else {
+		scanline++;
+		if (scanline < videoYpos || scanline >= videoYpos+rvidVRes) {
+			dmaFillWordsAsynch(3, 0, BG_PALETTE_SUB, 256*2);
+		} else {
+			if ((scanline % 2) != 0) scanline--;
+			dmaCopyAsynch(frameSoundBufferExtended+(currentFrameInBuffer*(0x200*rvidVRes))+((scanline-videoYpos)*0x200)+(0x200*bottomField), BG_PALETTE_SUB, 256*2);
+		}
+	}
+}
+
+void HBlankNull(void) {
+}
+
 ITCM_CODE void renderFrames(void) {
-	if(fadeType == true) {
+	if (fadeType) {
 		screenBrightness--;
 		if (screenBrightness < 0) screenBrightness = 0;
 	} else {
@@ -180,116 +257,114 @@ ITCM_CODE void renderFrames(void) {
 	SetBrightness(0, screenBrightness);
 	SetBrightness(1, screenBrightness);
 
-	if (videoPlaying && currentFrame <= loadedFrames) {
-		if (loadFrame) {
-			if (currentFrame < rvidFrames) {
-				if (rvidInRam && !rvidCompressed) {
-					if (rvidInterlaced) {
-						if (bottomField) {
-							dmaFillHalfWords(0, (u16*)BG_GFX_SUB+(256*videoYpos), 0x200);
-						}
-						for (int v = 0; v < rvidVRes; v += 2) {
-							dmaCopy(frameSoundBufferExtended+(currentFrameInBuffer*(0x200*rvidVRes)+(0x200*v)+(0x200*bottomField)), (u16*)BG_GFX_SUB+(256*(videoYpos+v+bottomField)), 0x200);
-							dmaCopy(frameSoundBufferExtended+(currentFrameInBuffer*(0x200*rvidVRes)+(0x200*v)+(0x200*bottomField)), (u16*)BG_GFX_SUB+(256*(videoYpos+v+1+bottomField)), 0x200);
-						}
-						if (!bottomField) {
-							dmaFillHalfWords(0, (u16*)BG_GFX_SUB+(256*(videoYpos+rvidVRes)), 0x200);
-						}
-					} else {
-						dmaCopyAsynch(frameSoundBufferExtended+(currentFrameInBuffer*(0x200*rvidVRes)), (u16*)BG_GFX_SUB+(256*videoYpos), 0x200*rvidVRes);
+	if (videoPlaying && (currentFrame <= loadedFrames) && loadFrame) {
+		/* if (currentFrame < rvidFrames) {
+			if (rvidInRam && !rvidCompressed) {
+				if (rvidInterlaced) {
+					if (bottomField) {
+						dmaFillHalfWords(0, (u16*)BG_GFX_SUB+(256*videoYpos), 0x200);
+					}
+					for (int v = 0; v < rvidVRes; v += 2) {
+						dmaCopy(frameSoundBufferExtended+(currentFrameInBuffer*(0x200*rvidVRes)+(0x200*v)+(0x200*bottomField)), (u16*)BG_GFX_SUB+(256*(videoYpos+v+bottomField)), 0x200);
+						dmaCopy(frameSoundBufferExtended+(currentFrameInBuffer*(0x200*rvidVRes)+(0x200*v)+(0x200*bottomField)), (u16*)BG_GFX_SUB+(256*(videoYpos+v+1+bottomField)), 0x200);
+					}
+					if (!bottomField) {
+						dmaFillHalfWords(0, (u16*)BG_GFX_SUB+(256*(videoYpos+rvidVRes)), 0x200);
 					}
 				} else {
-					if (rvidInterlaced) {
-						if (bottomField) {
-							dmaFillHalfWords(0, (u16*)BG_GFX_SUB+(256*videoYpos), 0x200);
-						}
-						for (int v = 0; v < rvidVRes; v += 2) {
-							dmaCopy(frameBuffer+(currentFrameInBuffer*(0x200*rvidVRes)+(0x200*v)+(0x200*bottomField)), (u16*)BG_GFX_SUB+(256*(videoYpos+v+bottomField)), 0x200);
-							dmaCopy(frameBuffer+(currentFrameInBuffer*(0x200*rvidVRes)+(0x200*v)+(0x200*bottomField)), (u16*)BG_GFX_SUB+(256*(videoYpos+v+1+bottomField)), 0x200);
-						}
-						if (!bottomField) {
-							dmaFillHalfWords(0, (u16*)BG_GFX_SUB+(256*(videoYpos+rvidVRes)), 0x200);
-						}
-					} else {
-						dmaCopyAsynch(frameBuffer+(currentFrameInBuffer*(0x200*rvidVRes)), (u16*)BG_GFX_SUB+(256*videoYpos), 0x200*rvidVRes);
+					dmaCopyAsynch(frameSoundBufferExtended+(currentFrameInBuffer*(0x200*rvidVRes)), (u16*)BG_GFX_SUB+(256*videoYpos), 0x200*rvidVRes);
+				}
+			} else {
+				if (rvidInterlaced) {
+					if (bottomField) {
+						dmaFillHalfWords(0, (u16*)BG_GFX_SUB+(256*videoYpos), 0x200);
 					}
-				}
-			}
-			if ((!rvidInterlaced && (currentFrame % rvidFps) == 0)
-			|| (rvidInterlaced && !bottomField && (currentFrame % rvidFps) == 0)) {
-				secondMark++;
-				if (secondMark == 60) {
-					secondMark = 0;
-					minuteMark++;
-					if (minuteMark == 60) {
-						minuteMark = 0;
-						hourMark++;
+					for (int v = 0; v < rvidVRes; v += 2) {
+						dmaCopy(frameBuffer+(currentFrameInBuffer*(0x200*rvidVRes)+(0x200*v)+(0x200*bottomField)), (u16*)BG_GFX_SUB+(256*(videoYpos+v+bottomField)), 0x200);
+						dmaCopy(frameBuffer+(currentFrameInBuffer*(0x200*rvidVRes)+(0x200*v)+(0x200*bottomField)), (u16*)BG_GFX_SUB+(256*(videoYpos+v+1+bottomField)), 0x200);
 					}
+					if (!bottomField) {
+						dmaFillHalfWords(0, (u16*)BG_GFX_SUB+(256*(videoYpos+rvidVRes)), 0x200);
+					}
+				} else {
+					dmaCopyAsynch(frameBuffer+(currentFrameInBuffer*(0x200*rvidVRes)), (u16*)BG_GFX_SUB+(256*videoYpos), 0x200*rvidVRes);
 				}
 			}
-
-			// Current time stamp
-			if (hourMark < 10) {
-				sprintf(numberMark[0], "0%i", hourMark);
-			} else {
-				sprintf(numberMark[0], "%i", hourMark);
-			}
-			//printf(":");
-			if (minuteMark < 10) {
-				sprintf(numberMark[1], "0%i", minuteMark);
-			} else {
-				sprintf(numberMark[1], "%i", minuteMark);
-			}
-			//printf(":");
-			if (secondMark < 10) {
-				sprintf(numberMark[2], "0%i", secondMark);
-			} else {
-				sprintf(numberMark[2], "%i", secondMark);
-			}
-
-			sprintf(timeStamp, "%s:%s:%s/%s:%s:%s",
-			numberMark[0], numberMark[1], numberMark[2], numberMark[3], numberMark[4], numberMark[5]);
-			updateVideoGuiFrame = true;
-
-			if (rvidInterlaced) {
-				if (bottomField) {
-					currentFrame++;
-					currentFrameInBuffer++;
+		} */
+		if ((!rvidInterlaced && (currentFrame % rvidFps) == 0)
+		|| (rvidInterlaced && !bottomField && (currentFrame % rvidFps) == 0)) {
+			secondMark++;
+			if (secondMark == 60) {
+				secondMark = 0;
+				minuteMark++;
+				if (minuteMark == 60) {
+					minuteMark = 0;
+					hourMark++;
 				}
-				bottomField = !bottomField;
-			} else {
+			}
+		}
+
+		// Current time stamp
+		if (hourMark < 10) {
+			sprintf(numberMark[0], "0%i", hourMark);
+		} else {
+			sprintf(numberMark[0], "%i", hourMark);
+		}
+		//printf(":");
+		if (minuteMark < 10) {
+			sprintf(numberMark[1], "0%i", minuteMark);
+		} else {
+			sprintf(numberMark[1], "%i", minuteMark);
+		}
+		//printf(":");
+		if (secondMark < 10) {
+			sprintf(numberMark[2], "0%i", secondMark);
+		} else {
+			sprintf(numberMark[2], "%i", secondMark);
+		}
+
+		sprintf(timeStamp, "%s:%s:%s/%s:%s:%s",
+		numberMark[0], numberMark[1], numberMark[2], numberMark[3], numberMark[4], numberMark[5]);
+		updateVideoGuiFrame = true;
+
+		if (rvidInterlaced) {
+			if (bottomField) {
 				currentFrame++;
 				currentFrameInBuffer++;
 			}
-			if ((currentFrameInBuffer == 28 && !rvidInRam)
-			|| (currentFrameInBuffer == 28 && rvidCompressed)) {
-				currentFrameInBuffer = 0;
-			}
-			if (rvidInRam) {
-				rvidSizeProcessed += (0x200*rvidVRes);
-				if (rvidSizeProcessed > rvidSizeAllowed) {
-					currentFrameInBuffer = 0;
-					rvidSizeProcessed = 0;
-				}
-			}
-			switch (rvidInterlaced ? rvidFps*2 : rvidFps) {
-				case 11:
-					if ((currentFrame % 11) < 10) {
-						frameDelayEven = !frameDelayEven;
-					}
-					break;
-				case 24:
-					frameDelayEven = !frameDelayEven;
-					break;
-				case 25:
-					if ((currentFrame % 24) != 10 && (currentFrame % 24) != 21) {
-						frameDelayEven = !frameDelayEven;
-					}
-					break;
-			}
-			frameDelay = 0;
-			loadFrame = false;
+			bottomField = !bottomField;
+		} else {
+			currentFrame++;
+			currentFrameInBuffer++;
 		}
+		if ((currentFrameInBuffer == 28 && !rvidInRam)
+		|| (currentFrameInBuffer == 28 && rvidCompressed)) {
+			currentFrameInBuffer = 0;
+		}
+		if (rvidInRam) {
+			rvidSizeProcessed += (0x200*rvidVRes);
+			if (rvidSizeProcessed > rvidSizeAllowed) {
+				currentFrameInBuffer = 0;
+				rvidSizeProcessed = 0;
+			}
+		}
+		switch (rvidInterlaced ? rvidFps*2 : rvidFps) {
+			case 11:
+				if ((currentFrame % 11) < 10) {
+					frameDelayEven = !frameDelayEven;
+				}
+				break;
+			case 24:
+				frameDelayEven = !frameDelayEven;
+				break;
+			case 25:
+				if ((currentFrame % 24) != 10 && (currentFrame % 24) != 21) {
+					frameDelayEven = !frameDelayEven;
+				}
+				break;
+		}
+		frameDelay = 0;
+		loadFrame = false;
 	}
 
 	if (showVideoGui && updateVideoGuiFrame) {
@@ -313,7 +388,7 @@ int playRvid(const char* filename) {
 	}
 
 	readRvidHeader(rvid);
-	
+
 	u32 rvidSize = (0x200*rvidVRes)*(rvidFrames+1);
 
 	if ((rvidFps > 24 && !rvidCompressed) || (rvidFps > 25 && rvidCompressed)) {
@@ -336,7 +411,7 @@ int playRvid(const char* filename) {
 			videoYpos++;
 		}
 	}
-	
+
 	videoHourMark = -1;
 	videoMinuteMark = 59;
 	videoSecondMark = 59;
@@ -431,7 +506,18 @@ int playRvid(const char* filename) {
 		consoleClear();
 	}
 
-	dmaFillHalfWords(0xFFFF, BG_GFX_SUB, 0x18000);	// Fill top screen with white
+	// dmaFillHalfWords(0xFFFF, BG_GFX_SUB, 0x18000);	// Fill top screen with white
+	dmaFillHalfWordsAsynch(3, 0xFFFF, BG_PALETTE_SUB, 256*2);	// Fill top screen with white
+
+	bgInitSub(3, BgType_Bmp8, BgSize_B8_256x256, 0, 0);
+
+	u8* dsImageBuffer8 = new u8[256*192];
+	for (int i = 0; i < 256*192; i++) {
+		dsImageBuffer8[i] = i;
+	}
+
+	dmaCopyWords(3, dsImageBuffer8, BG_GFX_SUB, 256*192);
+	delete[] dsImageBuffer8;
 
 	videoSetMode(MODE_5_3D);
 	showVideoGui = true;
@@ -442,9 +528,24 @@ int playRvid(const char* filename) {
 		swiWaitForVBlank();
 	}
 
-	if (rvidVRes < 192) {
-		dmaFillHalfWordsAsynch(3, 0, BG_GFX_SUB, 0x18000);	// Fill top screen with black
+	if (rvidInRam && !rvidCompressed) {
+		if (rvidInterlaced) {
+			irqSet(IRQ_HBLANK, renderInterlacedFramesH_RAM);
+		} else {
+			irqSet(IRQ_HBLANK, renderFramesH_RAM);
+		}
+	} else {
+		if (rvidInterlaced) {
+			irqSet(IRQ_HBLANK, renderInterlacedFramesH);
+		} else {
+			irqSet(IRQ_HBLANK, renderFramesH);
+		}
 	}
+	irqEnable(IRQ_HBLANK);
+
+	/* if (rvidVRes < 192) {
+		dmaFillHalfWordsAsynch(3, 0, BG_GFX_SUB, 0x18000);	// Fill top screen with black
+	} */
 	videoPlaying = true;
 	snd().beginStream();
 	while (1) {
@@ -749,6 +850,10 @@ int playRvid(const char* filename) {
 		swiWaitForVBlank();
 	}
 
+	while (dmaBusy(3));
+	irqSet(IRQ_HBLANK, HBlankNull);
+	bgInitSub(3, BgType_Bmp16, BgSize_B16_256x256, 0, 0);
+
 	showVideoGui = false;
 	useBufferHalf = true;
 	loadFrame = true;
@@ -843,24 +948,11 @@ int main(int argc, char **argv) {
 	vramSetBankF(VRAM_F_TEX_PALETTE_SLOT4);
 	vramSetBankG(VRAM_G_TEX_PALETTE_SLOT5); // 16Kb of palette ram, and font textures take up 8*16 bytes.
 
-	REG_BG3CNT = BG_MAP_BASE(0) | BG_BMP16_256x256 | BG_PRIORITY(0);
-	REG_BG3X = 0;
-	REG_BG3Y = 0;
-	REG_BG3PA = 1<<8;
-	REG_BG3PB = 0;
-	REG_BG3PC = 0;
-	REG_BG3PD = 1<<8;
+	bgInit(3, BgType_Bmp16, BgSize_B16_256x256, 0, 0);
+	bgInitSub(3, BgType_Bmp16, BgSize_B16_256x256, 0, 0);
 
-	REG_BG3CNT_SUB = BG_MAP_BASE(0) | BG_BMP16_256x256 | BG_PRIORITY(0);
-	REG_BG3X_SUB = 0;
-	REG_BG3Y_SUB = 0;
-	REG_BG3PA_SUB = 1<<8;
-	REG_BG3PB_SUB = 0;
-	REG_BG3PC_SUB = 0;
-	REG_BG3PD_SUB = 1<<8;
-	
 	loadGraphics();
-	
+
 	if (nitroFSInited) {
 		LoadBMP(true, "nitro:/logo_rocketrobz.bmp");
 		LoadBMP(false, "nitro:/logo_rocketvideo.bmp");
