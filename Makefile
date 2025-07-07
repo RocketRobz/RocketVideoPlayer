@@ -29,8 +29,8 @@ all: $(TARGET).nds
 
 $(TARGET).nds	:	$(TARGET).arm7 $(TARGET).arm9
 	ndstool	-c $(TARGET).nds -7 arm7/$(TARGET).arm7.elf -9 arm9/$(TARGET).arm9.elf -d $(NITRODATA) \
-			-b $(CURDIR)/icon.bmp "Rocket Video Player;RocketRobz"
-	python patch_ndsheader_dsiware.py $(CURDIR)/$(TARGET).nds --accessControl 0x00000038
+			-b $(CURDIR)/icon.bmp "Rocket Video Player;Rocket Robz"
+	# python patch_ndsheader_dsiware.py $(CURDIR)/$(TARGET).nds --accessControl 0x00000038
 
 #---------------------------------------------------------------------------------
 $(TARGET).arm7	: arm7/$(TARGET).elf
