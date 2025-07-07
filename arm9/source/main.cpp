@@ -313,7 +313,7 @@ int playRvid(const char* filename) {
 	}
 
 	readRvidHeader(rvid);
-	
+
 	u32 rvidSize = (0x200*rvidVRes)*(rvidFrames+1);
 
 	if ((rvidFps > 24 && !rvidCompressed) || (rvidFps > 25 && rvidCompressed)) {
@@ -336,7 +336,7 @@ int playRvid(const char* filename) {
 			videoYpos++;
 		}
 	}
-	
+
 	videoHourMark = -1;
 	videoMinuteMark = 59;
 	videoSecondMark = 59;
@@ -858,9 +858,9 @@ int main(int argc, char **argv) {
 	REG_BG3PB_SUB = 0;
 	REG_BG3PC_SUB = 0;
 	REG_BG3PD_SUB = 1<<8;
-	
+
 	loadGraphics();
-	
+
 	if (nitroFSInited) {
 		LoadBMP(true, "nitro:/logo_rocketrobz.bmp");
 		LoadBMP(false, "nitro:/logo_rocketvideo.bmp");
