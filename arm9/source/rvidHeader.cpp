@@ -18,7 +18,7 @@ off_t rvidSoundOffset = 0;
 
 void readRvidHeader(FILE* rvid) {
 	fseek(rvid, 0, SEEK_SET);
-	switch (rvidHeaderCheck.ver) {
+	/* switch (rvidHeaderCheck.ver) {
 		case 1:
 			fread(&rvidHeader1, 1, sizeof(rvidHeader1), rvid);
 			rvidFrames = rvidHeader1.frames;
@@ -43,5 +43,16 @@ void readRvidHeader(FILE* rvid) {
 			rvidFramesOffset = rvidHeader2.framesOffset;
 			rvidSoundOffset = rvidHeader2.soundOffset;
 			break;
-	}
+	} */
+
+	fread(&rvidHeader2, 1, sizeof(rvidHeader2), rvid);
+	rvidFrames = rvidHeader2.frames;
+	rvidFps = rvidHeader2.fps;
+	rvidVRes = rvidHeader2.vRes;
+	rvidInterlaced = rvidHeader2.interlaced;
+	rvidHasSound = rvidHeader2.hasSound;
+	rvidSampleRate = rvidHeader2.sampleRate;
+	rvidCompressed = rvidHeader2.framesCompressed;
+	rvidFramesOffset = rvidHeader2.framesOffset;
+	rvidSoundOffset = rvidHeader2.soundOffset;
 }
