@@ -331,7 +331,7 @@ int playRvid(const char* filename) {
 
 	readRvidHeader(rvid);
 
-	u32 rvidSize = (0x200*rvidVRes)*(rvidFrames+1);
+	const u32 rvidSize = (0x100*rvidVRes)*(rvidFrames+1);
 
 	if ((rvidFps > 24 && !rvidCompressed) || (rvidFps > 25 && rvidCompressed)) {
 		if (!extendedMemory) {
