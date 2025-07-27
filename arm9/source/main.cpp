@@ -42,7 +42,7 @@
 #include "rvidHeader.h"
 
 extern rvidHeaderCheckInfo rvidHeaderCheck;
-extern rvidHeaderInfo1 rvidHeader1;
+// extern rvidHeaderInfo1 rvidHeader1;
 extern rvidHeaderInfo2 rvidHeader2;
 
 bool isRegularDS = true;

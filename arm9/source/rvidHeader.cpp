@@ -3,7 +3,7 @@
 #include "rvidHeader.h"
 
 rvidHeaderCheckInfo rvidHeaderCheck;
-rvidHeaderInfo1 rvidHeader1;
+// rvidHeaderInfo1 rvidHeader1;
 rvidHeaderInfo2 rvidHeader2;
 
 int rvidFrames = 0;
@@ -13,8 +13,8 @@ bool rvidInterlaced = false;
 bool rvidHasSound = false;
 u16 rvidSampleRate = 0;
 bool rvidCompressed = false;
-off_t rvidFramesOffset = 0;
-off_t rvidSoundOffset = 0;
+u32 rvidFramesOffset = 0;
+u32 rvidSoundOffset = 0;
 
 void readRvidHeader(FILE* rvid) {
 	fseek(rvid, 0, SEEK_SET);

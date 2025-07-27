@@ -6,7 +6,7 @@ typedef struct rvidHeaderCheckInfo {
 	u32 ver;			// File format version
 } rvidHeaderCheckInfo;
 
-typedef struct rvidHeaderInfo1 {
+/* typedef struct rvidHeaderInfo1 {
 	u32 formatString;	// "RVID" string
 	u32 ver;			// File format version
 	u32 frames;			// Number of frames
@@ -15,7 +15,7 @@ typedef struct rvidHeaderInfo1 {
 	u8 hasSound;		// Has sound/audio
 	u8 reserved;
 	u16 sampleRate;		// Audio sample rate
-} rvidHeaderInfo1;
+} rvidHeaderInfo1; */
 
 typedef struct rvidHeaderInfo2 {
 	u32 formatString;		// "RVID" string
@@ -38,8 +38,8 @@ extern bool rvidInterlaced;
 extern bool rvidHasSound;
 extern u16 rvidSampleRate;
 extern bool rvidCompressed;
-extern off_t rvidFramesOffset;
-extern off_t rvidSoundOffset;
+extern u32 rvidFramesOffset;
+extern u32 rvidSoundOffset;
 
 void readRvidHeader(FILE* rvid);
 
