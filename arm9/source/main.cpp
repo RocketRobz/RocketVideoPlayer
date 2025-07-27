@@ -174,8 +174,6 @@ ITCM_CODE void fillBorders(void) {
 	int scanline = REG_VCOUNT;
 	if (scanline > videoYpos+rvidVRes) {
 		return;
-	} else if (rvidVRes == 192 && scanline == rvidVRes) {
-		BG_PALETTE_SUB[0] = palBuffer[currentFrameInBuffer][0];
 	} else {
 		scanline++;
 		if (scanline < videoYpos || scanline >= videoYpos+rvidVRes) {
@@ -232,7 +230,11 @@ ITCM_CODE void renderFrames(void) {
 				} else {
 					dmaCopyWordsAsynch(0, frameBuffer+(currentFrameInBuffer*(0x100*rvidVRes)), (u16*)BG_GFX_SUB+((256/2)*videoYpos), 0x100*rvidVRes);
 				}
-				dmaCopyHalfWordsAsynch(3, palBuffer[currentFrameInBuffer]+1, BG_PALETTE_SUB+1, 255*2);
+				if (rvidVRes == 192) {
+					dmaCopyHalfWordsAsynch(3, palBuffer[currentFrameInBuffer], BG_PALETTE_SUB, 256*2);
+				} else {
+					dmaCopyHalfWordsAsynch(3, palBuffer[currentFrameInBuffer]+1, BG_PALETTE_SUB+1, 255*2);
+				}
 			}
 		}
 		if ((!rvidInterlaced && (currentFrame % rvidFps) == 0)
@@ -477,7 +479,7 @@ int playRvid(const char* filename) {
 	}
 
 	if (!rvidInRam || rvidCompressed) {
-		irqSet(IRQ_HBLANK, fillBorders);
+		irqSet(IRQ_HBLANK, (rvidVRes == 192) ? HBlankNull : fillBorders);
 		irqEnable(IRQ_HBLANK);
 	}
 
