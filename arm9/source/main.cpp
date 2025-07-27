@@ -49,10 +49,11 @@ bool isRegularDS = true;
 bool isDevConsole = false;
 bool extendedMemory = false;
 
-u8 compressedFrameBuffer[0x20000];
+u8 compressedFrameBuffer[0x10000];
 u32 compressedFrameSizes[128];
 
-u8 frameBuffer[0x18000*28];					// 28 frames in buffer
+u16 palBuffer[28][256];
+u8 frameBuffer[0xC000*28];					// 28 frames in buffer
 u8* frameSoundBufferExtended = (u8*)0x02420000;
 bool useBufferHalf = true;
 
@@ -169,76 +170,18 @@ ITCM_CODE void frameRateHandler(void) {
 	}
 }
 
-ITCM_CODE void renderFramesH(void) {
+ITCM_CODE void fillBorders(void) {
 	int scanline = REG_VCOUNT;
 	if (scanline > videoYpos+rvidVRes) {
 		return;
 	} else if (rvidVRes == 192 && scanline == rvidVRes) {
-		dmaCopyAsynch(frameBuffer+(currentFrameInBuffer*(0x200*rvidVRes)), BG_PALETTE_SUB, 256*2);
+		BG_PALETTE_SUB[0] = palBuffer[currentFrameInBuffer][0];
 	} else {
 		scanline++;
 		if (scanline < videoYpos || scanline >= videoYpos+rvidVRes) {
-			dmaFillWordsAsynch(3, 0, BG_PALETTE_SUB, 256*2);
+			BG_PALETTE_SUB[0] = 0;
 		} else {
-			dmaCopyAsynch(frameBuffer+(currentFrameInBuffer*(0x200*rvidVRes))+((scanline-videoYpos)*0x200), BG_PALETTE_SUB, 256*2);
-		}
-	}
-}
-
-ITCM_CODE void renderFramesH_RAM(void) {
-	int scanline = REG_VCOUNT;
-	if (scanline > videoYpos+rvidVRes) {
-		return;
-	} else if (rvidVRes == 192 && scanline == rvidVRes) {
-		dmaCopyAsynch(frameSoundBufferExtended+(currentFrameInBuffer*(0x200*rvidVRes)), BG_PALETTE_SUB, 256*2);
-	} else {
-		scanline++;
-		if (scanline < videoYpos || scanline >= videoYpos+rvidVRes) {
-			dmaFillWordsAsynch(3, 0, BG_PALETTE_SUB, 256*2);
-		} else {
-			dmaCopyAsynch(frameSoundBufferExtended+(currentFrameInBuffer*(0x200*rvidVRes))+((scanline-videoYpos)*0x200), BG_PALETTE_SUB, 256*2);
-		}
-	}
-}
-
-ITCM_CODE void renderInterlacedFramesH(void) {
-	int scanline = REG_VCOUNT;
-	if (scanline > videoYpos+rvidVRes) {
-		return;
-	} else if (rvidVRes == 192 && scanline == rvidVRes) {
-		if (bottomField) {
-			dmaFillWordsAsynch(3, 0, BG_PALETTE_SUB, 256*2);
-		} else {
-			dmaCopyAsynch(frameBuffer+(currentFrameInBuffer*(0x200*rvidVRes)), BG_PALETTE_SUB, 256*2);
-		}
-	} else {
-		scanline++;
-		if (scanline < videoYpos || scanline >= videoYpos+rvidVRes) {
-			dmaFillWordsAsynch(3, 0, BG_PALETTE_SUB, 256*2);
-		} else {
-			if ((scanline % 2) != 0) scanline--;
-			dmaCopyAsynch(frameBuffer+(currentFrameInBuffer*(0x200*rvidVRes))+((scanline-videoYpos)*0x200)+(0x200*bottomField), BG_PALETTE_SUB, 256*2);
-		}
-	}
-}
-
-ITCM_CODE void renderInterlacedFramesH_RAM(void) {
-	int scanline = REG_VCOUNT;
-	if (scanline > videoYpos+rvidVRes) {
-		return;
-	} else if (rvidVRes == 192 && scanline == rvidVRes) {
-		if (bottomField) {
-			dmaFillWordsAsynch(3, 0, BG_PALETTE_SUB, 256*2);
-		} else {
-			dmaCopyAsynch(frameSoundBufferExtended+(currentFrameInBuffer*(0x200*rvidVRes)), BG_PALETTE_SUB, 256*2);
-		}
-	} else {
-		scanline++;
-		if (scanline < videoYpos || scanline >= videoYpos+rvidVRes) {
-			dmaFillWordsAsynch(3, 0, BG_PALETTE_SUB, 256*2);
-		} else {
-			if ((scanline % 2) != 0) scanline--;
-			dmaCopyAsynch(frameSoundBufferExtended+(currentFrameInBuffer*(0x200*rvidVRes))+((scanline-videoYpos)*0x200)+(0x200*bottomField), BG_PALETTE_SUB, 256*2);
+			BG_PALETTE_SUB[0] = palBuffer[currentFrameInBuffer][0];
 		}
 	}
 }
@@ -258,39 +201,40 @@ ITCM_CODE void renderFrames(void) {
 	SetBrightness(1, screenBrightness);
 
 	if (videoPlaying && (currentFrame <= loadedFrames) && loadFrame) {
-		/* if (currentFrame < rvidFrames) {
+		if (currentFrame < rvidFrames) {
 			if (rvidInRam && !rvidCompressed) {
 				if (rvidInterlaced) {
 					if (bottomField) {
-						dmaFillHalfWords(0, (u16*)BG_GFX_SUB+(256*videoYpos), 0x200);
+						dmaFillWords(0, (u16*)BG_GFX_SUB+((256/2)*videoYpos), 0x100);
 					}
 					for (int v = 0; v < rvidVRes; v += 2) {
-						dmaCopy(frameSoundBufferExtended+(currentFrameInBuffer*(0x200*rvidVRes)+(0x200*v)+(0x200*bottomField)), (u16*)BG_GFX_SUB+(256*(videoYpos+v+bottomField)), 0x200);
-						dmaCopy(frameSoundBufferExtended+(currentFrameInBuffer*(0x200*rvidVRes)+(0x200*v)+(0x200*bottomField)), (u16*)BG_GFX_SUB+(256*(videoYpos+v+1+bottomField)), 0x200);
+						dmaCopy(frameSoundBufferExtended+(currentFrameInBuffer*(0x100*rvidVRes)+(0x200*v)+(0x200*bottomField)), (u16*)BG_GFX_SUB+((256/2)*(videoYpos+v+bottomField)), 0x100);
+						dmaCopy(frameSoundBufferExtended+(currentFrameInBuffer*(0x100*rvidVRes)+(0x200*v)+(0x200*bottomField)), (u16*)BG_GFX_SUB+((256/2)*(videoYpos+v+1+bottomField)), 0x100);
 					}
 					if (!bottomField) {
-						dmaFillHalfWords(0, (u16*)BG_GFX_SUB+(256*(videoYpos+rvidVRes)), 0x200);
+						dmaFillWords(0, (u16*)BG_GFX_SUB+((256/2)*(videoYpos+rvidVRes)), 0x100);
 					}
 				} else {
-					dmaCopyAsynch(frameSoundBufferExtended+(currentFrameInBuffer*(0x200*rvidVRes)), (u16*)BG_GFX_SUB+(256*videoYpos), 0x200*rvidVRes);
+					dmaCopyWordsAsynch(0, frameSoundBufferExtended+(currentFrameInBuffer*(0x100*rvidVRes)), (u16*)BG_GFX_SUB+((256/2)*videoYpos), 0x100*rvidVRes);
 				}
 			} else {
 				if (rvidInterlaced) {
 					if (bottomField) {
-						dmaFillHalfWords(0, (u16*)BG_GFX_SUB+(256*videoYpos), 0x200);
+						dmaFillWords(0, (u16*)BG_GFX_SUB+((256/2)*videoYpos), 0x100);
 					}
 					for (int v = 0; v < rvidVRes; v += 2) {
-						dmaCopy(frameBuffer+(currentFrameInBuffer*(0x200*rvidVRes)+(0x200*v)+(0x200*bottomField)), (u16*)BG_GFX_SUB+(256*(videoYpos+v+bottomField)), 0x200);
-						dmaCopy(frameBuffer+(currentFrameInBuffer*(0x200*rvidVRes)+(0x200*v)+(0x200*bottomField)), (u16*)BG_GFX_SUB+(256*(videoYpos+v+1+bottomField)), 0x200);
+						dmaCopy(frameBuffer+(currentFrameInBuffer*(0x100*rvidVRes)+(0x100*v)+(0x100*bottomField)), (u16*)BG_GFX_SUB+((256/2)*(videoYpos+v+bottomField)), 0x100);
+						dmaCopy(frameBuffer+(currentFrameInBuffer*(0x100*rvidVRes)+(0x100*v)+(0x100*bottomField)), (u16*)BG_GFX_SUB+((256/2)*(videoYpos+v+1+bottomField)), 0x100);
 					}
 					if (!bottomField) {
-						dmaFillHalfWords(0, (u16*)BG_GFX_SUB+(256*(videoYpos+rvidVRes)), 0x200);
+						dmaFillWords(0, (u16*)BG_GFX_SUB+((256/2)*(videoYpos+rvidVRes)), 0x100);
 					}
 				} else {
-					dmaCopyAsynch(frameBuffer+(currentFrameInBuffer*(0x200*rvidVRes)), (u16*)BG_GFX_SUB+(256*videoYpos), 0x200*rvidVRes);
+					dmaCopyWordsAsynch(0, frameBuffer+(currentFrameInBuffer*(0x100*rvidVRes)), (u16*)BG_GFX_SUB+((256/2)*videoYpos), 0x100*rvidVRes);
 				}
+				dmaCopyHalfWordsAsynch(3, palBuffer[currentFrameInBuffer]+1, BG_PALETTE_SUB+1, 255*2);
 			}
-		} */
+		}
 		if ((!rvidInterlaced && (currentFrame % rvidFps) == 0)
 		|| (rvidInterlaced && !bottomField && (currentFrame % rvidFps) == 0)) {
 			secondMark++;
@@ -381,10 +325,10 @@ int playRvid(const char* filename) {
 
 	if (rvidHeaderCheck.ver == 0) {
 		return 0;
-	}
-
-	if (rvidHeaderCheck.ver > 2) {
+	} else if (rvidHeaderCheck.ver > 3) {
 		return 3;
+	} else if (rvidHeaderCheck.ver < 3) {
+		return 4;
 	}
 
 	readRvidHeader(rvid);
@@ -455,7 +399,7 @@ int playRvid(const char* filename) {
 	fseek(rvid, rvidFramesOffset, SEEK_SET);
 	if (rvidInRam) {
 		if (rvidCompressed) {
-			fread(frameSoundBufferExtended, 1, (0x200*rvidVRes)*(rvidFrames+1), rvid);
+			fread(frameSoundBufferExtended, 1, (0x100*rvidVRes)*(rvidFrames+1), rvid);
 			loadedFrames = 0;
 			rvidCurrentOffset = 0;
 			rvidFrameSizeTable = fopen(filename, "rb");
@@ -463,7 +407,7 @@ int playRvid(const char* filename) {
 			fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
 			for (int i = 0; i < 14; i++) {
 				tonccpy(compressedFrameBuffer, (u8*)frameSoundBufferExtended+rvidCurrentOffset, compressedFrameSizes[i]);
-				lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
+				lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
 				loadedFrames++;
 				rvidCurrentOffset += compressedFrameSizes[i];
 			}
@@ -472,27 +416,31 @@ int playRvid(const char* filename) {
 			if (rvidSize > rvidSizeAllowed) {
 				while (1) {
 					loadedFrames--;
-					if ((u32)((0x200*rvidVRes)*(loadedFrames+1)) <= rvidSizeAllowed) {
+					if ((u32)((0x100*rvidVRes)*(loadedFrames+1)) <= rvidSizeAllowed) {
 						break;
 					}
 				}
 			}
-			fread(frameSoundBufferExtended, 1, (0x200*rvidVRes)*(loadedFrames+1), rvid);
+			fread(frameSoundBufferExtended, 1, (0x100*rvidVRes)*(loadedFrames+1), rvid);
 		}
 	} else {
+		loadedFrames = 0;
 		if (rvidCompressed) {
-			loadedFrames = 0;
 			rvidFrameSizeTable = fopen(filename, "rb");
 			fseek(rvidFrameSizeTable, 0x200, SEEK_SET);
 			fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
 			for (int i = 0; i < 14; i++) {
+				fread(palBuffer[i], 2, 256, rvid);
 				fread(compressedFrameBuffer, 1, compressedFrameSizes[i], rvid);
-				lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
+				lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
 				loadedFrames++;
 			}
 		} else {
-			fread(frameBuffer, 1, (0x200*rvidVRes)*14, rvid);
-			loadedFrames = 13;
+			for (int i = 0; i < 14; i++) {
+				fread(palBuffer[i], 2, 256, rvid);
+				fread(frameBuffer+(i*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
+				loadedFrames++;
+			}
 		}
 	}
 
@@ -513,7 +461,7 @@ int playRvid(const char* filename) {
 
 	u8* dsImageBuffer8 = new u8[256*192];
 	for (int i = 0; i < 256*192; i++) {
-		dsImageBuffer8[i] = i;
+		dsImageBuffer8[i] = 0;
 	}
 
 	dmaCopyWords(3, dsImageBuffer8, BG_GFX_SUB, 256*192);
@@ -528,20 +476,10 @@ int playRvid(const char* filename) {
 		swiWaitForVBlank();
 	}
 
-	if (rvidInRam && !rvidCompressed) {
-		if (rvidInterlaced) {
-			irqSet(IRQ_HBLANK, renderInterlacedFramesH_RAM);
-		} else {
-			irqSet(IRQ_HBLANK, renderFramesH_RAM);
-		}
-	} else {
-		if (rvidInterlaced) {
-			irqSet(IRQ_HBLANK, renderInterlacedFramesH);
-		} else {
-			irqSet(IRQ_HBLANK, renderFramesH);
-		}
+	if (!rvidInRam || rvidCompressed) {
+		irqSet(IRQ_HBLANK, fillBorders);
+		irqEnable(IRQ_HBLANK);
 	}
-	irqEnable(IRQ_HBLANK);
 
 	/* if (rvidVRes < 192) {
 		dmaFillHalfWordsAsynch(3, 0, BG_GFX_SUB, 0x18000);	// Fill top screen with black
@@ -564,7 +502,7 @@ int playRvid(const char* filename) {
 								if (compressedFrameSizes[loadedFrames % 128] > 0
 								|| compressedFrameSizes[loadedFrames % 128] <= sizeof(compressedFrameBuffer)) {
 									tonccpy(compressedFrameBuffer, (u8*)frameSoundBufferExtended+rvidCurrentOffset, compressedFrameSizes[loadedFrames % 128]);
-									lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
+									lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
 								}
 								loadedFrames++;
 								rvidCurrentOffset += compressedFrameSizes[loadedFrames % 128];
@@ -609,7 +547,7 @@ int playRvid(const char* filename) {
 								if (compressedFrameSizes[loadedFrames % 128] > 0
 								|| compressedFrameSizes[loadedFrames % 128] <= sizeof(compressedFrameBuffer)) {
 									tonccpy(compressedFrameBuffer, (u8*)frameSoundBufferExtended+rvidCurrentOffset, compressedFrameSizes[loadedFrames % 128]);
-									lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
+									lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
 								}
 								loadedFrames++;
 								rvidCurrentOffset += compressedFrameSizes[loadedFrames % 128];
@@ -645,7 +583,7 @@ int playRvid(const char* filename) {
 			} else {
 				snd().updateStream();
 				if (videoPlaying && currentFrame > 0 && loadedFrames < rvidFrames) {
-					fread(frameSoundBufferExtended+(frameNoInMem*(0x200*rvidVRes)), 1, 0x200*rvidVRes, rvid);
+					fread(frameSoundBufferExtended+(frameNoInMem*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
 					frameNoInMem++;
 					loadedFrames++;
 				}
@@ -664,11 +602,13 @@ int playRvid(const char* filename) {
 								}
 								if (compressedFrameSizes[loadedFrames % 128] > 0
 								|| compressedFrameSizes[loadedFrames % 128] <= sizeof(compressedFrameBuffer)) {
+									fread(palBuffer[i], 2, 256, rvid);
 									fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedFrames % 128], rvid);
-									lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
+									lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
 								}
 							} else {
-								fread(frameBuffer+(i*(0x200*rvidVRes)), 1, 0x200*rvidVRes, rvid);
+								fread(palBuffer[i], 2, 256, rvid);
+								fread(frameBuffer+(i*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
 							}
 							loadedFrames++;
 						}
@@ -712,11 +652,13 @@ int playRvid(const char* filename) {
 								}
 								if (compressedFrameSizes[loadedFrames % 128] > 0
 								|| compressedFrameSizes[loadedFrames % 128] <= sizeof(compressedFrameBuffer)) {
+									fread(palBuffer[i], 2, 256, rvid);
 									fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedFrames % 128], rvid);
-									lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
+									lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
 								}
 							} else {
-								fread(frameBuffer+(i*(0x200*rvidVRes)), 1, 0x200*rvidVRes, rvid);
+								fread(palBuffer[i], 2, 256, rvid);
+								fread(frameBuffer+(i*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
 							}
 							loadedFrames++;
 						}
@@ -799,7 +741,7 @@ int playRvid(const char* filename) {
 					fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
 					for (int i = 0; i < 14; i++) {
 						tonccpy(compressedFrameBuffer, (u8*)frameSoundBufferExtended+rvidCurrentOffset, compressedFrameSizes[i]);
-						lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
+						lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
 						loadedFrames++;
 						rvidCurrentOffset += compressedFrameSizes[i];
 					}
@@ -809,26 +751,30 @@ int playRvid(const char* filename) {
 					if (rvidSize > rvidSizeAllowed) {
 						while (1) {
 							loadedFrames--;
-							if ((u32)((0x200*rvidVRes)*(loadedFrames+1)) <= rvidSizeAllowed) {
+							if ((u32)((0x100*rvidVRes)*(loadedFrames+1)) <= rvidSizeAllowed) {
 								break;
 							}
 						}
-						fread(frameSoundBufferExtended, 1, (0x200*rvidVRes)*(loadedFrames+1), rvid);
+						fread(frameSoundBufferExtended, 1, (0x100*rvidVRes)*(loadedFrames+1), rvid);
 					}
 				}
 			} else {
+				loadedFrames = 0;
 				if (rvidCompressed) {
-					loadedFrames = 0;
 					fseek(rvidFrameSizeTable, 0x200, SEEK_SET);
 					fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
 					for (int i = 0; i < 14; i++) {
+						fread(palBuffer[i], 2, 256, rvid);
 						fread(compressedFrameBuffer, 1, compressedFrameSizes[i], rvid);
-						lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x200*rvidVRes)));
+						lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
 						loadedFrames++;
 					}
 				} else {
-					fread(frameBuffer, 1, (0x200*rvidVRes)*14, rvid);
-					loadedFrames = 13;
+					for (int i = 0; i < 14; i++) {
+						fread(palBuffer[i], 2, 256, rvid);
+						fread(frameBuffer+(i*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
+						loadedFrames++;
+					}
 				}
 			}
 
@@ -850,7 +796,7 @@ int playRvid(const char* filename) {
 		swiWaitForVBlank();
 	}
 
-	while (dmaBusy(3));
+	// while (dmaBusy(3));
 	irqSet(IRQ_HBLANK, HBlankNull);
 	bgInitSub(3, BgType_Bmp16, BgSize_B16_256x256, 0, 0);
 
@@ -1053,7 +999,12 @@ int main(int argc, char **argv) {
 					int err = playRvid(filename.c_str());
 					fclose(rvid);
 					fclose(rvidFrameSizeTable);
-					if (err == 3) {
+					if (err == 4) {
+						consoleClear();
+						printf("This Rocket Video file\n");
+						printf("contains a version which is\n");
+						printf("no longer supported.\n");
+					} else if (err == 3) {
 						consoleClear();
 						printf("This Rocket Video file\n");
 						printf("contains a version higher than\n");
