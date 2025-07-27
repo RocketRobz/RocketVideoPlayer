@@ -52,8 +52,8 @@ bool extendedMemory = false;
 u8 compressedFrameBuffer[0x10000];
 u32 compressedFrameSizes[128];
 
-u16 palBuffer[28][256];
-u8 frameBuffer[0xC000*28];					// 28 frames in buffer
+u16 palBuffer[30][256];
+u8 frameBuffer[0xC000*30];					// 30 frames in buffer
 u8* frameSoundBufferExtended = (u8*)0x02420000;
 bool useBufferHalf = true;
 
@@ -280,8 +280,7 @@ ITCM_CODE void renderFrames(void) {
 			currentFrame++;
 			currentFrameInBuffer++;
 		}
-		if ((currentFrameInBuffer == 28 && !rvidInRam)
-		|| (currentFrameInBuffer == 28 && rvidCompressed)) {
+		if (currentFrameInBuffer == 30 && (!rvidInRam || rvidCompressed)) {
 			currentFrameInBuffer = 0;
 		}
 		if (rvidInRam) {
@@ -404,9 +403,10 @@ int playRvid(const char* filename) {
 			rvidFrameSizeTable = fopen(filename, "rb");
 			fseek(rvidFrameSizeTable, 0x200, SEEK_SET);
 			fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
-			for (int i = 0; i < 14; i++) {
+			for (int i = 0; i < 15; i++) {
 				tonccpy(compressedFrameBuffer, (u8*)frameSoundBufferExtended+rvidCurrentOffset, compressedFrameSizes[i]);
 				lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
+				DC_FlushRange(frameBuffer+(i*(0x100*rvidVRes)), 0x100*rvidVRes);
 				loadedFrames++;
 				rvidCurrentOffset += compressedFrameSizes[i];
 			}
@@ -428,7 +428,7 @@ int playRvid(const char* filename) {
 			rvidFrameSizeTable = fopen(filename, "rb");
 			fseek(rvidFrameSizeTable, 0x200, SEEK_SET);
 			fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
-			for (int i = 0; i < 14; i++) {
+			for (int i = 0; i < 15; i++) {
 				fread(palBuffer[i], 2, 256, rvid);
 				fread(compressedFrameBuffer, 1, compressedFrameSizes[i], rvid);
 				lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
@@ -436,7 +436,7 @@ int playRvid(const char* filename) {
 				loadedFrames++;
 			}
 		} else {
-			for (int i = 0; i < 14; i++) {
+			for (int i = 0; i < 15; i++) {
 				fread(palBuffer[i], 2, 256, rvid);
 				fread(frameBuffer+(i*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
 				loadedFrames++;
@@ -489,11 +489,11 @@ int playRvid(const char* filename) {
 	while (1) {
 		if (rvidInRam) {
 			if (rvidCompressed) {
-				if ((currentFrame % 28) >= 0
-				&& (currentFrame % 28) < 14)
+				if ((currentFrame % 30) >= 0
+				&& (currentFrame % 30) < 15)
 				{
 					if (useBufferHalf) {
-						for (int i = 14; i < 28; i++) {
+						for (int i = 15; i < 30; i++) {
 							snd().updateStream();
 							if (loadedFrames < rvidFrames) {
 								if ((loadedFrames % 128) == 0) {
@@ -503,6 +503,7 @@ int playRvid(const char* filename) {
 								|| compressedFrameSizes[loadedFrames % 128] <= sizeof(compressedFrameBuffer)) {
 									tonccpy(compressedFrameBuffer, (u8*)frameSoundBufferExtended+rvidCurrentOffset, compressedFrameSizes[loadedFrames % 128]);
 									lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
+									DC_FlushRange(frameBuffer+(i*(0x100*rvidVRes)), 0x100*rvidVRes);
 								}
 								loadedFrames++;
 								rvidCurrentOffset += compressedFrameSizes[loadedFrames % 128];
@@ -534,11 +535,11 @@ int playRvid(const char* filename) {
 						}
 						useBufferHalf = false;
 					}
-				} else if ((currentFrame % 28) >= 14
-						&& (currentFrame % 28) < 28)
+				} else if ((currentFrame % 30) >= 15
+						&& (currentFrame % 30) < 30)
 				{
 					if (!useBufferHalf) {
-						for (int i = 0; i < 14; i++) {
+						for (int i = 0; i < 15; i++) {
 							snd().updateStream();
 							if (loadedFrames < rvidFrames) {
 								if ((loadedFrames % 128) == 0) {
@@ -548,6 +549,7 @@ int playRvid(const char* filename) {
 								|| compressedFrameSizes[loadedFrames % 128] <= sizeof(compressedFrameBuffer)) {
 									tonccpy(compressedFrameBuffer, (u8*)frameSoundBufferExtended+rvidCurrentOffset, compressedFrameSizes[loadedFrames % 128]);
 									lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
+									DC_FlushRange(frameBuffer+(i*(0x100*rvidVRes)), 0x100*rvidVRes);
 								}
 								loadedFrames++;
 								rvidCurrentOffset += compressedFrameSizes[loadedFrames % 128];
@@ -589,11 +591,11 @@ int playRvid(const char* filename) {
 				}
 			}
 		} else {
-			if ((currentFrame % 28) >= 0
-			&& (currentFrame % 28) < 14)
+			if ((currentFrame % 30) >= 0
+			&& (currentFrame % 30) < 15)
 			{
 				if (useBufferHalf) {
-					for (int i = 14; i < 28; i++) {
+					for (int i = 15; i < 30; i++) {
 						snd().updateStream();
 						if (loadedFrames < rvidFrames) {
 							if (rvidCompressed) {
@@ -640,11 +642,11 @@ int playRvid(const char* filename) {
 					}
 					useBufferHalf = false;
 				}
-			} else if ((currentFrame % 28) >= 14
-					&& (currentFrame % 28) < 28)
+			} else if ((currentFrame % 30) >= 15
+					&& (currentFrame % 30) < 30)
 			{
 				if (!useBufferHalf) {
-					for (int i = 0; i < 14; i++) {
+					for (int i = 0; i < 15; i++) {
 						snd().updateStream();
 						if (loadedFrames < rvidFrames) {
 							if (rvidCompressed) {
@@ -744,6 +746,7 @@ int playRvid(const char* filename) {
 					for (int i = 0; i < 14; i++) {
 						tonccpy(compressedFrameBuffer, (u8*)frameSoundBufferExtended+rvidCurrentOffset, compressedFrameSizes[i]);
 						lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
+						DC_FlushRange(frameBuffer+(i*(0x100*rvidVRes)), 0x100*rvidVRes);
 						loadedFrames++;
 						rvidCurrentOffset += compressedFrameSizes[i];
 					}
@@ -765,14 +768,15 @@ int playRvid(const char* filename) {
 				if (rvidCompressed) {
 					fseek(rvidFrameSizeTable, 0x200, SEEK_SET);
 					fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
-					for (int i = 0; i < 14; i++) {
+					for (int i = 0; i < 15; i++) {
 						fread(palBuffer[i], 2, 256, rvid);
 						fread(compressedFrameBuffer, 1, compressedFrameSizes[i], rvid);
 						lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
+						DC_FlushRange(frameBuffer+(i*(0x100*rvidVRes)), 0x100*rvidVRes);
 						loadedFrames++;
 					}
 				} else {
-					for (int i = 0; i < 14; i++) {
+					for (int i = 0; i < 15; i++) {
 						fread(palBuffer[i], 2, 256, rvid);
 						fread(frameBuffer+(i*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
 						loadedFrames++;
