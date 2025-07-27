@@ -123,8 +123,35 @@ int videoHourMark = -1;
 int videoMinuteMark = 59;
 int videoSecondMark = 59;
 
-ITCM_CODE void frameRateHandler(void) {
-	if (videoPlaying && currentFrame <= loadedFrames && !loadFrame) {
+ITCM_CODE void fillBorders(void) {
+	int scanline = REG_VCOUNT;
+	if (scanline > videoYpos+rvidVRes) {
+		return;
+	} else {
+		scanline++;
+		if (scanline < videoYpos || scanline >= videoYpos+rvidVRes) {
+			BG_PALETTE_SUB[0] = 0;
+		} else {
+			BG_PALETTE_SUB[0] = palBuffer[currentFrameInBuffer][0];
+		}
+	}
+}
+
+void HBlankNull(void) {
+}
+
+ITCM_CODE void renderFrames(void) {
+	if (fadeType) {
+		screenBrightness--;
+		if (screenBrightness < 0) screenBrightness = 0;
+	} else {
+		screenBrightness++;
+		if (screenBrightness > 25) screenBrightness = 25;
+	}
+	SetBrightness(0, screenBrightness);
+	SetBrightness(1, screenBrightness);
+
+	if (videoPlaying && (currentFrame <= loadedFrames) && !loadFrame) {
 		frameOf60fps++;
 		if (frameOf60fps > 60) frameOf60fps = 1;
 
@@ -168,36 +195,6 @@ ITCM_CODE void frameRateHandler(void) {
 				break;
 		}
 	}
-}
-
-ITCM_CODE void fillBorders(void) {
-	int scanline = REG_VCOUNT;
-	if (scanline > videoYpos+rvidVRes) {
-		return;
-	} else {
-		scanline++;
-		if (scanline < videoYpos || scanline >= videoYpos+rvidVRes) {
-			BG_PALETTE_SUB[0] = 0;
-		} else {
-			BG_PALETTE_SUB[0] = palBuffer[currentFrameInBuffer][0];
-		}
-	}
-}
-
-void HBlankNull(void) {
-}
-
-ITCM_CODE void renderFrames(void) {
-	if (fadeType) {
-		screenBrightness--;
-		if (screenBrightness < 0) screenBrightness = 0;
-	} else {
-		screenBrightness++;
-		if (screenBrightness > 25) screenBrightness = 25;
-	}
-	SetBrightness(0, screenBrightness);
-	SetBrightness(1, screenBrightness);
-
 	if (videoPlaying && (currentFrame <= loadedFrames) && loadFrame) {
 		if (currentFrame < rvidFrames) {
 			if (rvidInRam && !rvidCompressed) {
@@ -435,6 +432,7 @@ int playRvid(const char* filename) {
 				fread(palBuffer[i], 2, 256, rvid);
 				fread(compressedFrameBuffer, 1, compressedFrameSizes[i], rvid);
 				lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
+				DC_FlushRange(frameBuffer+(i*(0x100*rvidVRes)), 0x100*rvidVRes);
 				loadedFrames++;
 			}
 		} else {
@@ -607,6 +605,7 @@ int playRvid(const char* filename) {
 									fread(palBuffer[i], 2, 256, rvid);
 									fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedFrames % 128], rvid);
 									lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
+									DC_FlushRange(frameBuffer+(i*(0x100*rvidVRes)), 0x100*rvidVRes);
 								}
 							} else {
 								fread(palBuffer[i], 2, 256, rvid);
@@ -657,6 +656,7 @@ int playRvid(const char* filename) {
 									fread(palBuffer[i], 2, 256, rvid);
 									fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedFrames % 128], rvid);
 									lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
+									DC_FlushRange(frameBuffer+(i*(0x100*rvidVRes)), 0x100*rvidVRes);
 								}
 							} else {
 								fread(palBuffer[i], 2, 256, rvid);
@@ -871,9 +871,6 @@ int main(int argc, char **argv) {
 
 	irqSet(IRQ_VBLANK, renderFrames);
 	irqEnable(IRQ_VBLANK);
-
-	irqSet(IRQ_VCOUNT, frameRateHandler);
-	irqEnable(IRQ_VCOUNT);
 
 	videoSetMode(MODE_5_2D | DISPLAY_BG3_ACTIVE);
 	videoSetModeSub(MODE_3_2D | DISPLAY_BG3_ACTIVE);
