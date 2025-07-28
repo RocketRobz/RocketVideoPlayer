@@ -299,9 +299,43 @@ ITCM_CODE void renderFrames(void) {
 	}
 }
 
+bool confirmReturn = false;
+bool confirmStop = false;
+
+bool playerControls(void) {
+	scanKeys();
+	touchRead(&touch);
+	if (keysDown() & KEY_A
+	|| ((keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
+		if (videoPlaying) {
+			videoPlaying = false;
+			updateVideoGuiFrame = true;
+			snd().stopStream();
+		} else {
+			videoPlaying = true;
+			updateVideoGuiFrame = true;
+			snd().beginStream();
+		}
+	}
+	if (keysDown() & KEY_B
+	|| ((keysDown() & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
+		confirmReturn = true;
+		return true;
+	}
+	if ((keysDown() & KEY_LEFT) && currentFrame > 0) {
+		confirmStop = true;
+		return true;
+	}
+	if (keysDown() & KEY_SELECT) {
+		bottomBacklightSwitch();
+	}
+
+	return false;
+}
+
 int playRvid(const char* filename) {
-	bool confirmReturn = false;
-	bool confirmStop = false;
+	confirmReturn = false;
+	confirmStop = false;
 
 	if (rvidHeaderCheck.ver == 0) {
 		return 0;
@@ -464,31 +498,8 @@ int playRvid(const char* filename) {
 						loadedFrames++;
 					}
 
-					scanKeys();
-					touchRead(&touch);
-					if (keysDown() & KEY_A
-					|| ((keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
-						if (videoPlaying) {
-							videoPlaying = false;
-							updateVideoGuiFrame = true;
-							snd().stopStream();
-						} else {
-							videoPlaying = true;
-							updateVideoGuiFrame = true;
-							snd().beginStream();
-						}
-					}
-					if (keysDown() & KEY_B
-					|| ((keysDown() & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
-						confirmReturn = true;
+					if (playerControls()) {
 						break;
-					}
-					if ((keysDown() & KEY_LEFT) && currentFrame > 0) {
-						confirmStop = true;
-						break;
-					}
-					if (keysDown() & KEY_SELECT) {
-						bottomBacklightSwitch();
 					}
 				}
 				useBufferHalf = false;
@@ -518,55 +529,14 @@ int playRvid(const char* filename) {
 						loadedFrames++;
 					}
 
-					scanKeys();
-					touchRead(&touch);
-					if (keysDown() & KEY_A
-					|| ((keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
-						if (videoPlaying) {
-							videoPlaying = false;
-							updateVideoGuiFrame = true;
-							snd().stopStream();
-						} else {
-							videoPlaying = true;
-							updateVideoGuiFrame = true;
-							snd().beginStream();
-						}
-					}
-					if (keysDown() & KEY_B
-					|| ((keysDown() & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
-						confirmReturn = true;
+					if (playerControls()) {
 						break;
-					}
-					if ((keysDown() & KEY_LEFT) && currentFrame > 0) {
-						confirmStop = true;
-						break;
-					}
-					if (keysDown() & KEY_SELECT) {
-						bottomBacklightSwitch();
 					}
 				}
 				useBufferHalf = true;
 			}
-		}
-		scanKeys();
-		touchRead(&touch);
-		if (keysDown() & KEY_A
-		|| ((keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
-			if (videoPlaying) {
-				videoPlaying = false;
-				updateVideoGuiFrame = true;
-				snd().stopStream();
-			} else {
-				videoPlaying = true;
-				updateVideoGuiFrame = true;
-				snd().beginStream();
-			}
-		}
-		if ((keysDown() & KEY_LEFT) && currentFrame > 0) {
-			confirmStop = true;
-		}
-		if (keysDown() & KEY_SELECT) {
-			bottomBacklightSwitch();
+		} else {
+			playerControls();
 		}
 		if (confirmStop || currentFrame > (int)rvidFrames) {
 			videoPlaying = false;
