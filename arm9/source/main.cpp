@@ -535,9 +535,8 @@ int playRvid(const char* filename) {
 				}
 				useBufferHalf = true;
 			}
-		} else {
-			playerControls();
 		}
+		playerControls();
 		if (confirmStop || currentFrame > (int)rvidFrames) {
 			videoPlaying = false;
 			snd().stopStream();
@@ -584,8 +583,7 @@ int playRvid(const char* filename) {
 			snd().resetStream();
 			confirmStop = false;
 		}
-		if (confirmReturn || keysDown() & KEY_B
-		|| ((keysDown() & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
+		if (confirmReturn) {
 			break;
 		}
 		swiWaitForVBlank();
