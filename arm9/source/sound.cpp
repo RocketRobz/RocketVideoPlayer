@@ -38,10 +38,6 @@ extern u8* frameSoundBufferExtended;
 
 static bool sndInited = false;
 bool streamFound = false;
-// bool streamInRam = false;
-// extern u32 rvidSizeAllowed;
-// extern bool extendedMemory;
-// extern bool rvidInRam;
 
 u32 soundSize = 0;
 
@@ -69,7 +65,7 @@ void SoundControl::loadStreamFromRvid(const char* filename) {
 	if (!sndInited) return;
 
 	stream_source = fopen(filename, "rb");
-	
+
 	if (!rvidHasSound) {
 		streamFound = false;
 		fclose(stream_source);
@@ -85,38 +81,18 @@ void SoundControl::loadStreamFromRvid(const char* filename) {
 
 	stream.sampling_rate = rvidSampleRate;
 	stream.buffer_length = 0x1000;	  			// should be adequate
-	stream.callback = on_stream_request;    
+	stream.callback = on_stream_request;
 	stream.format = MM_STREAM_16BIT_MONO;  // select format
 	stream.timer = MM_TIMER0;	    	   // use timer0
 	stream.manual = false;	      		   // auto filling
 	streamFound = true;
-	// streamInRam = false;
 	positionInSoundFile = STREAMING_BUF_LENGTH*2;
-	
-	/* if (!rvidInRam && extendedMemory) {
-	if (soundSize <= rvidSizeAllowed) {
-		// Load sound stream into RAM
-		fread(frameSoundBufferExtended, 1, soundSize, stream_source);
 
-		// Prep the first section of the stream
-		tonccpy((void*)play_stream_buf, (s16*)frameSoundBufferExtended, STREAMING_BUF_LENGTH*sizeof(s16));
+	// Prep the first section of the stream
+	fread((void*)play_stream_buf, sizeof(s16), STREAMING_BUF_LENGTH, stream_source);
 
-		// Fill the next section premptively
-		tonccpy((void*)fill_stream_buf, (s16*)frameSoundBufferExtended+STREAMING_BUF_LENGTH, STREAMING_BUF_LENGTH*sizeof(s16));
-
-		streamInRam = true;
-
-		return;
-	}
-	}
-
-	if (rvidInRam || !streamInRam) { */
-		// Prep the first section of the stream
-		fread((void*)play_stream_buf, sizeof(s16), STREAMING_BUF_LENGTH, stream_source);
-
-		// Fill the next section premptively
-		fread((void*)fill_stream_buf, sizeof(s16), STREAMING_BUF_LENGTH, stream_source);
-	// }
+	// Fill the next section premptively
+	fread((void*)fill_stream_buf, sizeof(s16), STREAMING_BUF_LENGTH, stream_source);
 
 }
 
@@ -142,25 +118,13 @@ void SoundControl::resetStream() {
 	resetStreamSettings();
 	positionInSoundFile = STREAMING_BUF_LENGTH*2;
 
-	/* if (streamInRam) {
-		// Prep the first section of the stream
-		tonccpy((void*)play_stream_buf, (s16*)frameSoundBufferExtended, STREAMING_BUF_LENGTH*sizeof(s16));
-
-		// Fill the next section premptively
-		tonccpy((void*)fill_stream_buf, (s16*)frameSoundBufferExtended+STREAMING_BUF_LENGTH, STREAMING_BUF_LENGTH*sizeof(s16));
-
-		return;
-	} */
-
 	fseek(stream_source, rvidSoundOffset, SEEK_SET);
 
-	// if (rvidInRam || !streamInRam) {
-		// Prep the first section of the stream
-		fread((void*)play_stream_buf, sizeof(s16), STREAMING_BUF_LENGTH, stream_source);
+	// Prep the first section of the stream
+	fread((void*)play_stream_buf, sizeof(s16), STREAMING_BUF_LENGTH, stream_source);
 
-		// Fill the next section premptively
-		fread((void*)fill_stream_buf, sizeof(s16), STREAMING_BUF_LENGTH, stream_source);
-	// }
+	// Fill the next section premptively
+	fread((void*)fill_stream_buf, sizeof(s16), STREAMING_BUF_LENGTH, stream_source);
 }
 
 void SoundControl::fadeOutStream() {
@@ -196,10 +160,10 @@ void SoundControl::setStreamDelay(u32 delay) {
 // filled_samples <= streaming_buf_ptr
 // fill_requested == false
 volatile void SoundControl::updateStream() {
-	
+
 	if (!stream_is_playing) return;
 	if (fill_requested && filled_samples < STREAMING_BUF_LENGTH) {
-			
+
 		// Reset the fill request
 		fill_requested = false;
 		int instance_filled = 0;
@@ -208,13 +172,7 @@ volatile void SoundControl::updateStream() {
 		int instance_to_fill = std::min(SAMPLES_LEFT_TO_FILL, SAMPLES_TO_FILL);
 
 		// If we don't read enough samples, stop.
-		/* if (streamInRam) {
-			tonccpy((s16*)fill_stream_buf + filled_samples, (s16*)frameSoundBufferExtended+positionInSoundFile, instance_to_fill*sizeof(s16));
-			instance_filled = instance_to_fill;
-			positionInSoundFile += instance_to_fill;
-		} else { */
-			instance_filled = fread((s16*)fill_stream_buf + filled_samples, sizeof(s16), instance_to_fill, stream_source);
-		// }
+		instance_filled = fread((s16*)fill_stream_buf + filled_samples, sizeof(s16), instance_to_fill, stream_source);
 		if (instance_filled < instance_to_fill) {
 			instance_filled++;
 			toncset((s16*)fill_stream_buf + filled_samples + instance_filled, 0, (instance_to_fill - instance_filled));
@@ -227,7 +185,7 @@ volatile void SoundControl::updateStream() {
 
 		// maintain invariant 0 < filled_samples <= STREAMING_BUF_LENGTH
 		filled_samples = std::min<s32>(filled_samples + instance_filled, STREAMING_BUF_LENGTH);
-	
+
 	} else if (fill_requested && filled_samples >= STREAMING_BUF_LENGTH) {
 		// filled_samples == STREAMING_BUF_LENGTH is the only possible case
 		// but we'll keep it at gte to be safe.

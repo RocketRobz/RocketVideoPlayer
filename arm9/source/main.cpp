@@ -45,17 +45,12 @@ extern rvidHeaderCheckInfo rvidHeaderCheck;
 // extern rvidHeaderInfo1 rvidHeader1;
 extern rvidHeaderInfo2 rvidHeader2;
 
-bool isRegularDS = true;
-bool isDevConsole = false;
-bool extendedMemory = false;
-
 u8 compressedFrameBuffer[0x10000];
 u32 compressedFrameSizes[128];
 
 u16 palBuffer[60][256];
 u8 frameBuffer[0xC000*30];					// 30 frames in buffer
 int frameBufferCount = 30;
-u8* frameSoundBufferExtended = (u8*)0x02420000;
 bool useBufferHalf = true;
 
 bool fadeType = false;
@@ -106,8 +101,6 @@ touchPosition touch;
 
 FILE* rvid;
 FILE* rvidFrameSizeTable;
-bool rvidInRam = false;
-u32 rvidSizeAllowed = 0xA60000;
 u32 rvidSizeProcessed = 0;
 u32 rvidCurrentOffset = 0;
 bool showVideoGui = false;
@@ -231,15 +224,11 @@ ITCM_CODE void renderFrames(void) {
 			if (rvidInterlaced) {
 				REG_BG3Y_SUB = bottomField ? -1 : 0;
 			}
-			if (rvidInRam && !rvidCompressed) {
-				dmaCopyWordsAsynch(0, frameSoundBufferExtended+(currentFrameInBuffer*(0x100*rvidVRes)), (u16*)BG_GFX_SUB+((256/2)*videoYpos), 0x100*rvidVRes);
+			dmaCopyWordsAsynch(0, frameBuffer+(currentFrameInBuffer*(0x100*rvidVRes)), (u16*)BG_GFX_SUB+((256/2)*videoYpos), 0x100*rvidVRes);
+			if (rvidVRes == (rvidInterlaced ? 96 : 192)) {
+				dmaCopyHalfWordsAsynch(3, palBuffer[currentFrameInBuffer], BG_PALETTE_SUB, 256*2);
 			} else {
-				dmaCopyWordsAsynch(0, frameBuffer+(currentFrameInBuffer*(0x100*rvidVRes)), (u16*)BG_GFX_SUB+((256/2)*videoYpos), 0x100*rvidVRes);
-				if (rvidVRes == (rvidInterlaced ? 96 : 192)) {
-					dmaCopyHalfWordsAsynch(3, palBuffer[currentFrameInBuffer], BG_PALETTE_SUB, 256*2);
-				} else {
-					dmaCopyHalfWordsAsynch(3, palBuffer[currentFrameInBuffer]+1, BG_PALETTE_SUB+1, 255*2);
-				}
+				dmaCopyHalfWordsAsynch(3, palBuffer[currentFrameInBuffer]+1, BG_PALETTE_SUB+1, 255*2);
 			}
 		}
 		if ((currentFrame % rvidFps) == 0) {
@@ -282,15 +271,8 @@ ITCM_CODE void renderFrames(void) {
 		}
 		currentFrame++;
 		currentFrameInBuffer++;
-		if ((currentFrameInBuffer == frameBufferCount) && (!rvidInRam || rvidCompressed)) {
+		if (currentFrameInBuffer == frameBufferCount) {
 			currentFrameInBuffer = 0;
-		}
-		if (rvidInRam) {
-			rvidSizeProcessed += (0x200*rvidVRes);
-			if (rvidSizeProcessed > rvidSizeAllowed) {
-				currentFrameInBuffer = 0;
-				rvidSizeProcessed = 0;
-			}
 		}
 		switch (rvidFps) {
 			case 11:
@@ -321,8 +303,6 @@ int playRvid(const char* filename) {
 	bool confirmReturn = false;
 	bool confirmStop = false;
 
-	int frameNoInMem = 0;
-
 	if (rvidHeaderCheck.ver == 0) {
 		return 0;
 	} else if (rvidHeaderCheck.ver > 3) {
@@ -332,20 +312,6 @@ int playRvid(const char* filename) {
 	}
 
 	readRvidHeader(rvid);
-
-	const u32 rvidSize = (0x100*rvidVRes)*(rvidFrames+1);
-
-	/* if ((rvidFps > 24 && !rvidCompressed) || (rvidFps > 25 && rvidCompressed)) {
-		if (!extendedMemory) {
-			return 2;
-		}
-		if (rvidSize > (isDevConsole ? rvidSizeAllowed*2 : rvidSizeAllowed)) {
-			return 1;
-		}
-		rvidInRam = true;
-	} else {
-		rvidInRam = false;
-	} */
 
 	videoYpos = 0;
 
@@ -408,52 +374,23 @@ int playRvid(const char* filename) {
 	updateVideoGuiFrame = true;
 
 	fseek(rvid, rvidFramesOffset, SEEK_SET);
-	if (rvidInRam) {
-		if (rvidCompressed) {
-			fread(frameSoundBufferExtended, 1, (0x100*rvidVRes)*(rvidFrames+1), rvid);
-			loadedFrames = 0;
-			rvidCurrentOffset = 0;
-			rvidFrameSizeTable = fopen(filename, "rb");
-			fseek(rvidFrameSizeTable, 0x200, SEEK_SET);
-			fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
-			for (int i = 0; i < frameBufferCount/2; i++) {
-				tonccpy(compressedFrameBuffer, (u8*)frameSoundBufferExtended+rvidCurrentOffset, compressedFrameSizes[i]);
-				lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
-				DC_FlushRange(frameBuffer+(i*(0x100*rvidVRes)), 0x100*rvidVRes);
-				loadedFrames++;
-				rvidCurrentOffset += compressedFrameSizes[i];
-			}
-		} else {
-			loadedFrames = rvidFrames;
-			if (rvidSize > rvidSizeAllowed) {
-				while (1) {
-					loadedFrames--;
-					if ((u32)((0x100*rvidVRes)*(loadedFrames+1)) <= rvidSizeAllowed) {
-						break;
-					}
-				}
-			}
-			fread(frameSoundBufferExtended, 1, (0x100*rvidVRes)*(loadedFrames+1), rvid);
+	loadedFrames = 0;
+	if (rvidCompressed) {
+		rvidFrameSizeTable = fopen(filename, "rb");
+		fseek(rvidFrameSizeTable, 0x200, SEEK_SET);
+		fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
+		for (int i = 0; i < frameBufferCount/2; i++) {
+			fread(palBuffer[i], 2, 256, rvid);
+			fread(compressedFrameBuffer, 1, compressedFrameSizes[i], rvid);
+			lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
+			DC_FlushRange(frameBuffer+(i*(0x100*rvidVRes)), 0x100*rvidVRes);
+			loadedFrames++;
 		}
 	} else {
-		loadedFrames = 0;
-		if (rvidCompressed) {
-			rvidFrameSizeTable = fopen(filename, "rb");
-			fseek(rvidFrameSizeTable, 0x200, SEEK_SET);
-			fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
-			for (int i = 0; i < frameBufferCount/2; i++) {
-				fread(palBuffer[i], 2, 256, rvid);
-				fread(compressedFrameBuffer, 1, compressedFrameSizes[i], rvid);
-				lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
-				DC_FlushRange(frameBuffer+(i*(0x100*rvidVRes)), 0x100*rvidVRes);
-				loadedFrames++;
-			}
-		} else {
-			for (int i = 0; i < frameBufferCount/2; i++) {
-				fread(palBuffer[i], 2, 256, rvid);
-				fread(frameBuffer+(i*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
-				loadedFrames++;
-			}
+		for (int i = 0; i < frameBufferCount/2; i++) {
+			fread(palBuffer[i], 2, 256, rvid);
+			fread(frameBuffer+(i*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
+			loadedFrames++;
 		}
 	}
 
@@ -493,10 +430,8 @@ int playRvid(const char* filename) {
 		swiWaitForVBlank();
 	}
 
-	if (!rvidInRam || rvidCompressed) {
-		irqSet(IRQ_HBLANK, (rvidVRes == (rvidInterlaced ? 96 : 192)) ? HBlankNull : rvidInterlaced ? fillBordersInterlaced : fillBorders);
-		irqEnable(IRQ_HBLANK);
-	}
+	irqSet(IRQ_HBLANK, (rvidVRes == (rvidInterlaced ? 96 : 192)) ? HBlankNull : rvidInterlaced ? fillBordersInterlaced : fillBorders);
+	irqEnable(IRQ_HBLANK);
 
 	/* if (rvidVRes < 192) {
 		dmaFillHalfWordsAsynch(3, 0, BG_GFX_SUB, 0x18000);	// Fill top screen with black
@@ -504,224 +439,113 @@ int playRvid(const char* filename) {
 	videoPlaying = true;
 	snd().beginStream();
 	while (1) {
-		if (rvidInRam) {
-			if (rvidCompressed) {
-				if ((currentFrame % frameBufferCount) >= 0
-				&& (currentFrame % frameBufferCount) < frameBufferCount/2)
-				{
-					if (useBufferHalf) {
-						for (int i = frameBufferCount/2; i < frameBufferCount; i++) {
-							snd().updateStream();
-							if (loadedFrames < rvidFrames) {
-								if ((loadedFrames % 128) == 0) {
-									fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
-								}
-								if (compressedFrameSizes[loadedFrames % 128] > 0
-								|| compressedFrameSizes[loadedFrames % 128] <= sizeof(compressedFrameBuffer)) {
-									tonccpy(compressedFrameBuffer, (u8*)frameSoundBufferExtended+rvidCurrentOffset, compressedFrameSizes[loadedFrames % 128]);
-									lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
-									DC_FlushRange(frameBuffer+(i*(0x100*rvidVRes)), 0x100*rvidVRes);
-								}
-								loadedFrames++;
-								rvidCurrentOffset += compressedFrameSizes[loadedFrames % 128];
+		if ((currentFrame % frameBufferCount) >= 0
+		&& (currentFrame % frameBufferCount) < frameBufferCount/2)
+		{
+			if (useBufferHalf) {
+				for (int i = frameBufferCount/2; i < frameBufferCount; i++) {
+					snd().updateStream();
+					if (loadedFrames < rvidFrames) {
+						if (rvidCompressed) {
+							if ((loadedFrames % 128) == 0) {
+								fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
 							}
-
-							scanKeys();
-							touchRead(&touch);
-							if (keysDown() & KEY_A
-							|| ((keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
-								if (videoPlaying) {
-									videoPlaying = false;
-									updateVideoGuiFrame = true;
-									snd().stopStream();
-								} else {
-									videoPlaying = true;
-									updateVideoGuiFrame = true;
-									snd().beginStream();
-								}
+							if (compressedFrameSizes[loadedFrames % 128] > 0
+							|| compressedFrameSizes[loadedFrames % 128] <= sizeof(compressedFrameBuffer)) {
+								fread(palBuffer[i], 2, 256, rvid);
+								fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedFrames % 128], rvid);
+								lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
+								DC_FlushRange(frameBuffer+(i*(0x100*rvidVRes)), 0x100*rvidVRes);
 							}
-							if (keysDown() & KEY_B
-							|| ((keysDown() & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
-								confirmReturn = true;
-								break;
-							}
-							if ((keysDown() & KEY_LEFT) && currentFrame > 0) {
-								confirmStop = true;
-								break;
-							}
-							if (keysDown() & KEY_SELECT) {
-								bottomBacklightSwitch();
-							}
+						} else {
+							fread(palBuffer[i], 2, 256, rvid);
+							fread(frameBuffer+(i*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
 						}
-						useBufferHalf = false;
+						loadedFrames++;
 					}
-				} else if ((currentFrame % frameBufferCount) >= frameBufferCount/2
-						&& (currentFrame % frameBufferCount) < frameBufferCount)
-				{
-					if (!useBufferHalf) {
-						for (int i = 0; i < frameBufferCount/2; i++) {
-							snd().updateStream();
-							if (loadedFrames < rvidFrames) {
-								if ((loadedFrames % 128) == 0) {
-									fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
-								}
-								if (compressedFrameSizes[loadedFrames % 128] > 0
-								|| compressedFrameSizes[loadedFrames % 128] <= sizeof(compressedFrameBuffer)) {
-									tonccpy(compressedFrameBuffer, (u8*)frameSoundBufferExtended+rvidCurrentOffset, compressedFrameSizes[loadedFrames % 128]);
-									lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
-									DC_FlushRange(frameBuffer+(i*(0x100*rvidVRes)), 0x100*rvidVRes);
-								}
-								loadedFrames++;
-								rvidCurrentOffset += compressedFrameSizes[loadedFrames % 128];
-							}
 
-							scanKeys();
-							touchRead(&touch);
-							if (keysDown() & KEY_A
-							|| ((keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
-								if (videoPlaying) {
-									videoPlaying = false;
-									updateVideoGuiFrame = true;
-									snd().stopStream();
-								} else {
-									videoPlaying = true;
-									updateVideoGuiFrame = true;
-									snd().beginStream();
-								}
-							}
-							if (keysDown() & KEY_B
-							|| ((keysDown() & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
-								confirmReturn = true;
-								break;
-							}
-							if ((keysDown() & KEY_LEFT) && currentFrame > 0) {
-								confirmStop = true;
-								break;
-							}
-							if (keysDown() & KEY_SELECT) {
-								bottomBacklightSwitch();
-							}
+					scanKeys();
+					touchRead(&touch);
+					if (keysDown() & KEY_A
+					|| ((keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
+						if (videoPlaying) {
+							videoPlaying = false;
+							updateVideoGuiFrame = true;
+							snd().stopStream();
+						} else {
+							videoPlaying = true;
+							updateVideoGuiFrame = true;
+							snd().beginStream();
 						}
-						useBufferHalf = true;
+					}
+					if (keysDown() & KEY_B
+					|| ((keysDown() & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
+						confirmReturn = true;
+						break;
+					}
+					if ((keysDown() & KEY_LEFT) && currentFrame > 0) {
+						confirmStop = true;
+						break;
+					}
+					if (keysDown() & KEY_SELECT) {
+						bottomBacklightSwitch();
 					}
 				}
-			} else {
-				snd().updateStream();
-				if (videoPlaying && currentFrame > 0 && loadedFrames < rvidFrames) {
-					fread(frameSoundBufferExtended+(frameNoInMem*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
-					frameNoInMem++;
-					loadedFrames++;
-				}
+				useBufferHalf = false;
 			}
-		} else {
-			if ((currentFrame % frameBufferCount) >= 0
-			&& (currentFrame % frameBufferCount) < frameBufferCount/2)
-			{
-				if (useBufferHalf) {
-					for (int i = frameBufferCount/2; i < frameBufferCount; i++) {
-						snd().updateStream();
-						if (loadedFrames < rvidFrames) {
-							if (rvidCompressed) {
-								if ((loadedFrames % 128) == 0) {
-									fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
-								}
-								if (compressedFrameSizes[loadedFrames % 128] > 0
-								|| compressedFrameSizes[loadedFrames % 128] <= sizeof(compressedFrameBuffer)) {
-									fread(palBuffer[i], 2, 256, rvid);
-									fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedFrames % 128], rvid);
-									lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
-									DC_FlushRange(frameBuffer+(i*(0x100*rvidVRes)), 0x100*rvidVRes);
-								}
-							} else {
+		} else if ((currentFrame % frameBufferCount) >= frameBufferCount/2
+				&& (currentFrame % frameBufferCount) < frameBufferCount)
+		{
+			if (!useBufferHalf) {
+				for (int i = 0; i < frameBufferCount/2; i++) {
+					snd().updateStream();
+					if (loadedFrames < rvidFrames) {
+						if (rvidCompressed) {
+							if ((loadedFrames % 128) == 0) {
+								fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
+							}
+							if (compressedFrameSizes[loadedFrames % 128] > 0
+							|| compressedFrameSizes[loadedFrames % 128] <= sizeof(compressedFrameBuffer)) {
 								fread(palBuffer[i], 2, 256, rvid);
-								fread(frameBuffer+(i*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
+								fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedFrames % 128], rvid);
+								lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
+								DC_FlushRange(frameBuffer+(i*(0x100*rvidVRes)), 0x100*rvidVRes);
 							}
-							loadedFrames++;
+						} else {
+							fread(palBuffer[i], 2, 256, rvid);
+							fread(frameBuffer+(i*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
 						}
+						loadedFrames++;
+					}
 
-						scanKeys();
-						touchRead(&touch);
-						if (keysDown() & KEY_A
-						|| ((keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
-							if (videoPlaying) {
-								videoPlaying = false;
-								updateVideoGuiFrame = true;
-								snd().stopStream();
-							} else {
-								videoPlaying = true;
-								updateVideoGuiFrame = true;
-								snd().beginStream();
-							}
-						}
-						if (keysDown() & KEY_B
-						|| ((keysDown() & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
-							confirmReturn = true;
-							break;
-						}
-						if ((keysDown() & KEY_LEFT) && currentFrame > 0) {
-							confirmStop = true;
-							break;
-						}
-						if (keysDown() & KEY_SELECT) {
-							bottomBacklightSwitch();
+					scanKeys();
+					touchRead(&touch);
+					if (keysDown() & KEY_A
+					|| ((keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
+						if (videoPlaying) {
+							videoPlaying = false;
+							updateVideoGuiFrame = true;
+							snd().stopStream();
+						} else {
+							videoPlaying = true;
+							updateVideoGuiFrame = true;
+							snd().beginStream();
 						}
 					}
-					useBufferHalf = false;
-				}
-			} else if ((currentFrame % frameBufferCount) >= frameBufferCount/2
-					&& (currentFrame % frameBufferCount) < frameBufferCount)
-			{
-				if (!useBufferHalf) {
-					for (int i = 0; i < frameBufferCount/2; i++) {
-						snd().updateStream();
-						if (loadedFrames < rvidFrames) {
-							if (rvidCompressed) {
-								if ((loadedFrames % 128) == 0) {
-									fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
-								}
-								if (compressedFrameSizes[loadedFrames % 128] > 0
-								|| compressedFrameSizes[loadedFrames % 128] <= sizeof(compressedFrameBuffer)) {
-									fread(palBuffer[i], 2, 256, rvid);
-									fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedFrames % 128], rvid);
-									lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
-									DC_FlushRange(frameBuffer+(i*(0x100*rvidVRes)), 0x100*rvidVRes);
-								}
-							} else {
-								fread(palBuffer[i], 2, 256, rvid);
-								fread(frameBuffer+(i*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
-							}
-							loadedFrames++;
-						}
-
-						scanKeys();
-						touchRead(&touch);
-						if (keysDown() & KEY_A
-						|| ((keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
-							if (videoPlaying) {
-								videoPlaying = false;
-								updateVideoGuiFrame = true;
-								snd().stopStream();
-							} else {
-								videoPlaying = true;
-								updateVideoGuiFrame = true;
-								snd().beginStream();
-							}
-						}
-						if (keysDown() & KEY_B
-						|| ((keysDown() & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
-							confirmReturn = true;
-							break;
-						}
-						if ((keysDown() & KEY_LEFT) && currentFrame > 0) {
-							confirmStop = true;
-							break;
-						}
-						if (keysDown() & KEY_SELECT) {
-							bottomBacklightSwitch();
-						}
+					if (keysDown() & KEY_B
+					|| ((keysDown() & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
+						confirmReturn = true;
+						break;
 					}
-					useBufferHalf = true;
+					if ((keysDown() & KEY_LEFT) && currentFrame > 0) {
+						confirmStop = true;
+						break;
+					}
+					if (keysDown() & KEY_SELECT) {
+						bottomBacklightSwitch();
+					}
 				}
+				useBufferHalf = true;
 			}
 		}
 		scanKeys();
@@ -768,51 +592,22 @@ int playRvid(const char* filename) {
 
 			// Reload video
 			fseek(rvid, rvidFramesOffset, SEEK_SET);
-			if (rvidInRam) {
-				if (rvidCompressed) {
-					// Reload video
-					loadedFrames = 0;
-					rvidCurrentOffset = 0;
-					fseek(rvidFrameSizeTable, 0x200, SEEK_SET);
-					fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
-					for (int i = 0; i < frameBufferCount/2; i++) {
-						tonccpy(compressedFrameBuffer, (u8*)frameSoundBufferExtended+rvidCurrentOffset, compressedFrameSizes[i]);
-						lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
-						DC_FlushRange(frameBuffer+(i*(0x100*rvidVRes)), 0x100*rvidVRes);
-						loadedFrames++;
-						rvidCurrentOffset += compressedFrameSizes[i];
-					}
-				} else {
-					frameNoInMem = 0;
-					loadedFrames = rvidFrames;
-					if (rvidSize > rvidSizeAllowed) {
-						while (1) {
-							loadedFrames--;
-							if ((u32)((0x100*rvidVRes)*(loadedFrames+1)) <= rvidSizeAllowed) {
-								break;
-							}
-						}
-						fread(frameSoundBufferExtended, 1, (0x100*rvidVRes)*(loadedFrames+1), rvid);
-					}
+			loadedFrames = 0;
+			if (rvidCompressed) {
+				fseek(rvidFrameSizeTable, 0x200, SEEK_SET);
+				fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
+				for (int i = 0; i < frameBufferCount/2; i++) {
+					fread(palBuffer[i], 2, 256, rvid);
+					fread(compressedFrameBuffer, 1, compressedFrameSizes[i], rvid);
+					lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
+					DC_FlushRange(frameBuffer+(i*(0x100*rvidVRes)), 0x100*rvidVRes);
+					loadedFrames++;
 				}
 			} else {
-				loadedFrames = 0;
-				if (rvidCompressed) {
-					fseek(rvidFrameSizeTable, 0x200, SEEK_SET);
-					fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
-					for (int i = 0; i < frameBufferCount/2; i++) {
-						fread(palBuffer[i], 2, 256, rvid);
-						fread(compressedFrameBuffer, 1, compressedFrameSizes[i], rvid);
-						lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
-						DC_FlushRange(frameBuffer+(i*(0x100*rvidVRes)), 0x100*rvidVRes);
-						loadedFrames++;
-					}
-				} else {
-					for (int i = 0; i < frameBufferCount/2; i++) {
-						fread(palBuffer[i], 2, 256, rvid);
-						fread(frameBuffer+(i*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
-						loadedFrames++;
-					}
+				for (int i = 0; i < frameBufferCount/2; i++) {
+					fread(palBuffer[i], 2, 256, rvid);
+					fread(frameBuffer+(i*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
+					loadedFrames++;
 				}
 			}
 
@@ -953,27 +748,6 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	if (fifoGetValue32(FIFO_USER_07) != 0) isRegularDS = false;	// If sound frequency setting is found, then the console is not a DS Phat/Lite
-
-	if (isDSiMode()) {
-		extendedMemory = true;
-		*(vu32*)(0x0DFFFE0C) = 0x53524C41;		// Check for 32MB of RAM
-		isDevConsole = (*(vu32*)(0x0DFFFE0C) == 0x53524C41);
-		if (isDevConsole) {
-			frameSoundBufferExtended = (u8*)0x0D000000;
-			rvidSizeAllowed = 0x1000000;
-		}
-	}
-	if (isRegularDS) {
-		sysSetCartOwner (BUS_OWNER_ARM9);	// Allow arm9 to access GBA ROM (or in this case, the DS Memory Expansion Pak)
-		*(vu32*)(0x08240000) = 1;
-		if (*(vu32*)(0x08240000) == 1) {
-			extendedMemory = true;
-			frameSoundBufferExtended = (u8*)0x09000000;
-			rvidSizeAllowed = 0x800000;
-		}
-	}
-
 	dmaFillHalfWords(0, BG_GFX, 0x18000);		// Clear top screen
 	dmaFillHalfWords(0, BG_GFX_SUB, 0x18000);	// Clear bottom screen
 	snd();
@@ -1051,27 +825,6 @@ int main(int argc, char **argv) {
 						printf("\n");
 						printf("Please update the player to\n");
 						printf("the latest version.\n");
-					} else if (err == 2) {
-						consoleClear();
-						printf("This Rocket Video file is\n");
-						printf("above %iFPS.\n", (rvidCompressed ? 25 : 24));
-						printf("\n");
-						if (isRegularDS) {
-							printf("Please insert the DS Memory\n");
-							printf("Expansion Pak, then restart\n");
-							printf("the app.\n");
-						} else {
-							printf("Please restart the app from\n");
-							printf("a DSi-mode flashcard, or the\n");
-							printf("SD card.\n");
-						}
-					} else if (err == 1) {
-						consoleClear();
-						printf("This %i-60FPS Rocket Video\n", (rvidCompressed ? 30 : 25));
-						printf("file is too big!\n");
-						printf("\n");
-						printf("Please use less frames, and/or\n");
-						printf("reduce vertical resolution.\n");
 					}
 					if ((err > 0) && (argc < 2)) {
 						printf("\n");
