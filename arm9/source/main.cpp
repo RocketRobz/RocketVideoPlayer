@@ -76,7 +76,18 @@ void SetBrightness(u8 screen, s8 bright) {
 		bright = -bright;
 	}
 	if (bright > 31) bright = 31;
-	*(u16*)(0x0400006C + (0x1000 * screen)) = bright + mode;
+	*(vu16*)(0x0400006C + (0x1000 * screen)) = bright + mode;
+}
+
+static bool bottomBacklight = true;
+
+void bottomBacklightSwitch(void) {
+	if (bottomBacklight) {
+		powerOff(PM_BACKLIGHT_BOTTOM);
+	} else {
+		powerOn(PM_BACKLIGHT_BOTTOM);
+	}
+	bottomBacklight = !bottomBacklight;
 }
 
 using namespace std;
@@ -538,6 +549,9 @@ int playRvid(const char* filename) {
 								confirmStop = true;
 								break;
 							}
+							if (keysDown() & KEY_SELECT) {
+								bottomBacklightSwitch();
+							}
 						}
 						useBufferHalf = false;
 					}
@@ -583,6 +597,9 @@ int playRvid(const char* filename) {
 							if ((keysDown() & KEY_LEFT) && currentFrame > 0) {
 								confirmStop = true;
 								break;
+							}
+							if (keysDown() & KEY_SELECT) {
+								bottomBacklightSwitch();
 							}
 						}
 						useBufferHalf = true;
@@ -645,6 +662,9 @@ int playRvid(const char* filename) {
 							confirmStop = true;
 							break;
 						}
+						if (keysDown() & KEY_SELECT) {
+							bottomBacklightSwitch();
+						}
 					}
 					useBufferHalf = false;
 				}
@@ -696,6 +716,9 @@ int playRvid(const char* filename) {
 							confirmStop = true;
 							break;
 						}
+						if (keysDown() & KEY_SELECT) {
+							bottomBacklightSwitch();
+						}
 					}
 					useBufferHalf = true;
 				}
@@ -717,6 +740,9 @@ int playRvid(const char* filename) {
 		}
 		if ((keysDown() & KEY_LEFT) && currentFrame > 0) {
 			confirmStop = true;
+		}
+		if (keysDown() & KEY_SELECT) {
+			bottomBacklightSwitch();
 		}
 		if (confirmStop || currentFrame > (int)rvidFrames) {
 			videoPlaying = false;
@@ -802,6 +828,10 @@ int playRvid(const char* filename) {
 
 	videoPlaying = false;
 	snd().stopStream();
+
+	if (!bottomBacklight) {
+		bottomBacklightSwitch();
+	}
 
 	fadeType = false;
 	for (int i = 0; i < 25; i++) {
