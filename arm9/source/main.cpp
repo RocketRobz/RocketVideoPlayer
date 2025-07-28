@@ -946,7 +946,7 @@ int main(int argc, char **argv) {
 
 	dmaFillHalfWords(0, BG_GFX, 0x18000);		// Clear top screen
 	dmaFillHalfWords(0, BG_GFX_SUB, 0x18000);	// Clear bottom screen
-	//snd();
+	snd();
 
 	lcdMainOnBottom();
 

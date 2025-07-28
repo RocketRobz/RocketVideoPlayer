@@ -38,10 +38,10 @@ extern u8* frameSoundBufferExtended;
 
 static bool sndInited = false;
 bool streamFound = false;
-bool streamInRam = false;
-extern u32 rvidSizeAllowed;
-extern bool extendedMemory;
-extern bool rvidInRam;
+// bool streamInRam = false;
+// extern u32 rvidSizeAllowed;
+// extern bool extendedMemory;
+// extern bool rvidInRam;
 
 u32 soundSize = 0;
 
@@ -90,10 +90,10 @@ void SoundControl::loadStreamFromRvid(const char* filename) {
 	stream.timer = MM_TIMER0;	    	   // use timer0
 	stream.manual = false;	      		   // auto filling
 	streamFound = true;
-	streamInRam = false;
+	// streamInRam = false;
 	positionInSoundFile = STREAMING_BUF_LENGTH*2;
 	
-	if (!rvidInRam && extendedMemory) {
+	/* if (!rvidInRam && extendedMemory) {
 	if (soundSize <= rvidSizeAllowed) {
 		// Load sound stream into RAM
 		fread(frameSoundBufferExtended, 1, soundSize, stream_source);
@@ -110,13 +110,13 @@ void SoundControl::loadStreamFromRvid(const char* filename) {
 	}
 	}
 
-	if (rvidInRam || !streamInRam) {
+	if (rvidInRam || !streamInRam) { */
 		// Prep the first section of the stream
 		fread((void*)play_stream_buf, sizeof(s16), STREAMING_BUF_LENGTH, stream_source);
 
 		// Fill the next section premptively
 		fread((void*)fill_stream_buf, sizeof(s16), STREAMING_BUF_LENGTH, stream_source);
-	}
+	// }
 
 }
 
@@ -142,7 +142,7 @@ void SoundControl::resetStream() {
 	resetStreamSettings();
 	positionInSoundFile = STREAMING_BUF_LENGTH*2;
 
-	if (streamInRam) {
+	/* if (streamInRam) {
 		// Prep the first section of the stream
 		tonccpy((void*)play_stream_buf, (s16*)frameSoundBufferExtended, STREAMING_BUF_LENGTH*sizeof(s16));
 
@@ -150,17 +150,17 @@ void SoundControl::resetStream() {
 		tonccpy((void*)fill_stream_buf, (s16*)frameSoundBufferExtended+STREAMING_BUF_LENGTH, STREAMING_BUF_LENGTH*sizeof(s16));
 
 		return;
-	}
+	} */
 
 	fseek(stream_source, rvidSoundOffset, SEEK_SET);
 
-	if (rvidInRam || !streamInRam) {
+	// if (rvidInRam || !streamInRam) {
 		// Prep the first section of the stream
 		fread((void*)play_stream_buf, sizeof(s16), STREAMING_BUF_LENGTH, stream_source);
 
 		// Fill the next section premptively
 		fread((void*)fill_stream_buf, sizeof(s16), STREAMING_BUF_LENGTH, stream_source);
-	}
+	// }
 }
 
 void SoundControl::fadeOutStream() {
@@ -208,13 +208,13 @@ volatile void SoundControl::updateStream() {
 		int instance_to_fill = std::min(SAMPLES_LEFT_TO_FILL, SAMPLES_TO_FILL);
 
 		// If we don't read enough samples, stop.
-		if (streamInRam) {
+		/* if (streamInRam) {
 			tonccpy((s16*)fill_stream_buf + filled_samples, (s16*)frameSoundBufferExtended+positionInSoundFile, instance_to_fill*sizeof(s16));
 			instance_filled = instance_to_fill;
 			positionInSoundFile += instance_to_fill;
-		} else {
+		} else { */
 			instance_filled = fread((s16*)fill_stream_buf + filled_samples, sizeof(s16), instance_to_fill, stream_source);
-		}
+		// }
 		if (instance_filled < instance_to_fill) {
 			instance_filled++;
 			toncset((s16*)fill_stream_buf + filled_samples + instance_filled, 0, (instance_to_fill - instance_filled));
