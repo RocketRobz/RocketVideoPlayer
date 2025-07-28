@@ -53,7 +53,7 @@ void powerButtonCB() {
 //---------------------------------------------------------------------------------
 int main() {
 //---------------------------------------------------------------------------------
-    nocashMessage("ARM7 main.c main");
+    // nocashMessage("ARM7 main.c main");
 	
 	// clear sound registers
 	dmaFillWords(0, (void*)0x04000400, 0x100);
