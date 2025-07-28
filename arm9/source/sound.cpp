@@ -39,10 +39,6 @@ extern u8* frameSoundBufferExtended;
 static bool sndInited = false;
 bool streamFound = false;
 
-u32 soundSize = 0;
-
-int positionInSoundFile = 0;
-
 mm_word SOUNDBANK[MSL_BANKSIZE] = {0};
 
 SoundControl::SoundControl()
@@ -74,9 +70,6 @@ void SoundControl::loadStreamFromRvid(const char* filename) {
 
 	resetStreamSettings();
 
-	fseek(stream_source, 0, SEEK_END);
-	soundSize = ftell(stream_source);					// Get sound stream size
-	soundSize -= rvidSoundOffset;						// Fix size
 	fseek(stream_source, rvidSoundOffset, SEEK_SET);
 
 	stream.sampling_rate = rvidSampleRate;
@@ -86,7 +79,6 @@ void SoundControl::loadStreamFromRvid(const char* filename) {
 	stream.timer = MM_TIMER0;	    	   // use timer0
 	stream.manual = false;	      		   // auto filling
 	streamFound = true;
-	positionInSoundFile = STREAMING_BUF_LENGTH*2;
 
 	// Prep the first section of the stream
 	fread((void*)play_stream_buf, sizeof(s16), STREAMING_BUF_LENGTH, stream_source);
@@ -116,7 +108,6 @@ void SoundControl::resetStream() {
 	if (!streamFound) return;
 
 	resetStreamSettings();
-	positionInSoundFile = STREAMING_BUF_LENGTH*2;
 
 	fseek(stream_source, rvidSoundOffset, SEEK_SET);
 
