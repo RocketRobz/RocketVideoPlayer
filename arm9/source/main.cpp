@@ -665,7 +665,7 @@ int main(int argc, char **argv) {
 		stop();
 	}
 
-	bool nitroFSInited = nitroFSInit(argv[0]);
+	const bool nitroFSInited = nitroFSInit();
 
 	*(u16*)(0x0400006C) |= BIT(14);
 	*(u16*)(0x0400006C) &= BIT(15);
