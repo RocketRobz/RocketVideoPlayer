@@ -54,6 +54,7 @@ int frameBufferCount = 30;
 bool useBufferHalf = true;
 bool useSoundBufferHalf = false;
 bool updateSoundBuffer = false;
+int sndId = 0;
 
 bool fadeType = false;
 
@@ -308,7 +309,7 @@ bool confirmStop = false;
 
 bool playerControls(void) {
 	if (updateSoundBuffer) {
-		soundPlaySample(soundBuffer[useSoundBufferHalf], SoundFormat_16Bit, rvidSampleRate*2, rvidSampleRate, 127, 64, false, 0);
+		sndId = soundPlaySample(soundBuffer[useSoundBufferHalf], SoundFormat_16Bit, rvidSampleRate*2, rvidSampleRate, 127, 64, false, 0);
 		useSoundBufferHalf = !useSoundBufferHalf;
 		toncset(soundBuffer[useSoundBufferHalf], 0, rvidSampleRate*sizeof(u16));
 		fread(soundBuffer[useSoundBufferHalf], sizeof(u16), rvidSampleRate, rvidSound);
@@ -554,6 +555,7 @@ int playRvid(const char* filename) {
 		playerControls();
 		if (confirmStop || currentFrame > (int)rvidFrames) {
 			videoPlaying = false;
+			swiWaitForVBlank();
 
 			hourMark = -1;
 			minuteMark = 59;
@@ -573,6 +575,10 @@ int playRvid(const char* filename) {
 			frameDelay = 0;
 			frameDelayEven = true;
 			bottomField = false;
+
+			if (rvidHasSound) {
+				soundKill(sndId);
+			}
 
 			// Reload video
 			fseek(rvid, rvidFramesOffset, SEEK_SET);
@@ -595,6 +601,12 @@ int playRvid(const char* filename) {
 				}
 			}
 
+			if (rvidHasSound) {
+				fseek(rvidSound, rvidSoundOffset, SEEK_SET);
+				toncset(soundBuffer[0], 0, rvidSampleRate*sizeof(u16));
+				fread(soundBuffer[0], sizeof(u16), rvidSampleRate, rvidSound);
+			}
+
 			confirmStop = false;
 		}
 		if (confirmReturn) {
@@ -604,6 +616,11 @@ int playRvid(const char* filename) {
 	}
 
 	videoPlaying = false;
+	swiWaitForVBlank();
+
+	if (rvidHasSound) {
+		soundKill(sndId);
+	}
 
 	if (!bottomBacklight) {
 		bottomBacklightSwitch();
