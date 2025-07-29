@@ -8,7 +8,7 @@
 		* also thx to wintermute's input realized:
 			* if you dont give ndstool the -o wifilogo.bmp option it will run on emulators in gba mode
 			* you then dont need the gba's LOADEROFFSET, so it was set to 0x000
-	
+
 	2008-05-21  v0.3 - newer and more improved
 		* fixed some issues with ftell() (again was fseek's fault u_u;;)
 		* fixed possible error in detecting sc.gba files when using dldi
@@ -41,436 +41,495 @@
 
 	2009-08-08 v0.8.Turbo - fix fix fix
 		* fixed problem with some cards where the header would be loaded to GBA ram even if running 
-                  in NDS mode causing nitroFSInit() to think it was a valid GBA cart header and attempt to 
-           	  read from GBA SLOT instead of SLOT 1. Fixed this by making it check that filename is not NULL
+				  in NDS mode causing nitroFSInit() to think it was a valid GBA cart header and attempt to 
+		   	  read from GBA SLOT instead of SLOT 1. Fixed this by making it check that filename is not NULL
  		  and then to try FAT/SLOT1 first. The NULL option allows forcing nitroFS to use gba.
-    
-    2018-09-05 v0.9 - modernize devoptab (by RonnChyran)
-        * Updated for libsysbase change in devkitARM r46 and above. 
 
+	2018-09-05 v0.9 - modernize devoptab (by RonnChyran)
+		* Updated for libsysbase change in devkitARM r46 and above. 
+
+	2020-08-20 v0.10 - modernize GBA SLOT support (by Rocket Robz)
+		* Updated GBA SLOT detection to check for game code and header CRC. 
+
+	2020-08-24 v0.11 - SDNAND support (by Rocket Robz)
+		* Added support for being mounted from SDNAND, if app is launched by hiyaCFW.
+
+	2024-02-02 v0.12 - Slot-1 support (by Rocket Robz)
+		* Added support for Slot-1 (from libfilesystem), along with detecting if launched from Slot-1
 */
+
+#include <nds/memory.h>
+#include <nds/system.h>
+#include <nds/card.h>
 
 #include <string.h>
 #include <errno.h>
-#include <nds.h>
 #include "nitrofs.h"
+#include "tonccpy.h"
 
-//This seems to be a typo! memory.h has REG_EXEMEMCNT
-#ifndef REG_EXMEMCNT
-#define REG_EXMEMCNT (*(vuint16 *)0x04000204)
-#endif
-
-#define __itcm __attribute__((section(".itcm")))
+// #define __itcm __attribute__((section(".itcm")))
 
 //Globals!
-u32 fntOffset;   //offset to start of filename table
-u32 fatOffset;   //offset to start of file alloc table
-bool hasLoader;  //single global nds filehandle (is null if not in dldi/fat mode)
-u16 chdirpathid; //default dir path id...
-FILE *ndsFile;
-off_t ndsFileLastpos; //Used to determine need to fseek or not
+static u32 fntOffset;   //offset to start of filename table
+static u32 fatOffset;   //offset to start of file alloc table
+static bool hasLoader;  //single global nds filehandle (is null if not in dldi/fat mode)
+static u16 chdirpathid; //default dir path id...
+static FILE *ndsFile;
+static off_t ndsFileLastpos; //Used to determine need to fseek or not
+static bool cardRead = false;
 
 devoptab_t nitroFSdevoptab = {
-    "nitro",                       //	const char *name;
-    sizeof(struct nitroFSStruct),  //	int	structSize;
-    &nitroFSOpen,                  //	int (*open_r)(struct _reent *r, void *fileStruct, const char *path,int flags,int mode);
-    &nitroFSClose,                 //	int (*close_r)(struct _reent *r,void* fd);
-    NULL,                          //	int (*write_r)(struct _reent *r,void* fd,const char *ptr,int len);
-    &nitroFSRead,                  //	int (*read_r)(struct _reent *r,void* fd,char *ptr,int len);
-    &nitroFSSeek,                  //	int (*seek_r)(struct _reent *r,void* fd,int pos,int dir);
-    &nitroFSFstat,                 //	int (*fstat_r)(struct _reent *r,void* fd,struct stat *st);
-    &nitroFSstat,                  //	int (*stat_r)(struct _reent *r,const char *file,struct stat *st);
-    NULL,                          //	int (*link_r)(struct _reent *r,const char *existing, const char  *newLink);
-    NULL,                          //	int (*unlink_r)(struct _reent *r,const char *name);
-    &nitroFSChdir,                 //	int (*chdir_r)(struct _reent *r,const char *name);
-    NULL,                          //	int (*rename_r) (struct _reent *r, const char *oldName, const char *newName);
-    NULL,                          //	int (*mkdir_r) (struct _reent *r, const char *path, int mode);
-    sizeof(struct nitroDIRStruct), //	int dirStateSize;
-    &nitroFSDirOpen,               //	DIR_ITER* (*diropen_r)(struct _reent *r, DIR_ITER *dirState, const char *path);
-    &nitroDirReset,                //	int (*dirreset_r)(struct _reent *r, DIR_ITER *dirState);
-    &nitroFSDirNext,               //	int (*dirnext_r)(struct _reent *r, DIR_ITER *dirState, char *filename, struct stat *filestat);
-    &nitroFSDirClose               //	int (*dirclose_r)(struct _reent *r, DIR_ITER *dirState);
+	"nitro",					   //	const char *name;
+	sizeof(struct nitroFSStruct),  //	int	structSize;
+	&nitroFSOpen,				  //	int (*open_r)(struct _reent *r, void *fileStruct, const char *path,int flags,int mode);
+	&nitroFSClose,				 //	int (*close_r)(struct _reent *r,void* fd);
+	NULL,						  //	int (*write_r)(struct _reent *r,void* fd,const char *ptr,int len);
+	&nitroFSRead,				  //	int (*read_r)(struct _reent *r,void* fd,char *ptr,int len);
+	&nitroFSSeek,				  //	int (*seek_r)(struct _reent *r,void* fd,int pos,int dir);
+	&nitroFSFstat,				 //	int (*fstat_r)(struct _reent *r,void* fd,struct stat *st);
+	&nitroFSstat,				  //	int (*stat_r)(struct _reent *r,const char *file,struct stat *st);
+	NULL,						  //	int (*link_r)(struct _reent *r,const char *existing, const char  *newLink);
+	NULL,						  //	int (*unlink_r)(struct _reent *r,const char *name);
+	&nitroFSChdir,				 //	int (*chdir_r)(struct _reent *r,const char *name);
+	NULL,						  //	int (*rename_r) (struct _reent *r, const char *oldName, const char *newName);
+	NULL,						  //	int (*mkdir_r) (struct _reent *r, const char *path, int mode);
+	sizeof(struct nitroDIRStruct), //	int dirStateSize;
+	&nitroFSDirOpen,			   //	DIR_ITER* (*diropen_r)(struct _reent *r, DIR_ITER *dirState, const char *path);
+	&nitroDirReset,				//	int (*dirreset_r)(struct _reent *r, DIR_ITER *dirState);
+	&nitroFSDirNext,			   //	int (*dirnext_r)(struct _reent *r, DIR_ITER *dirState, char *filename, struct stat *filestat);
+	&nitroFSDirClose			   //	int (*dirclose_r)(struct _reent *r, DIR_ITER *dirState);
 
 };
 
-//K, i decided to inline these, improves speed slightly..
-//these 2 'sub' functions deal with actually reading from either gba rom or .nds file :)
-//what i rly rly rly wanna know is how an actual nds cart reads from itself, but it seems no one can tell me ~_~
-//so, instead we have this weird weird haxy try gbaslot then try dldi method. If i (or you!!) ever do figure out
-//how to read the proper way can replace these 4 functions and everything should work normally :)
+// Figure out if its gba or ds, setup stuff
+//---------------------------------------------------------------------------------
+bool nitroFSInit(void) {
+//---------------------------------------------------------------------------------
+	bool nitroInit = false;
+	chdirpathid = NITROROOT;
+	ndsFileLastpos = 0;
+	ndsFile = NULL;
 
-//reads from rom image either gba rom or dldi
-inline ssize_t nitroSubRead(off_t *npos, void *ptr, size_t len)
-{
-    if (ndsFile != NULL)
-    { //read from ndsfile
-        if (ndsFileLastpos != *npos)
-            fseek(ndsFile, *npos, SEEK_SET); //if we need to, move! (might want to verify this succeed)
-        len = fread(ptr, 1, len, ndsFile);
-    }
-    else
-    {                                             //reading from gbarom
-        memcpy(ptr, *npos + (void *)GBAROM, len); //len isnt checked here because other checks exist in the callers (hopefully)
-    }
-    if (len > 0)
-        *npos += len;
-    ndsFileLastpos = *npos; //save the current file nds pos
-    return (len);
+	// test for argv & open nds file
+	if ( __system_argv->argvMagic == ARGV_MAGIC && __system_argv->argc >= 1 ) {
+		if ( strncmp(__system_argv->argv[0],"fat",3) == 0 || strncmp(__system_argv->argv[0],"sd",2) == 0) {
+			ndsFile = fopen(__system_argv->argv[0], "rb");
+			if (ndsFile) {
+				nitroInit = true;
+			}
+		}
+	}
+
+	// Test for valid nitrofs on gba cart
+	/*bool headerFirst = ((strncmp((const char *)0x02FFFC38, __NDSHeader->gameCode, 4) == 0)
+				  && (*(u16*)0x02FFFC36 == __NDSHeader->headerCRC16));
+	if (!nitroInit && (!isDSiMode() || headerFirst)) {
+		sysSetCartOwner (BUS_OWNER_ARM9); //give us gba slot ownership
+		// We has gba rahm
+		//printf("yes i think this is GBA?!\n");
+		if (strncmp(((const char *)GBAROM) + LOADERSTROFFSET, LOADERSTR, strlen(LOADERSTR)) == 0) {
+			//Look for second magic string, if found its a sc.nds or nds.gba
+			//printf("sc/gba\n");
+			fntOffset = ((u32) * (u32 *)(((const char *)GBAROM) + FNTOFFSET + LOADEROFFSET)) + LOADEROFFSET;
+			fatOffset = ((u32) * (u32 *)(((const char *)GBAROM) + FATOFFSET + LOADEROFFSET)) + LOADEROFFSET;
+			hasLoader = true;
+			AddDevice(&nitroFSdevoptab);
+			return true;
+		}
+		else if (headerFirst) {
+			//Ok, its not a .gba build, so must be emulator
+			//printf("gba, must be emu\n");
+			fntOffset = ((u32) * (u32 *)(((const char *)GBAROM) + FNTOFFSET));
+			fatOffset = ((u32) * (u32 *)(((const char *)GBAROM) + FATOFFSET));
+			hasLoader = false;
+			AddDevice(&nitroFSdevoptab);
+			return true;
+		}
+	}*/
+
+	// Fallback to direct card reads
+	if (!nitroInit && (*(u16*)0x02FFFC40 == 1)) {
+		cardRead = true; nitroInit = true;
+	}
+
+	// Test for SDNAND
+	if (!nitroInit && isDSiMode()) {
+		char fileName[64];
+		sprintf(fileName, "sd:/title/%08x/%08x/content/000000%02x.app", *(unsigned int*)0x02FFE234, *(unsigned int*)0x02FFE230, *(u8*)0x02FFE01E);
+		ndsFile = fopen(fileName, "rb");
+		if (ndsFile) {
+			nitroInit = true;
+		}
+	}
+
+	if (nitroInit) {
+		fntOffset = __NDSHeader->filenameOffset;
+		fatOffset = __NDSHeader->fatOffset;
+		hasLoader = false;
+		setvbuf(ndsFile, NULL, _IONBF, 0); //we dont need double buffs u_u
+		AddDevice(&nitroFSdevoptab);
+	}
+	return nitroInit;
 }
 
-//seek around
-inline void nitroSubSeek(off_t *npos, int pos, int dir)
-{
-    if ((dir == SEEK_SET) || (dir == SEEK_END)) //otherwise just set the pos :)
-        *npos = pos;
-    else if (dir == SEEK_CUR)
-        *npos += pos; //see ez!
+// cannot read across block boundaries (multiples of 0x200 bytes)
+//---------------------------------------------------------------------------------
+static void nitroSubReadBlock(u32 pos, u8 *ptr, u32 len) {
+//---------------------------------------------------------------------------------
+	if ( (len & 3) == 0 && (((u32)ptr) & 3) == 0 && (pos & 3) == 0) {
+		// if everything is word-aligned, read directly
+		cardParamCommand(0xB7, pos, CARD_DELAY1(0x1FFF) | CARD_DELAY2(0x3F) | CARD_CLK_SLOW | CARD_nRESET | CARD_SEC_CMD | CARD_SEC_DAT | CARD_ACTIVATE | CARD_BLK_SIZE(1), (u32*)ptr, len >> 2);
+ 	} else {
+		// otherwise, use a temporary buffer
+		static u32 temp[128];
+		cardParamCommand(0xB7, (pos & ~0x1ff), CARD_DELAY1(0x1FFF) | CARD_DELAY2(0x3F) | CARD_CLK_SLOW | CARD_nRESET | CARD_SEC_CMD | CARD_SEC_DAT | CARD_ACTIVATE | CARD_BLK_SIZE(1), temp, 0x200 >> 2);
+		tonccpy(ptr, ((u8*)temp) + (pos & 0x1FF), len);
+	}
 }
 
-//Figure out if its gba or ds, setup stuff
-int __itcm
-nitroFSInit(const char *ndsfile)
-{
-    off_t pos = 0;
-    char romstr[0x10];
-    chdirpathid = NITROROOT;
-    ndsFileLastpos = 0;
-    ndsFile = NULL;
-    if (ndsfile != NULL)
-    {
-        if ((ndsFile = fopen(ndsfile, "rb")))
-        {
-            nitroSubRead(&pos, romstr, strlen(LOADERSTR));
-            if (strncmp(romstr, LOADERSTR, strlen(LOADERSTR)) == 0)
-            {
-                nitroSubSeek(&pos, LOADEROFFSET + FNTOFFSET, SEEK_SET);
-                nitroSubRead(&pos, &fntOffset, sizeof(fntOffset));
-                nitroSubSeek(&pos, LOADEROFFSET + FATOFFSET, SEEK_SET);
-                nitroSubRead(&pos, &fatOffset, sizeof(fatOffset));
-                fatOffset += LOADEROFFSET;
-                fntOffset += LOADEROFFSET;
-                hasLoader = true;
-            }
-            else
-            {
-                nitroSubSeek(&pos, FNTOFFSET, SEEK_SET);
-                nitroSubRead(&pos, &fntOffset, sizeof(fntOffset));
-                nitroSubSeek(&pos, FATOFFSET, SEEK_SET);
-                nitroSubRead(&pos, &fatOffset, sizeof(fatOffset));
-                hasLoader = false;
-            }
-            setvbuf(ndsFile, NULL, _IONBF, 0); //we dont need double buffs u_u
-            AddDevice(&nitroFSdevoptab);
-            return (1);
-        }
-    }
-    REG_EXMEMCNT &= ~ARM7_OWNS_CARD; //give us gba slot ownership
-    if (strncmp(((const char *)GBAROM) + LOADERSTROFFSET, LOADERSTR, strlen(LOADERSTR)) == 0)
-    { // We has gba rahm
-        printf("yes i think this is GBA?!\n");
-        if (strncmp(((const char *)GBAROM) + LOADERSTROFFSET + LOADEROFFSET, LOADERSTR, strlen(LOADERSTR)) == 0)
-        { //Look for second magic string, if found its a sc.nds or nds.gba
-            printf("sc/gba\n");
-            fntOffset = ((u32) * (u32 *)(((const char *)GBAROM) + FNTOFFSET + LOADEROFFSET)) + LOADEROFFSET;
-            fatOffset = ((u32) * (u32 *)(((const char *)GBAROM) + FATOFFSET + LOADEROFFSET)) + LOADEROFFSET;
-            hasLoader = true;
-            AddDevice(&nitroFSdevoptab);
-            return (1);
-        }
-        else
-        { //Ok, its not a .gba build, so must be emulator
-            printf("gba, must be emu\n");
-            fntOffset = ((u32) * (u32 *)(((const char *)GBAROM) + FNTOFFSET));
-            fatOffset = ((u32) * (u32 *)(((const char *)GBAROM) + FATOFFSET));
-            hasLoader = false;
-            AddDevice(&nitroFSdevoptab);
-            return (1);
-        }
-    }
-    return (0);
+//---------------------------------------------------------------------------------
+static ssize_t nitroSubReadCard(off_t *npos, void *ptr, size_t len) {
+//---------------------------------------------------------------------------------
+	u8 *ptr_u8 = (u8*)ptr;
+	size_t remaining = len;
+
+	if((*npos) & 0x1FF) {
+
+		u32 amt = 0x200 - (*npos & 0x1FF);
+
+		if(amt > remaining) amt = remaining;
+
+		nitroSubReadBlock(*npos, ptr_u8, amt);
+		remaining -= amt;
+		ptr_u8 += amt;
+		*npos += amt;
+	}
+
+	while(remaining >= 0x200)	{
+		nitroSubReadBlock(*npos, ptr_u8, 0x200);
+		remaining -= 0x200;
+		ptr_u8 += 0x200;
+		*npos += 0x200;
+	}
+
+	if(remaining > 0) {
+		nitroSubReadBlock(*npos, ptr_u8, remaining);
+		*npos += remaining;
+	}
+	return len;
 }
 
-//Directory functs
+// reads from rom image
+//---------------------------------------------------------------------------------
+static inline ssize_t nitroSubRead(off_t *npos, void *ptr, size_t len) {
+//---------------------------------------------------------------------------------
+	if (cardRead) {
+		off_t tmpPos = *npos;
+		len = nitroSubReadCard(&tmpPos, ptr, len);
+	} else if (ndsFile) {
+		//read from ndsfile
+		if (ndsFileLastpos != *npos)
+			fseek(ndsFile, *npos, SEEK_SET); //if we need to, move! (might want to verify this succeed)
+		len = fread(ptr, 1, len, ndsFile);
+	} else {											 //reading from gbarom
+		tonccpy(ptr, *npos + (void *)GBAROM, len); //len isnt checked here because other checks exist in the callers (hopefully)
+	}
+	if (len > 0)
+		*npos += len;
+	ndsFileLastpos = *npos; //save the current file position
+	return len;
+}
+
+//---------------------------------------------------------------------------------
+static inline void nitroSubSeek(off_t *npos, int pos, int dir) {
+//---------------------------------------------------------------------------------
+	if ((dir == SEEK_SET) || (dir == SEEK_END)) //otherwise just set the pos :)
+		*npos = pos;
+	else if (dir == SEEK_CUR)
+		*npos += pos; //see ez!
+}
+
+// Directory functions
 DIR_ITER *nitroFSDirOpen(struct _reent *r, DIR_ITER *dirState, const char *path)
 {
-    struct nitroDIRStruct *dirStruct = (struct nitroDIRStruct *)dirState->dirStruct; //this makes it lots easier!
-    struct stat st;
-    char dirname[NITRONAMELENMAX];
-    char *cptr;
-    char mydirpath[NITROMAXPATHLEN]; //to hold copy of path string
-    char *dirpath = mydirpath;
-    bool pathfound;
-    if ((cptr = strchr(path, ':')))
-        path = cptr + 1;                           //move path past any device names (if it was nixy style wouldnt need this step >_>)
-    strncpy(dirpath, path, sizeof(mydirpath) - 1); //copy the string (as im gonna mutalate it)
-    dirStruct->pos = 0;
-    if (*dirpath == '/')                   //if first character is '/' use absolute root path plz
-        dirStruct->cur_dir_id = NITROROOT; //first root dir
-    else
-        dirStruct->cur_dir_id = chdirpathid; //else use chdirpath
-    nitroDirReset(r, dirState);              //set dir to current path
-    do
-    {
-        while ((cptr = strchr(dirpath, '/')) == dirpath)
-        {
-            dirpath++; //move past any leading / or // together
-        }
-        if (cptr)
-            *cptr = 0; //erase /
-        if (*dirpath == 0)
-        {                     //are we at the end of the path string?? if so there is nothing to search for we're already here !
-            pathfound = true; //mostly this handles searches for root or /  or no path specified cases
-            break;
-        }
-        pathfound = false;
-        while (nitroFSDirNext(r, dirState, dirname, &st) == 0)
-        {
-            if ((st.st_mode == S_IFDIR) && !(strcmp(dirname, dirpath)))
-            {                                              //if its a directory and name matches dirpath
-                dirStruct->cur_dir_id = dirStruct->dir_id; //move us to the next dir in tree
-                nitroDirReset(r, dirState);                //set dir to current path we just found...
-                pathfound = true;
-                break;
-            }
-        };
-        if (!pathfound)
-            break;
-        dirpath = cptr + 1; //move to right after last / we found
-    } while (cptr);         // go till after the last /
-    if (pathfound)
-    {
-        return (dirState);
-    }
-    else
-    {
-        r->_errno = ENOENT;
-        return (NULL);
-    }
+	struct nitroDIRStruct *dirStruct = (struct nitroDIRStruct *)dirState->dirStruct; //this makes it lots easier!
+	struct stat st;
+	char dirname[NITRONAMELENMAX];
+	char *cptr;
+	char mydirpath[NITROMAXPATHLEN]; //to hold copy of path string
+	char *dirpath = mydirpath;
+	bool pathfound;
+	if ((cptr = strchr(path, ':')))
+		path = cptr + 1;						   //move path past any device names (if it was nixy style wouldnt need this step >_>)
+	strncpy(dirpath, path, sizeof(mydirpath) - 1); //copy the string (as im gonna mutalate it)
+	dirStruct->pos = 0;
+	if (*dirpath == '/')				   //if first character is '/' use absolute root path plz
+		dirStruct->cur_dir_id = NITROROOT; //first root dir
+	else
+		dirStruct->cur_dir_id = chdirpathid; //else use chdirpath
+	nitroDirReset(r, dirState);			  //set dir to current path
+	do
+	{
+		while ((cptr = strchr(dirpath, '/')) == dirpath)
+		{
+			dirpath++; //move past any leading / or // together
+		}
+		if (cptr)
+			*cptr = 0; //erase /
+		if (*dirpath == 0)
+		{					 //are we at the end of the path string?? if so there is nothing to search for we're already here !
+			pathfound = true; //mostly this handles searches for root or /  or no path specified cases
+			break;
+		}
+		pathfound = false;
+		while (nitroFSDirNext(r, dirState, dirname, &st) == 0)
+		{
+			if ((st.st_mode == S_IFDIR) && !(strcmp(dirname, dirpath)))
+			{											  //if its a directory and name matches dirpath
+				dirStruct->cur_dir_id = dirStruct->dir_id; //move us to the next dir in tree
+				nitroDirReset(r, dirState);				//set dir to current path we just found...
+				pathfound = true;
+				break;
+			}
+		};
+		if (!pathfound)
+			break;
+		dirpath = cptr + 1; //move to right after last / we found
+	} while (cptr);		 // go till after the last /
+	if (pathfound)
+	{
+		return (dirState);
+	}
+	else
+	{
+		r->_errno = ENOENT;
+		return (NULL);
+	}
 }
 
 int nitroFSDirClose(struct _reent *r, DIR_ITER *dirState)
 {
-    return (0);
+	return (0);
 }
 
 /*Consts containing relative system path strings*/
 const char *syspaths[2] = {
-    ".",
-    ".."};
+	".",
+	".."};
 
 //reset dir to start of entry selected by dirStruct->cur_dir_id which should be set in dirOpen okai?!
 int nitroDirReset(struct _reent *r, DIR_ITER *dirState)
 {
-    struct nitroDIRStruct *dirStruct = (struct nitroDIRStruct *)dirState->dirStruct; //this makes it lots easier!
-    struct ROM_FNTDir dirsubtable;
-    off_t *pos = &dirStruct->pos;
-    nitroSubSeek(pos, fntOffset + ((dirStruct->cur_dir_id & NITRODIRMASK) * sizeof(struct ROM_FNTDir)), SEEK_SET);
-    nitroSubRead(pos, &dirsubtable, sizeof(dirsubtable));
-    dirStruct->namepos = dirsubtable.entry_start;    //set namepos to first entry in this dir's table
-    dirStruct->entry_id = dirsubtable.entry_file_id; //get number of first file ID in this branch
-    dirStruct->parent_id = dirsubtable.parent_id;    //save parent ID in case we wanna add ../ functionality
-    dirStruct->spc = 0;                              //system path counter, first two dirnext's deliver . and ..
-    return (0);
+	struct nitroDIRStruct *dirStruct = (struct nitroDIRStruct *)dirState->dirStruct; //this makes it lots easier!
+	struct ROM_FNTDir dirsubtable;
+	off_t *pos = &dirStruct->pos;
+	nitroSubSeek(pos, fntOffset + ((dirStruct->cur_dir_id & NITRODIRMASK) * sizeof(struct ROM_FNTDir)), SEEK_SET);
+	nitroSubRead(pos, &dirsubtable, sizeof(dirsubtable));
+	dirStruct->namepos = dirsubtable.entry_start;	//set namepos to first entry in this dir's table
+	dirStruct->entry_id = dirsubtable.entry_file_id; //get number of first file ID in this branch
+	dirStruct->parent_id = dirsubtable.parent_id;	//save parent ID in case we wanna add ../ functionality
+	dirStruct->spc = 0;							  //system path counter, first two dirnext's deliver . and ..
+	return (0);
 }
 
 int nitroFSDirNext(struct _reent *r, DIR_ITER *dirState, char *filename, struct stat *st)
 {
-    unsigned char next;
-    struct nitroDIRStruct *dirStruct = (struct nitroDIRStruct *)dirState->dirStruct; //this makes it lots easier!
-    off_t *pos = &dirStruct->pos;
-    if (dirStruct->spc <= 1)
-    {
-        if (st)
-            st->st_mode = S_IFDIR;
-        if ((dirStruct->spc == 0) || (dirStruct->cur_dir_id == NITROROOT))
-        { // "." or its already root (no parent)
-            dirStruct->dir_id = dirStruct->cur_dir_id;
-        }
-        else
-        { // ".."
-            dirStruct->dir_id = dirStruct->parent_id;
-        }
-        strcpy(filename, syspaths[dirStruct->spc++]);
-        return (0);
-    }
-    nitroSubSeek(pos, fntOffset + dirStruct->namepos, SEEK_SET);
-    nitroSubRead(pos, &next, sizeof(next));
-    // next: high bit 0x80 = entry isdir.. other 7 bits r size, the 16 bits following name are dir's entryid (starts with f000)
-    //  00 = endoftable //
-    if (next)
-    {
-        if (next & NITROISDIR)
-        {
-            if (st)
-                st->st_mode = S_IFDIR;
-            next &= NITROISDIR ^ 0xff; //invert bits and mask off 0x80
-            nitroSubRead(pos, filename, next);
-            nitroSubRead(&dirStruct->pos, &dirStruct->dir_id, sizeof(dirStruct->dir_id)); //read the dir_id
-                                                                                          //grr cant get the struct member size?, just wanna test it so moving on...
-                                                                                          //			nitroSubRead(pos,&dirStruct->dir_id,sizeof(u16)); //read the dir_id
-            dirStruct->namepos += next + sizeof(u16) + 1;                                 //now we points to next one plus dir_id size:D
-        }
-        else
-        {
-            if (st)
-                st->st_mode = 0;
-            nitroSubRead(pos, filename, next);
-            dirStruct->namepos += next + 1; //now we points to next one :D
-            //read file info to get filesize (and for fileopen)
-            nitroSubSeek(pos, fatOffset + (dirStruct->entry_id * sizeof(struct ROM_FAT)), SEEK_SET);
-            nitroSubRead(pos, &dirStruct->romfat, sizeof(dirStruct->romfat)); //retrieve romfat entry (contains filestart and end positions)
-            dirStruct->entry_id++;                                            //advance ROM_FNTStrFile ptr
-            if (st)
-                st->st_size = dirStruct->romfat.bottom - dirStruct->romfat.top; //calculate filesize
-        }
-        filename[(int)next] = 0; //zero last char
-        return (0);
-    }
-    else
-    {
-        r->_errno = EIO;
-        return (-1);
-    }
+	unsigned char next;
+	struct nitroDIRStruct *dirStruct = (struct nitroDIRStruct *)dirState->dirStruct; //this makes it lots easier!
+	off_t *pos = &dirStruct->pos;
+	if (dirStruct->spc <= 1)
+	{
+		if (st)
+			st->st_mode = S_IFDIR;
+		if ((dirStruct->spc == 0) || (dirStruct->cur_dir_id == NITROROOT))
+		{ // "." or its already root (no parent)
+			dirStruct->dir_id = dirStruct->cur_dir_id;
+		}
+		else
+		{ // ".."
+			dirStruct->dir_id = dirStruct->parent_id;
+		}
+		strcpy(filename, syspaths[dirStruct->spc++]);
+		return (0);
+	}
+	nitroSubSeek(pos, fntOffset + dirStruct->namepos, SEEK_SET);
+	nitroSubRead(pos, &next, sizeof(next));
+	// next: high bit 0x80 = entry isdir.. other 7 bits r size, the 16 bits following name are dir's entryid (starts with f000)
+	//  00 = endoftable //
+	if (next)
+	{
+		if (next & NITROISDIR)
+		{
+			if (st)
+				st->st_mode = S_IFDIR;
+			next &= NITROISDIR ^ 0xff; //invert bits and mask off 0x80
+			nitroSubRead(pos, filename, next);
+			nitroSubRead(&dirStruct->pos, &dirStruct->dir_id, sizeof(dirStruct->dir_id)); //read the dir_id
+																						  //grr cant get the struct member size?, just wanna test it so moving on...
+																						  //			nitroSubRead(pos,&dirStruct->dir_id,sizeof(u16)); //read the dir_id
+			dirStruct->namepos += next + sizeof(u16) + 1;								 //now we points to next one plus dir_id size:D
+		}
+		else
+		{
+			if (st)
+				st->st_mode = 0;
+			nitroSubRead(pos, filename, next);
+			dirStruct->namepos += next + 1; //now we points to next one :D
+			//read file info to get filesize (and for fileopen)
+			nitroSubSeek(pos, fatOffset + (dirStruct->entry_id * sizeof(struct ROM_FAT)), SEEK_SET);
+			nitroSubRead(pos, &dirStruct->romfat, sizeof(dirStruct->romfat)); //retrieve romfat entry (contains filestart and end positions)
+			dirStruct->entry_id++;											//advance ROM_FNTStrFile ptr
+			if (st)
+				st->st_size = dirStruct->romfat.bottom - dirStruct->romfat.top; //calculate filesize
+		}
+		filename[(int)next] = 0; //zero last char
+		return (0);
+	}
+	else
+	{
+		r->_errno = EIO;
+		return (-1);
+	}
 }
 
 //fs functs
 int nitroFSOpen(struct _reent *r, void *fileStruct, const char *path, int flags, int mode)
 {
-    struct nitroFSStruct *fatStruct = (struct nitroFSStruct *)fileStruct;
-    struct nitroDIRStruct dirStruct;
-    DIR_ITER dirState;
-    dirState.dirStruct = &dirStruct; //create a temp dirstruct
-    struct _reent dre;
-    struct stat st;                     //all these are just used for reading the dir ~_~
-    char dirfilename[NITROMAXPATHLEN];  // to hold a full path (i tried to avoid using so much stack but blah :/)
-    char *filename;                     // to hold filename
-    char *cptr;                         //used to string searching and manipulation
-    cptr = (char *)path + strlen(path); //find the end...
-    filename = NULL;
-    do
-    {
-        if ((*cptr == '/') || (*cptr == ':'))
-        { // split at either / or : (whichever comes first form the end!)
-            cptr++;
-            strncpy(dirfilename, path, cptr - path); //copy string up till and including/ or : zero rest
-            dirfilename[cptr - path] = 0;            //it seems strncpy doesnt always zero?!
-            filename = cptr;                         //filename = now remainder of string
-            break;
-        }
-    } while (cptr-- != path); //search till start
-    if (!filename)
-    {                            //we didnt find a / or : ? shouldnt realyl happen but if it does...
-        filename = (char *)path; //filename = complete path
-        dirfilename[0] = 0;      //make directory path ""
-    }
-    if (nitroFSDirOpen(&dre, &dirState, dirfilename))
-    {
-        fatStruct->start = 0;
-        while (nitroFSDirNext(&dre, &dirState, dirfilename, &st) == 0)
-        {
-            if (!(st.st_mode & S_IFDIR) && (strcmp(dirfilename, filename) == 0))
-            { //Found the *file* youre looking for!!
-                fatStruct->start = dirStruct.romfat.top;
-                fatStruct->end = dirStruct.romfat.bottom;
-                if (hasLoader)
-                {
-                    fatStruct->start += LOADEROFFSET;
-                    fatStruct->end += LOADEROFFSET;
-                }
-                break;
-            }
-        }
-        if (fatStruct->start)
-        {
-            nitroSubSeek(&fatStruct->pos, fatStruct->start, SEEK_SET); //seek to start of file
-            return (0);                                                //woot!
-        }
-        nitroFSDirClose(&dre, &dirState);
-    }
-    if (r->_errno == 0)
-    {
-        r->_errno = ENOENT;
-    }
-    return (-1); //teh fail
+	struct nitroFSStruct *fatStruct = (struct nitroFSStruct *)fileStruct;
+	struct nitroDIRStruct dirStruct;
+	DIR_ITER dirState;
+	dirState.dirStruct = &dirStruct; //create a temp dirstruct
+	struct _reent dre;
+	struct stat st;					 //all these are just used for reading the dir ~_~
+	char dirfilename[NITROMAXPATHLEN];  // to hold a full path (i tried to avoid using so much stack but blah :/)
+	char *filename;					 // to hold filename
+	char *cptr;						 //used to string searching and manipulation
+	cptr = (char *)path + strlen(path); //find the end...
+	filename = NULL;
+	do
+	{
+		if ((*cptr == '/') || (*cptr == ':'))
+		{ // split at either / or : (whichever comes first form the end!)
+			cptr++;
+			strncpy(dirfilename, path, cptr - path); //copy string up till and including/ or : zero rest
+			dirfilename[cptr - path] = 0;			//it seems strncpy doesnt always zero?!
+			filename = cptr;						 //filename = now remainder of string
+			break;
+		}
+	} while (cptr-- != path); //search till start
+	if (!filename)
+	{							//we didnt find a / or : ? shouldnt realyl happen but if it does...
+		filename = (char *)path; //filename = complete path
+		dirfilename[0] = 0;	  //make directory path ""
+	}
+	if (nitroFSDirOpen(&dre, &dirState, dirfilename))
+	{
+		fatStruct->start = 0;
+		while (nitroFSDirNext(&dre, &dirState, dirfilename, &st) == 0)
+		{
+			if (!(st.st_mode & S_IFDIR) && (strcmp(dirfilename, filename) == 0))
+			{ //Found the *file* youre looking for!!
+				fatStruct->start = dirStruct.romfat.top;
+				fatStruct->end = dirStruct.romfat.bottom;
+				if (hasLoader)
+				{
+					fatStruct->start += LOADEROFFSET;
+					fatStruct->end += LOADEROFFSET;
+				}
+				break;
+			}
+		}
+		if (fatStruct->start)
+		{
+			nitroSubSeek(&fatStruct->pos, fatStruct->start, SEEK_SET); //seek to start of file
+			return (0);												//woot!
+		}
+		nitroFSDirClose(&dre, &dirState);
+	}
+	if (r->_errno == 0)
+	{
+		r->_errno = ENOENT;
+	}
+	return (-1); //teh fail
 }
 
 int nitroFSClose(struct _reent *r, void* fd)
 {
-    return (0);
+	return (0);
 }
 
 ssize_t nitroFSRead(struct _reent *r, void* fd, char *ptr, size_t len)
 {
-    struct nitroFSStruct *fatStruct = (struct nitroFSStruct *)fd;
-    off_t *npos = &fatStruct->pos;
-    if (*npos + len > fatStruct->end)
-        len = fatStruct->end - *npos; //dont let us read past the end plz!
-    if (*npos > fatStruct->end)
-        return (0); //hit eof
-    return (nitroSubRead(npos, ptr, len));
+	struct nitroFSStruct *fatStruct = (struct nitroFSStruct *)fd;
+	off_t *npos = &fatStruct->pos;
+	if (*npos + len > fatStruct->end)
+		len = fatStruct->end - *npos; //dont let us read past the end plz!
+	if (*npos > fatStruct->end)
+		return (0); //hit eof
+	return (nitroSubRead(npos, ptr, len));
 }
 
 off_t nitroFSSeek(struct _reent *r, void* fd, off_t pos, int dir)
 {
-    //need check for eof here...
-    struct nitroFSStruct *fatStruct = (struct nitroFSStruct *)fd;
-    off_t *npos = &fatStruct->pos;
-    if (dir == SEEK_SET)
-        pos += fatStruct->start; //add start from .nds file offset
-    else if (dir == SEEK_END)
-        pos += fatStruct->end; //set start to end of file (useless?)
-    if (pos > fatStruct->end)
-        return (-1); //dont let us read past the end plz!
-    nitroSubSeek(npos, pos, dir);
-    return (*npos - fatStruct->start);
+	//need check for eof here...
+	struct nitroFSStruct *fatStruct = (struct nitroFSStruct *)fd;
+	off_t *npos = &fatStruct->pos;
+	if (dir == SEEK_SET)
+		pos += fatStruct->start; //add start from .nds file offset
+	else if (dir == SEEK_END)
+		pos += fatStruct->end; //set start to end of file (useless?)
+	if (pos > fatStruct->end)
+		return (-1); //dont let us read past the end plz!
+	nitroSubSeek(npos, pos, dir);
+	return (*npos - fatStruct->start);
 }
 
 int nitroFSFstat(struct _reent *r, void* fd, struct stat *st)
 {
-    struct nitroFSStruct *fatStruct = (struct nitroFSStruct *)fd;
-    st->st_size = fatStruct->end - fatStruct->start;
-    return (0);
+	struct nitroFSStruct *fatStruct = (struct nitroFSStruct *)fd;
+	st->st_size = fatStruct->end - fatStruct->start;
+	return (0);
 }
 
 int nitroFSstat(struct _reent *r, const char *file, struct stat *st)
 {
-    struct nitroFSStruct fatStruct;
-    struct nitroDIRStruct dirStruct;
-    DIR_ITER dirState;
+	struct nitroFSStruct fatStruct;
+	struct nitroDIRStruct dirStruct;
+	DIR_ITER dirState;
 
-    if (nitroFSOpen(NULL, &fatStruct, file, 0, 0) >= 0)
-    {
-        st->st_mode = S_IFREG;
-        st->st_size = fatStruct.end - fatStruct.start;
-        return (0);
-    }
+	if (nitroFSOpen(NULL, &fatStruct, file, 0, 0) >= 0)
+	{
+		st->st_mode = S_IFREG;
+		st->st_size = fatStruct.end - fatStruct.start;
+		return (0);
+	}
 
-    dirState.dirStruct = &dirStruct;
-    if ((nitroFSDirOpen(r, &dirState, file) != NULL))
-    {
+	dirState.dirStruct = &dirStruct;
+	if ((nitroFSDirOpen(r, &dirState, file) != NULL))
+	{
 
-        st->st_mode = S_IFDIR;
-        nitroFSDirClose(r, &dirState);
-        return (0);
-    }
-    r->_errno = ENOENT;
-    return (-1);
+		st->st_mode = S_IFDIR;
+		nitroFSDirClose(r, &dirState);
+		return (0);
+	}
+	r->_errno = ENOENT;
+	return (-1);
 }
 
 int nitroFSChdir(struct _reent *r, const char *name)
 {
-    struct nitroDIRStruct dirStruct;
-    DIR_ITER dirState;
-    dirState.dirStruct = &dirStruct;
-    if ((name != NULL) && (nitroFSDirOpen(r, &dirState, name) != NULL))
-    {
-        chdirpathid = dirStruct.cur_dir_id;
-        nitroFSDirClose(r, &dirState);
-        return (0);
-    }
-    else
-    {
-        r->_errno = ENOENT;
-        return (-1);
-    }
+	struct nitroDIRStruct dirStruct;
+	DIR_ITER dirState;
+	dirState.dirStruct = &dirStruct;
+	if ((name != NULL) && (nitroFSDirOpen(r, &dirState, name) != NULL))
+	{
+		chdirpathid = dirStruct.cur_dir_id;
+		nitroFSDirClose(r, &dirState);
+		return (0);
+	}
+	else
+	{
+		r->_errno = ENOENT;
+		return (-1);
+	}
 }

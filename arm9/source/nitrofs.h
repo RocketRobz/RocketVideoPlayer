@@ -29,9 +29,18 @@
 		* Today i have added full "." and ".." support.
 		  dirnext() will return . and .. first, and all relevent operations will 
 		  support . and .. in pathnames. 
-    
-    2018-09-05 v0.9 - modernize devoptab (by RonnChyran)
-        * Updated for libsysbase change in devkitARM r46 and above.
+	
+	2018-09-05 v0.9 - modernize devoptab (by RonnChyran)
+		* Updated for libsysbase change in devkitARM r46 and above.
+
+	2020-08-20 v0.10 - modernize GBA SLOT support (by Rocket Robz)
+		* Updated GBA SLOT detection to check for game code and header CRC. 
+
+	2020-08-24 v0.11 - SDNAND support (by Rocket Robz)
+		* Added support for being mounted from SDNAND, if app is launched by hiyaCFW.
+
+	2024-02-02 v0.12 - Slot-1 support (by Rocket Robz)
+		* Added support for Slot-1 (from libfilesystem), along with detecting if launched from Slot-1
 */
 
 #ifndef NITROFS_H
@@ -46,18 +55,18 @@ extern "C"
 {
 #endif
 
-    int nitroFSInit(const char *ndsfile);
-    DIR_ITER *nitroFSDirOpen(struct _reent *r, DIR_ITER *dirState, const char *path);
-    int nitroDirReset(struct _reent *r, DIR_ITER *dirState);
-    int nitroFSDirNext(struct _reent *r, DIR_ITER *dirState, char *filename, struct stat *st);
-    int nitroFSDirClose(struct _reent *r, DIR_ITER *dirState);
-    int nitroFSOpen(struct _reent *r, void *fileStruct, const char *path, int flags, int mode);
-    int nitroFSClose(struct _reent *r, void *fd);
-    ssize_t nitroFSRead(struct _reent *r, void *fd, char *ptr, size_t len);
-    off_t nitroFSSeek(struct _reent *r, void *fd, off_t pos, int dir);
-    int nitroFSFstat(struct _reent *r, void *fd, struct stat *st);
-    int nitroFSstat(struct _reent *r, const char *file, struct stat *st);
-    int nitroFSChdir(struct _reent *r, const char *name);
+	bool nitroFSInit(void);
+	DIR_ITER *nitroFSDirOpen(struct _reent *r, DIR_ITER *dirState, const char *path);
+	int nitroDirReset(struct _reent *r, DIR_ITER *dirState);
+	int nitroFSDirNext(struct _reent *r, DIR_ITER *dirState, char *filename, struct stat *st);
+	int nitroFSDirClose(struct _reent *r, DIR_ITER *dirState);
+	int nitroFSOpen(struct _reent *r, void *fileStruct, const char *path, int flags, int mode);
+	int nitroFSClose(struct _reent *r, void *fd);
+	ssize_t nitroFSRead(struct _reent *r, void *fd, char *ptr, size_t len);
+	off_t nitroFSSeek(struct _reent *r, void *fd, off_t pos, int dir);
+	int nitroFSFstat(struct _reent *r, void *fd, struct stat *st);
+	int nitroFSstat(struct _reent *r, const char *file, struct stat *st);
+	int nitroFSChdir(struct _reent *r, const char *name);
 #define LOADERSTR "PASS" //look for this
 #define LOADERSTROFFSET 0xac
 #define LOADEROFFSET 0x0200
@@ -67,44 +76,44 @@ extern "C"
 #define NITRONAMELENMAX 0x80  //max file name is 127 +1 for zero byte :D
 #define NITROMAXPATHLEN 0x100 //256 bytes enuff?
 
-#define NITROROOT 0xf000    //root entry_file_id
+#define NITROROOT 0xf000	//root entry_file_id
 #define NITRODIRMASK 0x0fff //remove leading 0xf
 
 #define NITROISDIR 0x80 //mask to indicate this name entry is a dir, other 7 bits = name length
 
-    //Directory filename subtable entry structure
-    struct ROM_FNTDir
-    {
-        u32 entry_start;
-        u16 entry_file_id;
-        u16 parent_id;
-    };
+	//Directory filename subtable entry structure
+	struct ROM_FNTDir
+	{
+		u32 entry_start;
+		u16 entry_file_id;
+		u16 parent_id;
+	};
 
-    //Yo, dis table is fat (describes the structures
-    struct ROM_FAT
-    {
-        u32 top;    //start of file in rom image
-        u32 bottom; //end of file in rom image
-    };
+	//Yo, dis table is fat (describes the structures
+	struct ROM_FAT
+	{
+		u32 top;	//start of file in rom image
+		u32 bottom; //end of file in rom image
+	};
 
-    struct nitroFSStruct
-    {
-        off_t pos;   //where in the file am i?
-        off_t start; //where in the rom this file starts
-        off_t end;   //where in the rom this file ends
-    };
+	struct nitroFSStruct
+	{
+		off_t pos;   //where in the file am i?
+		off_t start; //where in the rom this file starts
+		off_t end;   //where in the rom this file ends
+	};
 
-    struct nitroDIRStruct
-    {
-        off_t pos;     //where in the file am i?
-        off_t namepos; //ptr to next name to lookup in list
-        struct ROM_FAT romfat;
-        u16 entry_id;   //which entry this is (for files only) incremented with each new file in dir?
-        u16 dir_id;     //which directory entry this is.. used ofc for dirs only
-        u16 cur_dir_id; //which directory entry we are using
-        u16 parent_id;  //who is the parent of the current directory (this can be used to easily ../ )
-        u8 spc;         //system path count.. used by dirnext, when 0=./ 1=../ >=2 actual dirs
-    };
+	struct nitroDIRStruct
+	{
+		off_t pos;	 //where in the file am i?
+		off_t namepos; //ptr to next name to lookup in list
+		struct ROM_FAT romfat;
+		u16 entry_id;   //which entry this is (for files only) incremented with each new file in dir?
+		u16 dir_id;	 //which directory entry this is.. used ofc for dirs only
+		u16 cur_dir_id; //which directory entry we are using
+		u16 parent_id;  //who is the parent of the current directory (this can be used to easily ../ )
+		u8 spc;		 //system path count.. used by dirnext, when 0=./ 1=../ >=2 actual dirs
+	};
 
 #ifdef __cplusplus
 }
