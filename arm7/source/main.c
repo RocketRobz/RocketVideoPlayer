@@ -30,6 +30,8 @@
 #include <nds.h>
 #include <maxmod7.h>
 
+extern void enableSound();
+
 //---------------------------------------------------------------------------------
 void VblankHandler(void) {
 //---------------------------------------------------------------------------------
@@ -62,9 +64,7 @@ int main() {
 	// clear sound registers
 	dmaFillWords(0, (void*)0x04000400, 0x100);
 
-	REG_SOUNDCNT |= SOUND_ENABLE;
-	writePowerManagement(PM_CONTROL_REG, ( readPowerManagement(PM_CONTROL_REG) & ~PM_SOUND_MUTE ) | PM_SOUND_AMP );
-	powerOn(POWER_SOUND);
+	enableSound();
 
 	readUserSettings();
 	ledBlink(0);
@@ -76,7 +76,6 @@ int main() {
 	touchInit();
 	fifoInit();
 	
-	mmInstall(FIFO_MAXMOD);
 	SetYtrigger(80);
 	
 	installSoundFIFO();

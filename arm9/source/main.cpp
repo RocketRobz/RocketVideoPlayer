@@ -31,7 +31,6 @@
 
 #include "file_browse.h"
 #include "gl2d.h"
-#include "sound.h"
 #include "gui.h"
 #include "nitrofs.h"
 #include "tonccpy.h"
@@ -50,8 +49,11 @@ u32 compressedFrameSizes[128];
 
 u16 palBuffer[60][256];
 u8 frameBuffer[0xC000*30];					// 30 frames in buffer
+u16 soundBuffer[2][32000];
 int frameBufferCount = 30;
 bool useBufferHalf = true;
+bool useSoundBufferHalf = false;
+bool updateSoundBuffer = false;
 
 bool fadeType = false;
 
@@ -101,6 +103,7 @@ touchPosition touch;
 
 FILE* rvid;
 FILE* rvidFrameSizeTable;
+FILE* rvidSound;
 u32 rvidSizeProcessed = 0;
 u32 rvidCurrentOffset = 0;
 bool showVideoGui = false;
@@ -232,6 +235,7 @@ ITCM_CODE void renderFrames(void) {
 			}
 		}
 		if ((currentFrame % rvidFps) == 0) {
+			updateSoundBuffer = rvidHasSound;
 			secondMark++;
 			if (secondMark == 60) {
 				secondMark = 0;
@@ -303,6 +307,14 @@ bool confirmReturn = false;
 bool confirmStop = false;
 
 bool playerControls(void) {
+	if (updateSoundBuffer) {
+		soundPlaySample(soundBuffer[useSoundBufferHalf], SoundFormat_16Bit, rvidSampleRate*2, rvidSampleRate, 127, 64, false, 0);
+		useSoundBufferHalf = !useSoundBufferHalf;
+		toncset(soundBuffer[useSoundBufferHalf], 0, rvidSampleRate*sizeof(u16));
+		fread(soundBuffer[useSoundBufferHalf], sizeof(u16), rvidSampleRate, rvidSound);
+		updateSoundBuffer = false;
+	}
+
 	scanKeys();
 	touchRead(&touch);
 	if (keysDown() & KEY_A
@@ -310,11 +322,9 @@ bool playerControls(void) {
 		if (videoPlaying) {
 			videoPlaying = false;
 			updateVideoGuiFrame = true;
-			snd().stopStream();
 		} else {
 			videoPlaying = true;
 			updateVideoGuiFrame = true;
-			snd().beginStream();
 		}
 	}
 	if (keysDown() & KEY_B
@@ -428,7 +438,15 @@ int playRvid(const char* filename) {
 		}
 	}
 
-	snd().loadStreamFromRvid(filename);
+	if (rvidHasSound) {
+		if (rvidSampleRate > 32000) {
+			return 1;
+		}
+		rvidSound = fopen(filename, "rb");
+		fseek(rvidSound, rvidSoundOffset, SEEK_SET);
+		toncset(soundBuffer[0], 0, rvidSampleRate*sizeof(u16));
+		fread(soundBuffer[0], sizeof(u16), rvidSampleRate, rvidSound);
+	}
 
 	if (fadeType) {
 		fadeType = false;
@@ -471,14 +489,12 @@ int playRvid(const char* filename) {
 		dmaFillHalfWordsAsynch(3, 0, BG_GFX_SUB, 0x18000);	// Fill top screen with black
 	} */
 	videoPlaying = true;
-	snd().beginStream();
 	while (1) {
 		if ((currentFrame % frameBufferCount) >= 0
 		&& (currentFrame % frameBufferCount) < frameBufferCount/2)
 		{
 			if (useBufferHalf) {
 				for (int i = frameBufferCount/2; i < frameBufferCount; i++) {
-					snd().updateStream();
 					if (loadedFrames < rvidFrames) {
 						if (rvidCompressed) {
 							if ((loadedFrames % 128) == 0) {
@@ -509,7 +525,6 @@ int playRvid(const char* filename) {
 		{
 			if (!useBufferHalf) {
 				for (int i = 0; i < frameBufferCount/2; i++) {
-					snd().updateStream();
 					if (loadedFrames < rvidFrames) {
 						if (rvidCompressed) {
 							if ((loadedFrames % 128) == 0) {
@@ -539,7 +554,6 @@ int playRvid(const char* filename) {
 		playerControls();
 		if (confirmStop || currentFrame > (int)rvidFrames) {
 			videoPlaying = false;
-			snd().stopStream();
 
 			hourMark = -1;
 			minuteMark = 59;
@@ -550,6 +564,7 @@ int playRvid(const char* filename) {
 			updateVideoGuiFrame = true;
 
 			useBufferHalf = true;
+			useSoundBufferHalf = false;
 			loadFrame = true;
 			frameOf60fps = 60;
 			currentFrame = 0;
@@ -580,7 +595,6 @@ int playRvid(const char* filename) {
 				}
 			}
 
-			snd().resetStream();
 			confirmStop = false;
 		}
 		if (confirmReturn) {
@@ -590,7 +604,6 @@ int playRvid(const char* filename) {
 	}
 
 	videoPlaying = false;
-	snd().stopStream();
 
 	if (!bottomBacklight) {
 		bottomBacklightSwitch();
@@ -607,6 +620,7 @@ int playRvid(const char* filename) {
 
 	showVideoGui = false;
 	useBufferHalf = true;
+	useSoundBufferHalf = false;
 	loadFrame = true;
 	frameOf60fps = 60;
 	currentFrame = 0;
@@ -718,7 +732,6 @@ int main(int argc, char **argv) {
 
 	dmaFillHalfWords(0, BG_GFX, 0x18000);		// Clear top screen
 	dmaFillHalfWords(0, BG_GFX_SUB, 0x18000);	// Clear bottom screen
-	snd();
 
 	lcdMainOnBottom();
 
@@ -780,6 +793,7 @@ int main(int argc, char **argv) {
 					int err = playRvid(filename.c_str());
 					fclose(rvid);
 					fclose(rvidFrameSizeTable);
+					fclose(rvidSound);
 					if (err == 4) {
 						consoleClear();
 						printf("This Rocket Video file\n");
@@ -793,6 +807,13 @@ int main(int argc, char **argv) {
 						printf("\n");
 						printf("Please update the player to\n");
 						printf("the latest version.\n");
+					} else if (err == 1) {
+						consoleClear();
+						printf("Audio sample rate is higher\n");
+						printf("than 32000Hz.\n");
+						printf("\n");
+						printf("Please lower the sample rate\n");
+						printf("to 32000Hz or less.\n");
 					}
 					if ((err > 0) && (argc < 2)) {
 						printf("\n");
