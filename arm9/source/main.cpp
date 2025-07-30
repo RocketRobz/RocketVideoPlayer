@@ -683,9 +683,16 @@ void LoadBMP(bool top, const char* filename) {
 			}
 			x++;
 		}
+		fclose(file);
+	} else {
+		for (int i=0; i<256*192; i++) {
+			if (top) {
+				BG_GFX[i] = 0x8000;
+			} else {
+				BG_GFX_SUB[i] = 0x8000;
+			}
+		}
 	}
-
-	fclose(file);
 }
 
 std::string filename;
