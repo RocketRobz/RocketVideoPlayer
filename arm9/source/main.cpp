@@ -779,7 +779,7 @@ int main(int argc, char **argv) {
 	extensionList.push_back(".rvid");
 
 	if (argc < 2) {
-		chdir("/video");
+		chdir("/videos");
 	}
 
 	while(1) {
