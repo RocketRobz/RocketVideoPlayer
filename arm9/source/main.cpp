@@ -113,7 +113,7 @@ bool updateVideoGuiFrame = true;
 bool videoPlaying = false;
 bool loadFrame = true;
 int videoYpos = 0;
-int frameOf60fps = 60;
+// int frameOf60fps = 60;
 int currentFrame = 0;
 int currentFrameInBuffer = 0;
 int loadedFrames = 0;
@@ -183,43 +183,23 @@ ITCM_CODE void renderFrames(void) {
 	SetBrightness(1, screenBrightness);
 
 	if (videoPlaying && (currentFrame <= loadedFrames) && !loadFrame) {
-		frameOf60fps++;
-		if (frameOf60fps > 60) frameOf60fps = 1;
+		// frameOf60fps++;
+		// if (frameOf60fps > 60) frameOf60fps = 1;
 
 		frameDelay++;
 		switch (rvidFps) {
 			case 11:
 				loadFrame = (frameDelay == 5+frameDelayEven);
 				break;
+			case 6:
+			case 12:
 			case 24:
-			case 25:
-				loadFrame = (frameDelay == 2+frameDelayEven);
-				break;
 			case 48:
-				loadFrame =   (frameOf60fps != 3
-							&& frameOf60fps != 8
-							&& frameOf60fps != 13
-							&& frameOf60fps != 18
-							&& frameOf60fps != 23
-							&& frameOf60fps != 28
-							&& frameOf60fps != 33
-							&& frameOf60fps != 38
-							&& frameOf60fps != 43
-							&& frameOf60fps != 48
-							&& frameOf60fps != 53
-							&& frameOf60fps != 58);
+				loadFrame = (frameDelay == 48/rvidFps);
 				break;
+			case 25:
 			case 50:
-				loadFrame =   (frameOf60fps != 3
-							&& frameOf60fps != 9
-							&& frameOf60fps != 16
-							&& frameOf60fps != 22
-							&& frameOf60fps != 28
-							&& frameOf60fps != 34
-							&& frameOf60fps != 40
-							&& frameOf60fps != 46
-							&& frameOf60fps != 51
-							&& frameOf60fps != 58);
+				loadFrame = (frameDelay == 50/rvidFps);
 				break;
 			default:
 				loadFrame = (frameDelay == 60/rvidFps);
@@ -288,14 +268,6 @@ ITCM_CODE void renderFrames(void) {
 		switch (rvidFps) {
 			case 11:
 				if ((currentFrame % 11) < 10) {
-					frameDelayEven = !frameDelayEven;
-				}
-				break;
-			case 24:
-				frameDelayEven = !frameDelayEven;
-				break;
-			case 25:
-				if ((currentFrame % 24) != 10 && (currentFrame % 24) != 21) {
 					frameDelayEven = !frameDelayEven;
 				}
 				break;
@@ -501,6 +473,13 @@ int playRvid(const char* filename) {
 	irqSet(IRQ_HBLANK, (rvidVRes == (rvidInterlaced ? 96 : 192)) ? HBlankNull : rvidInterlaced ? fillBordersInterlaced : fillBorders);
 	irqEnable(IRQ_HBLANK);
 
+	// Enable frame rate adjustment
+	if (rvidFps == 6 || rvidFps == 12 || rvidFps == 24 || rvidFps == 48) {
+		IPC_SendSync(1);
+	} else if (rvidFps == 25 || rvidFps == 50) {
+		IPC_SendSync(2);
+	}
+
 	/* if (rvidVRes < 192) {
 		dmaFillHalfWordsAsynch(3, 0, BG_GFX_SUB, 0x18000);	// Fill top screen with black
 	} */
@@ -583,7 +562,7 @@ int playRvid(const char* filename) {
 			useBufferHalf = true;
 			useSoundBufferHalf = false;
 			loadFrame = true;
-			frameOf60fps = 60;
+			// frameOf60fps = 60;
 			currentFrame = 0;
 			currentFrameInBuffer = 0;
 			rvidSizeProcessed = 0;
@@ -632,6 +611,7 @@ int playRvid(const char* filename) {
 
 	videoPlaying = false;
 	swiWaitForVBlank();
+	IPC_SendSync(0); // Disable frame rate adjustment
 
 	if (rvidHasSound) {
 		soundKill(sndId);
@@ -654,7 +634,7 @@ int playRvid(const char* filename) {
 	useBufferHalf = true;
 	useSoundBufferHalf = false;
 	loadFrame = true;
-	frameOf60fps = 60;
+	// frameOf60fps = 60;
 	currentFrame = 0;
 	currentFrameInBuffer = 0;
 	rvidSizeProcessed = 0;

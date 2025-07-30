@@ -10,7 +10,6 @@ Play videos up to 60 FPS on DS & DS Lite!
 To play videos, you'll need to convert them to the Rocket Video (`.rvid`) format using [Vid2RVID](https://github.com/RocketRobz/Vid2RVID/releases).
 
 # Credits
-* [chyyran](https://github.com/chyyran): Sound streaming code used in TWiLight Menu++.
-* [devkitPro](https://github.com/devkitPro): nds-hb-menu's file browsing code, and the use of devkitPro, devkitARM, libnds, and libfat.
+* [Gericom](https://github.com/Gericom): LZ77 decompressor code from [EFE/EveryFileExplorer](https://github.com/Gericom/EveryFileExplorer), and frame rate adjustment code from [FastVideoDSPlayer](https://github.com/Gericom/FastVideoDSPlayer).
 * [Drenn](https://github.com/Drenn1): GameYob's .bmp renderer.
-* [Gericom](https://github.com/Gericom): LZ77 decompressor code from EFE/EveryFileExplorer.
+* [devkitPro](https://github.com/devkitPro): nds-hb-menu's file browsing code, and the use of devkitPro, devkitARM, libnds, and libfat.
