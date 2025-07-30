@@ -144,7 +144,7 @@ ITCM_CODE void fillBorders(void) {
 		if (scanline < videoYpos || scanline >= videoYpos+rvidVRes) {
 			BG_PALETTE_SUB[0] = 0;
 		} else {
-			BG_PALETTE_SUB[0] = palBuffer[currentFrameInBuffer][0];
+			BG_PALETTE_SUB[0] = SPRITE_PALETTE_SUB[0];
 		}
 	}
 }
@@ -163,7 +163,7 @@ ITCM_CODE void fillBordersInterlaced(void) {
 		if (scanline < check1 || scanline >= check1+check2) {
 			BG_PALETTE_SUB[0] = 0;
 		} else {
-			BG_PALETTE_SUB[0] = palBuffer[currentFrameInBuffer][0];
+			BG_PALETTE_SUB[0] = SPRITE_PALETTE_SUB[0];
 		}
 	}
 }
@@ -236,6 +236,7 @@ ITCM_CODE void renderFrames(void) {
 				dmaCopyHalfWordsAsynch(3, palBuffer[currentFrameInBuffer], BG_PALETTE_SUB, 256*2);
 			} else {
 				dmaCopyHalfWordsAsynch(3, palBuffer[currentFrameInBuffer]+1, BG_PALETTE_SUB+1, 255*2);
+				SPRITE_PALETTE_SUB[0] = palBuffer[currentFrameInBuffer][0];
 			}
 		}
 		if ((currentFrame % (rvidFps/soundBufferDivide)) == 0) {
