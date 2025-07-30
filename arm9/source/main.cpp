@@ -121,6 +121,8 @@ int frameDelay = 0;
 bool frameDelayEven = true;
 bool bottomField = false;
 
+char filenameToDisplay[256];
+
 char numberMark[6][16];
 
 char timeStamp[96];
@@ -378,6 +380,14 @@ int playRvid(const char* filename) {
 			for (int i = rvidVRes; i < 192; i += 2) {
 				videoYpos++;
 			}
+		}
+	}
+
+	sprintf(filenameToDisplay, filename);
+	for (int i = strlen(filename); i >= 0; i--) {
+		if (filenameToDisplay[i] == '.') {
+			filenameToDisplay[i] = 0; // Remove ".rvid" from title
+			break;
 		}
 	}
 
@@ -695,7 +705,7 @@ void LoadBMP(bool top, const char* filename) {
 	}
 }
 
-std::string filename;
+static std::string filename;
 
 //---------------------------------------------------------------------------------
 int main(int argc, char **argv) {

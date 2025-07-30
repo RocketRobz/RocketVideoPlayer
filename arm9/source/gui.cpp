@@ -12,7 +12,7 @@ extern bool videoPlaying;
 extern int currentFrame;
 extern int loadedFrames;
 
-extern std::string filename;
+extern char filenameToDisplay[256];
 
 extern char timeStamp[96];
 
@@ -54,7 +54,7 @@ void loadGraphics(void) {
 
 void renderGui(void) {
 	clearText(false);
-	printLarge(false, 4, 20, filename.c_str());
+	printLarge(false, 4, 20, filenameToDisplay);
 	printSmallCentered(false, 120, timeStamp);
 
 	glBegin2D();
