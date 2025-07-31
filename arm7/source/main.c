@@ -170,11 +170,23 @@ void IPCSyncHandler(void) {
 			fpsa_stop(&sActiveFpsa);
 			break;
 		case 1:
-			fpsa_setTargetFpsFraction(&sActiveFpsa, 48000, 1001);
+			fpsa_setTargetFpsFraction(&sActiveFpsa, 48, 1);
 			fpsa_start(&sActiveFpsa);
 			break;
 		case 2:
+			fpsa_setTargetFpsFraction(&sActiveFpsa, 48000, 1001);
+			fpsa_start(&sActiveFpsa);
+			break;
+		case 3:
+			fpsa_setTargetFpsFraction(&sActiveFpsa, 50, 1);
+			fpsa_start(&sActiveFpsa);
+			break;
+		case 4:
 			fpsa_setTargetFpsFraction(&sActiveFpsa, 50000, 1001);
+			fpsa_start(&sActiveFpsa);
+			break;
+		case 5:
+			fpsa_setTargetFpsFraction(&sActiveFpsa, 60, 1);
 			fpsa_start(&sActiveFpsa);
 			break;
 	}

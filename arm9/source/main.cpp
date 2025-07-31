@@ -475,9 +475,11 @@ int playRvid(const char* filename) {
 
 	// Enable frame rate adjustment
 	if (rvidFps == 6 || rvidFps == 12 || rvidFps == 24 || rvidFps == 48) {
-		IPC_SendSync(1);
+		IPC_SendSync(1+rvidFpsLowerBy01Prcnt);
 	} else if (rvidFps == 25 || rvidFps == 50) {
-		IPC_SendSync(2);
+		IPC_SendSync(3+rvidFpsLowerBy01Prcnt);
+	} else if (!rvidFpsLowerBy01Prcnt) {
+		IPC_SendSync(5);
 	}
 
 	/* if (rvidVRes < 192) {
