@@ -702,8 +702,6 @@ int main(int argc, char **argv) {
 
 	const bool nitroFSInited = nitroFSInit();
 
-	*(u16*)(0x0400006C) |= BIT(14);
-	*(u16*)(0x0400006C) &= BIT(15);
 	SetBrightness(0, 31);
 	SetBrightness(1, 31);
 
