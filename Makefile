@@ -9,7 +9,7 @@ include $(DEVKITARM)/ds_rules
 
 export TARGET		:=	RocketVideoPlayer
 export TOPDIR		:=	$(CURDIR)
-export NITRODATA	:=	nitrofiles
+#export NITRODATA	:=	nitrofiles
 
 export VERSION_MAJOR	:= 1
 export VERSION_MINOR	:= 99
@@ -28,7 +28,7 @@ export PATH		:=	$(DEVKITARM)/bin:$(PATH)
 all: $(TARGET).nds
 
 $(TARGET).nds	:	$(TARGET).arm7 $(TARGET).arm9
-	ndstool	-c $(TARGET).nds -7 arm7/$(TARGET).arm7.elf -9 arm9/$(TARGET).arm9.elf -d $(NITRODATA) \
+	ndstool	-c $(TARGET).nds -7 arm7/$(TARGET).arm7.elf -9 arm9/$(TARGET).arm9.elf \
 			-b $(CURDIR)/icon.bmp "Rocket Video Player;Rocket Robz"
 
 #---------------------------------------------------------------------------------
