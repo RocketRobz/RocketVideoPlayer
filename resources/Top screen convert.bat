@@ -1,0 +1,1 @@
+magick convert logo_rocketvideoplayer.png -ordered-dither o8x8,32,32,32 -colors 256 out.png

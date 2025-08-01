@@ -30,7 +30,9 @@
 #include <unistd.h>
 
 #include "file_browse.h"
+#include "top_png_bin.h"
 #include "gl2d.h"
+#include "graphics/lodepng.h"
 #include "gui.h"
 #include "nitrofs.h"
 #include "tonccpy.h"
@@ -646,40 +648,12 @@ int playRvid(const char* filename) {
 	return 0;
 }
 
-void LoadBMP(bool top, const char* filename) {
-	FILE* file = fopen(filename, "rb");
-
-	if (file) {
-		// Start loading
-		fseek(file, 0xe, SEEK_SET);
-		u8 pixelStart = (u8)fgetc(file) + 0xe;
-		fseek(file, pixelStart, SEEK_SET);
-		fread(frameBuffer, 2, 0x18000, file);
-		u16* src = (u16*)frameBuffer;
-		int x = 0;
-		int y = 191;
-		for (int i=0; i<256*192; i++) {
-			if (x >= 256) {
-				x = 0;
-				y--;
-			}
-			u16 val = *(src++);
-			if (top) {
-				BG_GFX[y*256+x] = ((val>>10)&31) | (val&31<<5) | (val&31)<<10 | BIT(15);
-			} else {
-				BG_GFX_SUB[y*256+x] = ((val>>10)&31) | (val&31<<5) | (val&31)<<10 | BIT(15);
-			}
-			x++;
-		}
-		fclose(file);
-	} else {
-		for (int i=0; i<256*192; i++) {
-			if (top) {
-				BG_GFX[i] = 0x8000;
-			} else {
-				BG_GFX_SUB[i] = 0x8000;
-			}
-		}
+void LoadBMP(void) {
+	std::vector<unsigned char> image;
+	unsigned width, height;
+	lodepng::decode(image, width, height, top_png_bin, top_png_bin_size);
+	for(unsigned i=0;i<image.size()/4;i++) {
+		BG_GFX_SUB[i] = image[i*4]>>3 | (image[(i*4)+1]>>3)<<5 | (image[(i*4)+2]>>3)<<10 | BIT(15);
 	}
 }
 
@@ -695,7 +669,7 @@ int main(int argc, char **argv) {
 		stop();
 	}
 
-	const bool nitroFSInited = nitroFSInit();
+	// nitroFSInit();
 
 	SetBrightness(0, 31);
 	SetBrightness(1, 31);
@@ -729,21 +703,6 @@ int main(int argc, char **argv) {
 
 	loadGraphics();
 
-	if (nitroFSInited) {
-		LoadBMP(true, "nitro:/logo_rocketrobz.bmp");
-		LoadBMP(false, "nitro:/logo_rocketvideo.bmp");
-
-		fadeType = true;
-		for (int i = 0; i < 60*3; i++) {
-			swiWaitForVBlank();
-		}
-
-		fadeType = false;
-		for (int i = 0; i < 25; i++) {
-			swiWaitForVBlank();
-		}
-	}
-
 	dmaFillHalfWords(0, BG_GFX, 0x18000);		// Clear top screen
 	dmaFillHalfWords(0, BG_GFX_SUB, 0x18000);	// Clear bottom screen
 
@@ -776,7 +735,7 @@ int main(int argc, char **argv) {
 			videoSetMode(MODE_0_2D);
 			vramSetBankG(VRAM_G_MAIN_BG);
 			consoleInit(NULL, 0, BgType_Text4bpp, BgSize_T_256x256, 15, 0, true, true);
-			LoadBMP(false, "nitro:/logo_rocketvideoplayer.bmp");
+			LoadBMP();
 			fadeType = true;
 
 			filename = browseForFile(extensionList);

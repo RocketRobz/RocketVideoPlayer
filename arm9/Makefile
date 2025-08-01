@@ -17,6 +17,7 @@ include $(DEVKITARM)/ds_rules
 BUILD		:=	build
 SOURCES		:=	source source/graphics
 INCLUDES	:=	include
+DATA		:=	../data
 GRAPHICS	:=	../gfx
 
 #---------------------------------------------------------------------------------
@@ -103,7 +104,6 @@ $(BUILD):
 clean:
 	@echo clean ...
 	@rm -fr $(BUILD) *.elf *.nds* *.bin 
-	@rm -fr $(DATA) *.elf *.nds* *.bin 
  
 #---------------------------------------------------------------------------------
 else
