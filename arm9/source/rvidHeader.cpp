@@ -8,7 +8,6 @@ rvidHeaderInfo2 rvidHeader2;
 
 int rvidFrames = 0;
 int rvidFps = 0;
-bool rvidFpsLowerBy01Prcnt = false;
 int rvidVRes = 0;
 bool rvidInterlaced = false;
 bool rvidHasSound = false;
@@ -51,9 +50,6 @@ void readRvidHeader(FILE* rvid) {
 	rvidFps = rvidHeader2.fps;
 	if (rvidFps >= 0x80) {
 		rvidFps -= 0x80;
-		rvidFpsLowerBy01Prcnt = true;
-	} else {
-		rvidFpsLowerBy01Prcnt = false;
 	}
 	rvidVRes = rvidHeader2.vRes;
 	rvidInterlaced = rvidHeader2.interlaced;

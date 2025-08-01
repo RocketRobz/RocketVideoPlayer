@@ -21,7 +21,7 @@ typedef struct rvidHeaderInfo2 {
 	u32 formatString;		// "RVID" string
 	u32 ver;				// File format version
 	u32 frames;				// Number of frames
-	u8 fps;					// Frames per second (Decreased by 0.01% if higher than and subtracted from 0x80)
+	u8 fps;					// Frames per second
 	u8 vRes;				// Vertical resolution
 	u8 interlaced;			// Is interlaced
 	u8 hasSound;			// Has sound/audio
@@ -33,7 +33,6 @@ typedef struct rvidHeaderInfo2 {
 
 extern int rvidFrames;
 extern int rvidFps;
-extern bool rvidFpsLowerBy01Prcnt;
 extern int rvidVRes;
 extern bool rvidInterlaced;
 extern bool rvidHasSound;

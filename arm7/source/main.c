@@ -28,6 +28,7 @@
 
 ---------------------------------------------------------------------------------*/
 #include <nds.h>
+#include <string.h>
 #include "fpsAdjust.h"
 
 static fpsa_t sActiveFpsa;
@@ -113,11 +114,20 @@ static void vcountIrqHigher()
     REG_VCOUNT = REG_VCOUNT + (linesToSkip + 1);
 }
 
+void fpsa_init(fpsa_t* fpsa)
+{
+    memset(fpsa, 0, sizeof(fpsa_t));
+    fpsa->isStarted = FALSE;
+    fpsa_setTargetFrameCycles(fpsa, (u64)FPSA_CYCLES_PER_FRAME << 24); // default to no adjustment
+}
+
 void fpsa_start(fpsa_t* fpsa)
 {
     int irq = enterCriticalSection();
     do
     {
+        if (fpsa->isStarted)
+            break;
         if (fpsa->targetCycles == ((u64)FPSA_CYCLES_PER_FRAME << 24))
             break;
         irqDisable(IRQ_VCOUNT);
@@ -164,31 +174,46 @@ void fpsa_setTargetFpsFraction(fpsa_t* fpsa, u32 num, u32 den)
 }
 
 void IPCSyncHandler(void) {
+	bool startFpsa = false;
+	u32 num = 0;
+	u32 den = 0;
 	switch (IPC_GetSync()) {
 		case 0:
 		default:
 			fpsa_stop(&sActiveFpsa);
 			break;
 		case 1:
-			fpsa_setTargetFpsFraction(&sActiveFpsa, 48, 1);
-			fpsa_start(&sActiveFpsa);
+			// 47.95 FPS
+			num = 48;
+			den = 1;
+			startFpsa = true;
 			break;
-		case 2:
-			fpsa_setTargetFpsFraction(&sActiveFpsa, 48000, 1001);
-			fpsa_start(&sActiveFpsa);
-			break;
+		case 2: {
+			// 50 FPS
+			num = 44000;
+			den = 1001;
+			startFpsa = true;
+		}	break;
 		case 3:
-			fpsa_setTargetFpsFraction(&sActiveFpsa, 50, 1);
-			fpsa_start(&sActiveFpsa);
+			// 59.94 FPS
+			num = 60;
+			den = 1;
+			startFpsa = true;
 			break;
-		case 4:
-			fpsa_setTargetFpsFraction(&sActiveFpsa, 50000, 1001);
+	}
+
+	if (startFpsa) {
+		int vblankCount = 1;
+		while (num * (vblankCount + 1) / den < 62)
+			vblankCount++;
+
+		// safety
+		if (num * vblankCount / den < 62)
+		{
+			fpsa_init(&sActiveFpsa);
+			fpsa_setTargetFpsFraction(&sActiveFpsa, num * vblankCount, den);
 			fpsa_start(&sActiveFpsa);
-			break;
-		case 5:
-			fpsa_setTargetFpsFraction(&sActiveFpsa, 60, 1);
-			fpsa_start(&sActiveFpsa);
-			break;
+		}
 	}
 }
 
