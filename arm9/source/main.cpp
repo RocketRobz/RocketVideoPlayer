@@ -113,7 +113,8 @@ bool updateVideoGuiFrame = true;
 bool videoPlaying = false;
 bool loadFrame = true;
 int videoYpos = 0;
-// int frameOf60fps = 60;
+int frameOfRefreshRate = 0;
+int frameOfRefreshRateLimit = 60;
 int currentFrame = 0;
 int currentFrameInBuffer = 0;
 int loadedFrames = 0;
@@ -183,26 +184,20 @@ ITCM_CODE void renderFrames(void) {
 	SetBrightness(1, screenBrightness);
 
 	if (videoPlaying && (currentFrame <= loadedFrames) && !loadFrame) {
-		// frameOf60fps++;
-		// if (frameOf60fps > 60) frameOf60fps = 1;
+		if ((frameOfRefreshRate % (frameOfRefreshRateLimit/soundBufferDivide)) == 0) {
+			updateSoundBuffer = rvidHasSound;
+		}
+
+		frameOfRefreshRate++;
+		if (frameOfRefreshRate == frameOfRefreshRateLimit) frameOfRefreshRate = 0;
 
 		frameDelay++;
 		switch (rvidFps) {
+			default:
+				loadFrame = (frameDelay == frameOfRefreshRateLimit/rvidFps);
+				break;
 			case 11:
 				loadFrame = (frameDelay == 5+frameDelayEven);
-				break;
-			case 6:
-			case 12:
-			case 24:
-			case 48:
-				loadFrame = (frameDelay == 48/rvidFps);
-				break;
-			case 25:
-			case 50:
-				loadFrame = (frameDelay == 50/rvidFps);
-				break;
-			default:
-				loadFrame = (frameDelay == 60/rvidFps);
 				break;
 		}
 	}
@@ -218,9 +213,6 @@ ITCM_CODE void renderFrames(void) {
 				dmaCopyHalfWordsAsynch(3, palBuffer[currentFrameInBuffer]+1, BG_PALETTE_SUB+1, 255*2);
 				SPRITE_PALETTE_SUB[0] = palBuffer[currentFrameInBuffer][0];
 			}
-		}
-		if ((currentFrame % (rvidFps/soundBufferDivide)) == 0) {
-			updateSoundBuffer = rvidHasSound;
 		}
 		if ((currentFrame % rvidFps) == 0) {
 			secondMark++;
@@ -431,7 +423,7 @@ int playRvid(const char* filename) {
 		}
 		rvidSound = fopen(filename, "rb");
 		fseek(rvidSound, rvidSoundOffset, SEEK_SET);
-		soundBufferDivide = ((rvidFps % 2) == 0) ? 4 : 5;
+		soundBufferDivide = (rvidFps == 25 || rvidFps == 50) ? 5 : 4;
 		toncset(soundBuffer[0], 0, (rvidSampleRate/soundBufferDivide)*sizeof(u16));
 		fread(soundBuffer[0], sizeof(u16), rvidSampleRate/soundBufferDivide, rvidSound);
 	}
@@ -475,10 +467,13 @@ int playRvid(const char* filename) {
 
 	// Enable frame rate adjustment
 	if (rvidFps == 6 || rvidFps == 12 || rvidFps == 24 || rvidFps == 48) {
+		frameOfRefreshRateLimit = 48;
 		IPC_SendSync(1+rvidFpsLowerBy01Prcnt);
 	} else if (rvidFps == 25 || rvidFps == 50) {
+		frameOfRefreshRateLimit = 50;
 		IPC_SendSync(3+rvidFpsLowerBy01Prcnt);
 	} else if (!rvidFpsLowerBy01Prcnt) {
+		frameOfRefreshRateLimit = 60;
 		IPC_SendSync(5);
 	}
 
@@ -564,7 +559,7 @@ int playRvid(const char* filename) {
 			useBufferHalf = true;
 			useSoundBufferHalf = false;
 			loadFrame = true;
-			// frameOf60fps = 60;
+			frameOfRefreshRate = 0;
 			currentFrame = 0;
 			currentFrameInBuffer = 0;
 			rvidSizeProcessed = 0;
@@ -636,7 +631,7 @@ int playRvid(const char* filename) {
 	useBufferHalf = true;
 	useSoundBufferHalf = false;
 	loadFrame = true;
-	// frameOf60fps = 60;
+	frameOfRefreshRate = 0;
 	currentFrame = 0;
 	currentFrameInBuffer = 0;
 	rvidSizeProcessed = 0;
