@@ -198,8 +198,21 @@ ITCM_CODE void renderFrames(void) {
 			default:
 				loadFrame = (frameDelay == frameOfRefreshRateLimit/rvidFps);
 				break;
+			case 6:
+				loadFrame = (frameDelay == 4+frameDelayEven);
+				break;
 			case 11:
 				loadFrame = (frameDelay == 5+frameDelayEven);
+				break;
+			case 12:
+				loadFrame = (frameDelay == 3+frameDelayEven);
+				break;
+			case 24:
+			// case 25:
+				loadFrame = (frameDelay == 2+frameDelayEven);
+				break;
+			case 48:
+				loadFrame = (frameDelay == 1+frameDelayEven);
 				break;
 		}
 	}
@@ -260,11 +273,22 @@ ITCM_CODE void renderFrames(void) {
 			currentFrameInBuffer = 0;
 		}
 		switch (rvidFps) {
+			case 6:
+			case 12:
+			case 24:
+			case 48:
+				frameDelayEven = !frameDelayEven;
+				break;
 			case 11:
 				if ((currentFrame % 11) < 10) {
 					frameDelayEven = !frameDelayEven;
 				}
 				break;
+			/* case 25:
+				if ((currentFrame % 24) != 10 && (currentFrame % 24) != 21) {
+					frameDelayEven = !frameDelayEven;
+				}
+				break; */
 		}
 		frameDelay = 0;
 		loadFrame = false;
@@ -468,15 +492,12 @@ int playRvid(const char* filename) {
 	irqEnable(IRQ_HBLANK);
 
 	// Enable frame rate adjustment
-	if (rvidFps == 6 || rvidFps == 12 || rvidFps == 24 || rvidFps == 48) {
-		frameOfRefreshRateLimit = 48;
-		IPC_SendSync(1);
-	} else if (rvidFps == 25 || rvidFps == 50) {
+	if (rvidFps == 25 || rvidFps == 50) {
 		frameOfRefreshRateLimit = 50;
-		IPC_SendSync(2);
+		IPC_SendSync(1);
 	} else {
 		frameOfRefreshRateLimit = 60;
-		IPC_SendSync(3);
+		IPC_SendSync(2);
 	}
 
 	/* if (rvidVRes < 192) {

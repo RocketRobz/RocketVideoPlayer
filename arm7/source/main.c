@@ -182,19 +182,13 @@ void IPCSyncHandler(void) {
 		default:
 			fpsa_stop(&sActiveFpsa);
 			break;
-		case 1:
-			// 47.95 FPS
-			num = 48;
-			den = 1;
-			startFpsa = true;
-			break;
-		case 2: {
+		case 1: {
 			// 50 FPS
 			num = 44000;
 			den = 1001;
 			startFpsa = true;
 		}	break;
-		case 3:
+		case 2:
 			// 59.94 FPS
 			num = 60;
 			den = 1;
