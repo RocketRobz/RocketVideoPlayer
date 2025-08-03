@@ -20,12 +20,12 @@ export VERSTRING	:=	$(VERSION_MAJOR).$(VERSION_MINOR)
 #---------------------------------------------------------------------------------
 export PATH		:=	$(DEVKITARM)/bin:$(PATH)
 
-.PHONY: $(TARGET).arm7 $(TARGET).arm9
+.PHONY: $(TARGET).arm7 $(TARGET).arm9 libfat4
 
 #---------------------------------------------------------------------------------
 # main targets
 #---------------------------------------------------------------------------------
-all: $(TARGET).nds
+all: libfat4 $(TARGET).nds
 
 $(TARGET).nds	:	$(TARGET).arm7 $(TARGET).arm9
 	ndstool	-c $(TARGET).nds -7 arm7/$(TARGET).arm7.elf -9 arm9/$(TARGET).arm9.elf \
@@ -49,4 +49,8 @@ clean:
 	$(MAKE) -C arm7 clean
 	rm -f arm9/data/load.bin
 	rm -f arm9/source/version.h
+	@$(MAKE) -C libs/libfat4 clean
 	rm -f $(TARGET).ds.gba $(TARGET).nds $(TARGET).arm7 $(TARGET).arm9 $(TARGET).nds.orig.nds $(TARGET).cia
+
+libfat4:
+	$(MAKE) -C libs/libfat4

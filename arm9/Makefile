@@ -5,6 +5,8 @@ ifeq ($(strip $(DEVKITARM)),)
 $(error "Please set DEVKITARM in your environment. export DEVKITARM=<path to>devkitARM")
 endif
 
+export LIBFAT4	:=	$(CURDIR)/../libs/libfat4/nds
+
 include $(DEVKITARM)/ds_rules
 
 #---------------------------------------------------------------------------------
@@ -39,14 +41,14 @@ LDFLAGS	=	-specs=ds_arm9.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 #---------------------------------------------------------------------------------
 # any extra libraries we wish to link with the project (order is important)
 #---------------------------------------------------------------------------------
-LIBS	:=	-lfat -lnds9
+LIBS	:=	-lfat4 -lnds9
  
  
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
 # include and lib
 #---------------------------------------------------------------------------------
-LIBDIRS	:=	$(LIBNDS)
+LIBDIRS	:=	$(LIBFAT4) $(LIBNDS)
  
 #---------------------------------------------------------------------------------
 # no real need to edit anything past this point unless you need to add additional
