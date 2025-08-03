@@ -48,9 +48,6 @@ void readRvidHeader(FILE* rvid) {
 	fread(&rvidHeader2, 1, sizeof(rvidHeader2), rvid);
 	rvidFrames = rvidHeader2.frames;
 	rvidFps = rvidHeader2.fps;
-	if (rvidFps >= 0x80) {
-		rvidFps -= 0x80;
-	}
 	rvidVRes = rvidHeader2.vRes;
 	rvidInterlaced = rvidHeader2.interlaced;
 	rvidHasSound = rvidHeader2.hasSound;
