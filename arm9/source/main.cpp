@@ -60,7 +60,7 @@ int soundBufferDivide = 6;
 bool useSoundBufferHalf = false;
 bool updateSoundBuffer = false;
 bool replaySoundBuffer = false;
-int sndId = 0;
+int sndId[2] = {0};
 
 bool fadeType = false;
 
@@ -316,7 +316,8 @@ bool confirmStop = false;
 
 bool playerControls(void) {
 	if (updateSoundBuffer) {
-		sndId = soundPlaySample(soundBuffer[useSoundBufferHalf], SoundFormat_16Bit, rvidSampleRate*sizeof(u16), rvidSampleRate, 127, 64, false, 0);
+		sndId[0] = soundPlaySample(soundBuffer[useSoundBufferHalf], SoundFormat_16Bit, rvidSampleRate*sizeof(u16), rvidSampleRate, 127, 0, false, 0);
+		sndId[1] = soundPlaySample(soundBuffer[useSoundBufferHalf], SoundFormat_16Bit, rvidSampleRate*sizeof(u16), rvidSampleRate, 127, 127, false, 0);
 		soundBufferPos = (u16*)&soundBuffer[useSoundBufferHalf];
 		soundBufferLen = rvidSampleRate;
 		useSoundBufferHalf = !useSoundBufferHalf;
@@ -324,7 +325,8 @@ bool playerControls(void) {
 		fread(soundBuffer[useSoundBufferHalf], sizeof(u16), rvidSampleRate, rvidSound);
 		updateSoundBuffer = false;
 	} else if (replaySoundBuffer) {
-		sndId = soundPlaySample(soundBufferPos, SoundFormat_16Bit, soundBufferLen*sizeof(u16), rvidSampleRate, 127, 64, false, 0);
+		sndId[0] = soundPlaySample(soundBufferPos, SoundFormat_16Bit, soundBufferLen*sizeof(u16), rvidSampleRate, 127, 0, false, 0);
+		sndId[1] = soundPlaySample(soundBufferPos, SoundFormat_16Bit, soundBufferLen*sizeof(u16), rvidSampleRate, 127, 127, false, 0);
 		videoPausedPrior = false;
 	}
 	replaySoundBuffer = false;
@@ -334,7 +336,8 @@ bool playerControls(void) {
 	if ((keysDown() & KEY_A) || ((keysDown() & KEY_LID) && videoPlaying)
 	|| ((keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
 		if (videoPlaying) {
-			soundKill(sndId);
+			soundKill(sndId[0]);
+			soundKill(sndId[1]);
 			videoPlaying = false;
 			updateVideoGuiFrame = true;
 		} else {
@@ -611,7 +614,8 @@ int playRvid(const char* filename) {
 			bottomField = false;
 
 			if (rvidHasSound) {
-				soundKill(sndId);
+				soundKill(sndId[0]);
+				soundKill(sndId[1]);
 			}
 
 			// Reload video
@@ -654,7 +658,8 @@ int playRvid(const char* filename) {
 	IPC_SendSync(0); // Disable frame rate adjustment
 
 	if (rvidHasSound) {
-		soundKill(sndId);
+		soundKill(sndId[0]);
+		soundKill(sndId[1]);
 	}
 
 	if (!bottomBacklight) {
