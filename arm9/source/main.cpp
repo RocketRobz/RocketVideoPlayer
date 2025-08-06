@@ -53,8 +53,9 @@ u16 palBuffer[60][256];
 u8 frameBuffer[0xC000*30];					// 30 frames in buffer
 int frameBufferCount = 30;
 bool useBufferHalf = true;
-u16 soundBuffer[2][32000];
+u16 soundBuffer[2][32032];
 u16* soundBufferPos = NULL;
+u16 soundBufferReadLen = 0;
 u16 soundBufferLen = 0;
 int soundBufferDivide = 6;
 bool useSoundBufferHalf = false;
@@ -192,8 +193,8 @@ ITCM_CODE void renderFrames(void) {
 	if (videoPlaying && (currentFrame <= loadedFrames) && !loadFrame) {
 		if (rvidHasSound) {
 			if (!updateSoundBuffer && ((frameOfRefreshRate % (frameOfRefreshRateLimit/soundBufferDivide)) == 0)) {
-				soundBufferPos += rvidSampleRate/soundBufferDivide;
-				soundBufferLen -= rvidSampleRate/soundBufferDivide;
+				soundBufferPos += soundBufferReadLen/soundBufferDivide;
+				soundBufferLen -= soundBufferReadLen/soundBufferDivide;
 				replaySoundBuffer = videoPausedPrior;
 			}
 			if ((frameOfRefreshRate % frameOfRefreshRateLimit) == 0) {
@@ -316,13 +317,13 @@ bool confirmStop = false;
 
 bool playerControls(void) {
 	if (updateSoundBuffer) {
-		sndId[0] = soundPlaySample(soundBuffer[useSoundBufferHalf], SoundFormat_16Bit, rvidSampleRate*sizeof(u16), rvidSampleRate, 127, 0, false, 0);
-		sndId[1] = soundPlaySample(soundBuffer[useSoundBufferHalf], SoundFormat_16Bit, rvidSampleRate*sizeof(u16), rvidSampleRate, 127, 127, false, 0);
+		sndId[0] = soundPlaySample(soundBuffer[useSoundBufferHalf], SoundFormat_16Bit, soundBufferReadLen*sizeof(u16), rvidSampleRate, 127, 0, false, 0);
+		sndId[1] = soundPlaySample(soundBuffer[useSoundBufferHalf], SoundFormat_16Bit, soundBufferReadLen*sizeof(u16), rvidSampleRate, 127, 127, false, 0);
 		soundBufferPos = (u16*)&soundBuffer[useSoundBufferHalf];
 		soundBufferLen = rvidSampleRate;
 		useSoundBufferHalf = !useSoundBufferHalf;
-		toncset(soundBuffer[useSoundBufferHalf], 0, rvidSampleRate*sizeof(u16));
-		fread(soundBuffer[useSoundBufferHalf], sizeof(u16), rvidSampleRate, rvidSound);
+		toncset(soundBuffer[useSoundBufferHalf], 0, soundBufferReadLen*sizeof(u16));
+		fread(soundBuffer[useSoundBufferHalf], sizeof(u16), soundBufferReadLen, rvidSound);
 		updateSoundBuffer = false;
 	} else if (replaySoundBuffer) {
 		sndId[0] = soundPlaySample(soundBufferPos, SoundFormat_16Bit, soundBufferLen*sizeof(u16), rvidSampleRate, 127, 0, false, 0);
@@ -469,11 +470,17 @@ int playRvid(const char* filename) {
 		if (rvidSampleRate > 32000) {
 			return 1;
 		}
+		// Ensure video and audio stay in sync
+		soundBufferReadLen = rvidSampleRate;
+		for (int i = 0; i < rvidSampleRate; i += 1000) {
+			soundBufferReadLen++;
+		}
+
 		rvidSound = fopen(filename, "rb");
 		fseek(rvidSound, rvidSoundOffset, SEEK_SET);
 		soundBufferDivide = (rvidFps == 25 || rvidFps == 50) ? 5 : 6;
-		toncset(soundBuffer[0], 0, rvidSampleRate*sizeof(u16));
-		fread(soundBuffer[0], sizeof(u16), rvidSampleRate, rvidSound);
+		toncset(soundBuffer[0], 0, soundBufferReadLen*sizeof(u16));
+		fread(soundBuffer[0], sizeof(u16), soundBufferReadLen, rvidSound);
 	}
 
 	if (fadeType) {
@@ -641,8 +648,8 @@ int playRvid(const char* filename) {
 
 			if (rvidHasSound) {
 				fseek(rvidSound, rvidSoundOffset, SEEK_SET);
-				toncset(soundBuffer[0], 0, rvidSampleRate*sizeof(u16));
-				fread(soundBuffer[0], sizeof(u16), rvidSampleRate, rvidSound);
+				toncset(soundBuffer[0], 0, soundBufferReadLen*sizeof(u16));
+				fread(soundBuffer[0], sizeof(u16), soundBufferReadLen, rvidSound);
 			}
 
 			confirmStop = false;
