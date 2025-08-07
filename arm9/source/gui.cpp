@@ -16,6 +16,9 @@ extern char filenameToDisplay[256];
 
 extern char timeStamp[96];
 
+static int currentBarAdjust = 0;
+static int barAdjust = 0;
+
 static int buttonTexID[2];
 
 static glImage buttonImage[2][(128 / 32) * (128 / 64)];
@@ -52,6 +55,22 @@ void loadGraphics(void) {
 	fontInit();
 }
 
+bool updatePlayBar(void) {
+	barAdjust = currentFrame/(rvidFrames/222);
+	if (barAdjust > 224) {
+		barAdjust = 224;
+	}
+	if (currentBarAdjust == barAdjust) {
+		return false;
+	}
+	currentBarAdjust = barAdjust;
+	return true;
+}
+
+void resetPlayBar(void) {
+	barAdjust = 0;
+}
+
 void renderGui(void) {
 	clearText(false);
 	printLarge(false, 4, 20, filenameToDisplay);
@@ -72,12 +91,10 @@ void renderGui(void) {
 		glBoxFilled(15, 141, 240, 146, RGB15(152/8, 152/8, 152/8));	// Play bar mid edge
 		glBoxFilled(16, 140, 239, 147, RGB15(152/8, 152/8, 152/8));	// Play bar vertical edge
 		glBoxFilled(16, 142, 239, 145, RGB15(255/8, 255/8, 255/8));	// Behind gray part of play bar
-		/*
-		glBoxFilled(4+(currentFrame/(rvidHeader.frames/184)), 142, 247, 145, RGB15(96/8, 96/8, 96/8));	// Gray part of play bar
-		glBoxFilled(12+(currentFrame/(rvidHeader.frames/184)), 134, 19+(currentFrame/(rvidHeader.frames/184)), 153, RGB15(120/8, 120/8, 120/8));	// Play bar slider edge
-		glBoxFilled(14+(currentFrame/(rvidHeader.frames/184)), 136, 17+(currentFrame/(rvidHeader.frames/184)), 151, RGB15(255/8, 255/8, 255/8));	// Play bar slider
-		glBoxFilled(14+(currentFrame/(rvidHeader.frames/184)), 148, 17+(currentFrame/(rvidHeader.frames/184)), 151, RGB15(216/8, 216/8, 216/8));	// Play bar slider shading
-		*/
+		glBoxFilled(16+barAdjust, 142, 239, 145, RGB15(96/8, 96/8, 96/8));	// Gray part of play bar
+		glBoxFilled(12+barAdjust, 134, 19+barAdjust, 153, RGB15(120/8, 120/8, 120/8));	// Play bar slider edge
+		glBoxFilled(14+barAdjust, 136, 17+barAdjust, 151, RGB15(255/8, 255/8, 255/8));	// Play bar slider
+		glBoxFilled(14+barAdjust, 148, 17+barAdjust, 151, RGB15(216/8, 216/8, 216/8));	// Play bar slider shading
 
 		glSprite(73, 76, GL_FLIP_NONE, &buttonImage[0][videoPlaying]);
 		glSprite(2, 162, GL_FLIP_NONE, buttonImage[1]);

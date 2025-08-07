@@ -279,16 +279,14 @@ ITCM_CODE void renderFrames(void) {
 				}
 			}
 		}
-		if (!rvidDualScreen) {
-			if ((currentFrame % rvidFps) == 0) {
-				secondMark++;
-				if (secondMark == 60) {
-					secondMark = 0;
-					minuteMark++;
-					if (minuteMark == 60) {
-						minuteMark = 0;
-						hourMark++;
-					}
+		if (!rvidDualScreen && ((currentFrame % rvidFps) == 0)) {
+			secondMark++;
+			if (secondMark == 60) {
+				secondMark = 0;
+				minuteMark++;
+				if (minuteMark == 60) {
+					minuteMark = 0;
+					hourMark++;
 				}
 			}
 
@@ -323,6 +321,13 @@ ITCM_CODE void renderFrames(void) {
 		currentFrameInBuffer++;
 		if (currentFrameInBuffer == frameBufferCount) {
 			currentFrameInBuffer = 0;
+		}
+		if (!rvidDualScreen) {
+			if (updateVideoGuiFrame) {
+				updatePlayBar();
+			} else {
+				updateVideoGuiFrame = updatePlayBar();
+			}
 		}
 		switch (rvidFps) {
 			case 6:
