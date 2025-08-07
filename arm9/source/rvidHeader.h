@@ -24,7 +24,7 @@ typedef struct rvidHeaderInfo2 {
 	u8 fps;					// Frames per second
 	u8 vRes;				// Vertical resolution
 	u8 interlaced;			// Is interlaced
-	u8 hasSound;			// Has sound/audio
+	u8 dualScreen;			// Is dual screen video
 	u16 sampleRate;			// Audio sample rate
 	u16 framesCompressed;	// Frames are compressed
 	u32 framesOffset;		// Offset of first frame
@@ -35,6 +35,7 @@ extern int rvidFrames;
 extern int rvidFps;
 extern int rvidVRes;
 extern bool rvidInterlaced;
+extern bool rvidDualScreen;
 extern bool rvidHasSound;
 extern u16 rvidSampleRate;
 extern bool rvidCompressed;
