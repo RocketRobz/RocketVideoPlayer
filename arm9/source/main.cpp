@@ -92,6 +92,7 @@ u16* colorTable = NULL;
 bool invertedColors = false;
 bool noWhiteFade = false;
 
+u16 blackColor = 0;
 u16 whiteColor = 0xFFFF;
 
 // Ported from PAlib (obsolete)
@@ -176,8 +177,8 @@ ITCM_CODE void fillBorders(void) {
 	} else {
 		scanline++;
 		if (scanline < videoYpos || scanline >= videoYpos+rvidVRes) {
-			BG_PALETTE_SUB[0] = 0;
-			BG_PALETTE[0] = 0;
+			BG_PALETTE_SUB[0] = blackColor;
+			BG_PALETTE[0] = blackColor;
 		} else {
 			BG_PALETTE_SUB[0] = SPRITE_PALETTE_SUB[0];
 			BG_PALETTE[0] = SPRITE_PALETTE[0];
@@ -197,8 +198,8 @@ ITCM_CODE void fillBordersInterlaced(void) {
 	} else {
 		scanline++;
 		if (scanline < check1 || scanline >= check1+check2) {
-			BG_PALETTE_SUB[0] = 0;
-			BG_PALETTE[0] = 0;
+			BG_PALETTE_SUB[0] = blackColor;
+			BG_PALETTE[0] = blackColor;
 		} else {
 			BG_PALETTE_SUB[0] = SPRITE_PALETTE_SUB[0];
 			BG_PALETTE[0] = SPRITE_PALETTE[0];
@@ -970,6 +971,7 @@ int main(int argc, char **argv) {
 			delete[] colorTable; // Free up RAM space
 			colorTable = VRAM_D;
 
+			blackColor = colorTable[0];
 			whiteColor = colorTable[0xFFFF];
 		}
 	}
