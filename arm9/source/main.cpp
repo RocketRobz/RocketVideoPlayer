@@ -62,8 +62,8 @@ extern rvidHeaderCheckInfo rvidHeaderCheck;
 // extern rvidHeaderInfo1 rvidHeader1;
 extern rvidHeaderInfo2 rvidHeader2;
 
-u8 compressedFrameBuffer[0x10000];
-u32 compressedFrameSizes[128];
+u8 compressedFrameBuffer[0xC000];
+u16* compressedFrameSizes = NULL;
 
 u16 palBuffer[60][256];
 u8* frameBuffer = NULL;					// 32 frames in buffer (64 halved frames for interlaced videos)
@@ -137,13 +137,12 @@ char filePath[PATH_MAX];
 touchPosition touch;
 
 FILE* rvid;
-FILE* rvidFrameSizeTable;
 FILE* rvidSound;
 bool showVideoGui = false;
 bool updateVideoGuiFrame = true;
 bool videoPlaying = false;
 bool videoPausedPrior = false;
-bool loadFrame = true;
+bool displayFrame = true;
 int videoYpos = 0;
 int frameOfRefreshRate = 0;
 int frameOfRefreshRateLimit = 60;
@@ -219,7 +218,7 @@ ITCM_CODE void renderFrames(void) {
 	SetBrightness(0, screenBrightness);
 	SetBrightness(1, screenBrightness);
 
-	if (videoPlaying && (currentFrame <= loadedFrames) && !loadFrame) {
+	if (videoPlaying && (currentFrame <= loadedFrames) && !displayFrame) {
 		if (rvidHasSound) {
 			if (!updateSoundBuffer && ((frameOfRefreshRate % (frameOfRefreshRateLimit/soundBufferDivide)) == 0)) {
 				soundBufferPos += soundBufferReadLen/soundBufferDivide;
@@ -250,27 +249,27 @@ ITCM_CODE void renderFrames(void) {
 		frameDelay++;
 		switch (rvidFps) {
 			default:
-				loadFrame = (frameDelay == frameOfRefreshRateLimit/rvidFps);
+				displayFrame = (frameDelay == frameOfRefreshRateLimit/rvidFps);
 				break;
 			case 6:
-				loadFrame = (frameDelay == 4+frameDelayEven);
+				displayFrame = (frameDelay == 4+frameDelayEven);
 				break;
 			case 11:
-				loadFrame = (frameDelay == 5+frameDelayEven);
+				displayFrame = (frameDelay == 5+frameDelayEven);
 				break;
 			case 12:
-				loadFrame = (frameDelay == 3+frameDelayEven);
+				displayFrame = (frameDelay == 3+frameDelayEven);
 				break;
 			case 24:
 			// case 25:
-				loadFrame = (frameDelay == 2+frameDelayEven);
+				displayFrame = (frameDelay == 2+frameDelayEven);
 				break;
 			case 48:
-				loadFrame = (frameDelay == 1+frameDelayEven);
+				displayFrame = (frameDelay == 1+frameDelayEven);
 				break;
 		}
 	}
-	if (videoPlaying && (currentFrame <= loadedFrames) && loadFrame) {
+	if (videoPlaying && (currentFrame <= loadedFrames) && displayFrame) {
 		if (currentFrame < rvidFrames) {
 			if (rvidDualScreen) {
 				if (rvidInterlaced) {
@@ -371,7 +370,7 @@ ITCM_CODE void renderFrames(void) {
 				break; */
 		}
 		frameDelay = 0;
-		loadFrame = false;
+		displayFrame = false;
 	}
 
 	if (showVideoGui && updateVideoGuiFrame) {
@@ -385,6 +384,16 @@ ITCM_CODE void renderFrames(void) {
 bool confirmReturn = false;
 bool confirmStop = false;
 
+void sndUpdateStream(void) {
+	if (!updateSoundBuffer) {
+		return;
+	}
+	useSoundBufferHalf = !useSoundBufferHalf;
+	toncset(soundBuffer[useSoundBufferHalf], 0, soundBufferReadLen*sizeof(u16));
+	fread(soundBuffer[useSoundBufferHalf], sizeof(u16), soundBufferReadLen, rvidSound);
+	updateSoundBuffer = false;
+}
+
 static inline void loadFramePal(const int num) {
 	fread(palBuffer[num], 2, 256, rvid);
 	if (colorTable) {
@@ -394,14 +403,48 @@ static inline void loadFramePal(const int num) {
 	}
 }
 
-void sndUpdateStream(void) {
-	if (!updateSoundBuffer) {
-		return;
+void loadFrame(const int num) {
+	if (rvidDualScreen) {
+		if (rvidCompressed) {
+			for (int b = 0; b < 2; b++) {
+				const int pos = (num*2)+b;
+				const int loadedFramesPos = (loadedFrames*2)+b;
+				loadFramePal(pos);
+				if (compressedFrameSizes[loadedFramesPos] == 0x100*rvidVRes) {
+					fread(frameBuffer+(pos*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
+				} else {
+					fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedFramesPos], rvid);
+					sndUpdateStream();
+					lzssDecompress(compressedFrameBuffer, frameBuffer+(pos*(0x100*rvidVRes)));
+					DC_FlushRange(frameBuffer+(pos*(0x100*rvidVRes)), 0x100*rvidVRes);
+				}
+				sndUpdateStream();
+			}
+		} else {
+			for (int b = 0; b < 2; b++) {
+				const int pos = (num*2)+b;
+				loadFramePal(pos);
+				fread(frameBuffer+(pos*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
+				sndUpdateStream();
+			}
+		}
+	} else {
+		loadFramePal(num);
+		if (rvidCompressed) {
+			if (compressedFrameSizes[loadedFrames] == 0x100*rvidVRes) {
+				fread(frameBuffer+(num*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
+			} else {
+				fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedFrames], rvid);
+				sndUpdateStream();
+				lzssDecompress(compressedFrameBuffer, frameBuffer+(num*(0x100*rvidVRes)));
+				DC_FlushRange(frameBuffer+(num*(0x100*rvidVRes)), 0x100*rvidVRes);
+			}
+		} else {
+			fread(frameBuffer+(num*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
+		}
+		sndUpdateStream();
 	}
-	useSoundBufferHalf = !useSoundBufferHalf;
-	toncset(soundBuffer[useSoundBufferHalf], 0, soundBufferReadLen*sizeof(u16));
-	fread(soundBuffer[useSoundBufferHalf], sizeof(u16), soundBufferReadLen, rvidSound);
-	updateSoundBuffer = false;
+	loadedFrames++;
 }
 
 bool playerControls(void) {
@@ -525,52 +568,17 @@ int playRvid(const char* filename) {
 
 	frameBuffer = new u8[0xC000*32];
 
-	fseek(rvid, rvidFramesOffset, SEEK_SET);
-	loadedFrames = 0;
-	if (rvidDualScreen) {
-		if (rvidCompressed) {
-			rvidFrameSizeTable = fopen(filename, "rb");
-			fseek(rvidFrameSizeTable, 0x200, SEEK_SET);
-			fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
-			for (int i = 0; i < frameBufferCount/2; i++) {
-				for (int b = 0; b < 2; b++) {
-					const int pos = (i*2)+b;
-					loadFramePal(pos);
-					fread(compressedFrameBuffer, 1, compressedFrameSizes[pos], rvid);
-					lzssDecompress(compressedFrameBuffer, frameBuffer+(pos*(0x100*rvidVRes)));
-					DC_FlushRange(frameBuffer+(pos*(0x100*rvidVRes)), 0x100*rvidVRes);
-				}
-				loadedFrames++;
-			}
-		} else {
-			for (int i = 0; i < frameBufferCount/2; i++) {
-				for (int b = 0; b < 2; b++) {
-					const int pos = (i*2)+b;
-					loadFramePal(pos);
-					fread(frameBuffer+(pos*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
-				}
-				loadedFrames++;
-			}
-		}
+	if (rvidCompressed) {
+		const u32 tableSize = (rvidFramesOffset-0x200);
+		compressedFrameSizes = new u16[tableSize/2];
+		fseek(rvid, 0x200, SEEK_SET);
+		fread(compressedFrameSizes, 2, tableSize/2, rvid);
 	} else {
-		if (rvidCompressed) {
-			rvidFrameSizeTable = fopen(filename, "rb");
-			fseek(rvidFrameSizeTable, 0x200, SEEK_SET);
-			fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
-			for (int i = 0; i < frameBufferCount/2; i++) {
-				loadFramePal(i);
-				fread(compressedFrameBuffer, 1, compressedFrameSizes[i], rvid);
-				lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
-				DC_FlushRange(frameBuffer+(i*(0x100*rvidVRes)), 0x100*rvidVRes);
-				loadedFrames++;
-			}
-		} else {
-			for (int i = 0; i < frameBufferCount/2; i++) {
-				loadFramePal(i);
-				fread(frameBuffer+(i*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
-				loadedFrames++;
-			}
-		}
+		fseek(rvid, rvidFramesOffset, SEEK_SET);
+	}
+	loadedFrames = 0;
+	for (int i = 0; i < frameBufferCount/2; i++) {
+		loadFrame(i);
 	}
 
 	if (rvidHasSound) {
@@ -655,53 +663,7 @@ int playRvid(const char* filename) {
 			if (useBufferHalf) {
 				for (int i = frameBufferCount/2; i < frameBufferCount; i++) {
 					if (loadedFrames < rvidFrames) {
-						if (rvidDualScreen) {
-							if (rvidCompressed) {
-								for (int b = 0; b < 2; b++) {
-									const int pos = (i*2)+b;
-									const int loadedPos = (loadedFrames*2)+b;
-									if ((loadedPos % 128) == 0) {
-										fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
-									}
-									if (compressedFrameSizes[loadedPos % 128] > 0
-									|| compressedFrameSizes[loadedPos % 128] <= sizeof(compressedFrameBuffer)) {
-										loadFramePal(pos);
-										fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedPos % 128], rvid);
-										sndUpdateStream();
-										lzssDecompress(compressedFrameBuffer, frameBuffer+(pos*(0x100*rvidVRes)));
-										DC_FlushRange(frameBuffer+(pos*(0x100*rvidVRes)), 0x100*rvidVRes);
-										sndUpdateStream();
-									}
-								}
-							} else {
-								for (int b = 0; b < 2; b++) {
-									const int pos = (i*2)+b;
-									loadFramePal(pos);
-									fread(frameBuffer+(pos*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
-									sndUpdateStream();
-								}
-							}
-						} else {
-							if (rvidCompressed) {
-								if ((loadedFrames % 128) == 0) {
-									fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
-								}
-								if (compressedFrameSizes[loadedFrames % 128] > 0
-								|| compressedFrameSizes[loadedFrames % 128] <= sizeof(compressedFrameBuffer)) {
-									loadFramePal(i);
-									fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedFrames % 128], rvid);
-									sndUpdateStream();
-									lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
-									DC_FlushRange(frameBuffer+(i*(0x100*rvidVRes)), 0x100*rvidVRes);
-									sndUpdateStream();
-								}
-							} else {
-								loadFramePal(i);
-								fread(frameBuffer+(i*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
-								sndUpdateStream();
-							}
-						}
-						loadedFrames++;
+						loadFrame(i);
 					}
 
 					if (playerControls()) {
@@ -716,53 +678,7 @@ int playRvid(const char* filename) {
 			if (!useBufferHalf) {
 				for (int i = 0; i < frameBufferCount/2; i++) {
 					if (loadedFrames < rvidFrames) {
-						if (rvidDualScreen) {
-							if (rvidCompressed) {
-								for (int b = 0; b < 2; b++) {
-									const int pos = (i*2)+b;
-									const int loadedPos = (loadedFrames*2)+b;
-									if ((loadedPos % 128) == 0) {
-										fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
-									}
-									if (compressedFrameSizes[loadedPos % 128] > 0
-									|| compressedFrameSizes[loadedPos % 128] <= sizeof(compressedFrameBuffer)) {
-										loadFramePal(pos);
-										fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedPos % 128], rvid);
-										sndUpdateStream();
-										lzssDecompress(compressedFrameBuffer, frameBuffer+(pos*(0x100*rvidVRes)));
-										DC_FlushRange(frameBuffer+(pos*(0x100*rvidVRes)), 0x100*rvidVRes);
-										sndUpdateStream();
-									}
-								}
-							} else {
-								for (int b = 0; b < 2; b++) {
-									const int pos = (i*2)+b;
-									loadFramePal(pos);
-									fread(frameBuffer+(pos*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
-									sndUpdateStream();
-								}
-							}
-						} else {
-							if (rvidCompressed) {
-								if ((loadedFrames % 128) == 0) {
-									fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
-								}
-								if (compressedFrameSizes[loadedFrames % 128] > 0
-								|| compressedFrameSizes[loadedFrames % 128] <= sizeof(compressedFrameBuffer)) {
-									loadFramePal(i);
-									fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedFrames % 128], rvid);
-									sndUpdateStream();
-									lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
-									DC_FlushRange(frameBuffer+(i*(0x100*rvidVRes)), 0x100*rvidVRes);
-									sndUpdateStream();
-								}
-							} else {
-								loadFramePal(i);
-								fread(frameBuffer+(i*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
-								sndUpdateStream();
-							}
-						}
-						loadedFrames++;
+						loadFrame(i);
 					}
 
 					if (playerControls()) {
@@ -787,8 +703,9 @@ int playRvid(const char* filename) {
 
 			useBufferHalf = true;
 			useSoundBufferHalf = false;
+			updateSoundBuffer = false;
 			videoPausedPrior = false;
-			loadFrame = true;
+			displayFrame = true;
 			frameOfRefreshRate = 0;
 			currentFrame = 0;
 			currentFrameInBuffer = 0;
@@ -804,48 +721,8 @@ int playRvid(const char* filename) {
 			// Reload video
 			fseek(rvid, rvidFramesOffset, SEEK_SET);
 			loadedFrames = 0;
-			if (rvidDualScreen) {
-				if (rvidCompressed) {
-					fseek(rvidFrameSizeTable, 0x200, SEEK_SET);
-					fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
-					for (int i = 0; i < frameBufferCount/2; i++) {
-						for (int b = 0; b < 2; b++) {
-							const int pos = (i*2)+b;
-							loadFramePal(pos);
-							fread(compressedFrameBuffer, 1, compressedFrameSizes[pos], rvid);
-							lzssDecompress(compressedFrameBuffer, frameBuffer+(pos*(0x100*rvidVRes)));
-							DC_FlushRange(frameBuffer+(pos*(0x100*rvidVRes)), 0x100*rvidVRes);
-						}
-						loadedFrames++;
-					}
-				} else {
-					for (int i = 0; i < frameBufferCount/2; i++) {
-						for (int b = 0; b < 2; b++) {
-							const int pos = (i*2)+b;
-							loadFramePal(pos);
-							fread(frameBuffer+(pos*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
-						}
-						loadedFrames++;
-					}
-				}
-			} else {
-				if (rvidCompressed) {
-					fseek(rvidFrameSizeTable, 0x200, SEEK_SET);
-					fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
-					for (int i = 0; i < frameBufferCount/2; i++) {
-						loadFramePal(i);
-						fread(compressedFrameBuffer, 1, compressedFrameSizes[i], rvid);
-						lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
-						DC_FlushRange(frameBuffer+(i*(0x100*rvidVRes)), 0x100*rvidVRes);
-						loadedFrames++;
-					}
-				} else {
-					for (int i = 0; i < frameBufferCount/2; i++) {
-						loadFramePal(i);
-						fread(frameBuffer+(i*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
-						loadedFrames++;
-					}
-				}
+			for (int i = 0; i < frameBufferCount/2; i++) {
+				loadFrame(i);
 			}
 
 			if (rvidHasSound) {
@@ -882,14 +759,18 @@ int playRvid(const char* filename) {
 
 	// while (dmaBusy(3));
 	irqSet(IRQ_HBLANK, HBlankNull);
+	if (rvidCompressed) {
+		delete[] compressedFrameSizes;
+	}
 	delete[] frameBuffer;
 	bgInitSub(3, BgType_Bmp16, BgSize_B16_256x256, 0, 0);
 
 	showVideoGui = false;
 	useBufferHalf = true;
 	useSoundBufferHalf = false;
+	updateSoundBuffer = false;
 	videoPausedPrior = false;
-	loadFrame = true;
+	displayFrame = true;
 	frameOfRefreshRate = 0;
 	currentFrame = 0;
 	currentFrameInBuffer = 0;
@@ -1076,7 +957,6 @@ int main(int argc, char **argv) {
 				} else {
 					int err = playRvid(filename.c_str());
 					fclose(rvid);
-					fclose(rvidFrameSizeTable);
 					fclose(rvidSound);
 					if (err == 4) {
 						consoleClear();
