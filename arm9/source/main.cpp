@@ -344,7 +344,7 @@ ITCM_CODE void renderFrames(void) {
 bool confirmReturn = false;
 bool confirmStop = false;
 
-bool playerControls(void) {
+void sndUpdateStream(void) {
 	if (updateSoundBuffer) {
 		sndId[0] = soundPlaySample(soundBuffer[useSoundBufferHalf], SoundFormat_16Bit, soundBufferReadLen*sizeof(u16), rvidSampleRate, 127, 0, false, 0);
 		sndId[1] = soundPlaySample(soundBuffer[useSoundBufferHalf], SoundFormat_16Bit, soundBufferReadLen*sizeof(u16), rvidSampleRate, 127, 127, false, 0);
@@ -360,6 +360,10 @@ bool playerControls(void) {
 		videoPausedPrior = false;
 	}
 	replaySoundBuffer = false;
+}
+
+bool playerControls(void) {
+	sndUpdateStream();
 
 	scanKeys();
 	touchRead(&touch);
@@ -619,8 +623,10 @@ int playRvid(const char* filename) {
 									|| compressedFrameSizes[loadedPos % 128] <= sizeof(compressedFrameBuffer)) {
 										fread(palBuffer[pos], 2, 256, rvid);
 										fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedPos % 128], rvid);
+										sndUpdateStream();
 										lzssDecompress(compressedFrameBuffer, frameBuffer+(pos*(0x100*rvidVRes)));
 										DC_FlushRange(frameBuffer+(pos*(0x100*rvidVRes)), 0x100*rvidVRes);
+										sndUpdateStream();
 									}
 								}
 							} else {
@@ -628,6 +634,7 @@ int playRvid(const char* filename) {
 									const int pos = (i*2)+b;
 									fread(palBuffer[pos], 2, 256, rvid);
 									fread(frameBuffer+(pos*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
+									sndUpdateStream();
 								}
 							}
 						} else {
@@ -639,12 +646,15 @@ int playRvid(const char* filename) {
 								|| compressedFrameSizes[loadedFrames % 128] <= sizeof(compressedFrameBuffer)) {
 									fread(palBuffer[i], 2, 256, rvid);
 									fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedFrames % 128], rvid);
+									sndUpdateStream();
 									lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
 									DC_FlushRange(frameBuffer+(i*(0x100*rvidVRes)), 0x100*rvidVRes);
+									sndUpdateStream();
 								}
 							} else {
 								fread(palBuffer[i], 2, 256, rvid);
 								fread(frameBuffer+(i*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
+								sndUpdateStream();
 							}
 						}
 						loadedFrames++;
@@ -674,8 +684,10 @@ int playRvid(const char* filename) {
 									|| compressedFrameSizes[loadedPos % 128] <= sizeof(compressedFrameBuffer)) {
 										fread(palBuffer[pos], 2, 256, rvid);
 										fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedPos % 128], rvid);
+										sndUpdateStream();
 										lzssDecompress(compressedFrameBuffer, frameBuffer+(pos*(0x100*rvidVRes)));
 										DC_FlushRange(frameBuffer+(pos*(0x100*rvidVRes)), 0x100*rvidVRes);
+										sndUpdateStream();
 									}
 								}
 							} else {
@@ -683,6 +695,7 @@ int playRvid(const char* filename) {
 									const int pos = (i*2)+b;
 									fread(palBuffer[pos], 2, 256, rvid);
 									fread(frameBuffer+(pos*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
+									sndUpdateStream();
 								}
 							}
 						} else {
@@ -694,12 +707,15 @@ int playRvid(const char* filename) {
 								|| compressedFrameSizes[loadedFrames % 128] <= sizeof(compressedFrameBuffer)) {
 									fread(palBuffer[i], 2, 256, rvid);
 									fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedFrames % 128], rvid);
+									sndUpdateStream();
 									lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
 									DC_FlushRange(frameBuffer+(i*(0x100*rvidVRes)), 0x100*rvidVRes);
+									sndUpdateStream();
 								}
 							} else {
 								fread(palBuffer[i], 2, 256, rvid);
 								fread(frameBuffer+(i*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
+								sndUpdateStream();
 							}
 						}
 						loadedFrames++;
