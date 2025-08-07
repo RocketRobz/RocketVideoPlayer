@@ -66,8 +66,8 @@ u8 compressedFrameBuffer[0x10000];
 u32 compressedFrameSizes[128];
 
 u16 palBuffer[60][256];
-u8 frameBuffer[0xC000*30];					// 30 frames in buffer
-int frameBufferCount = 30;
+u8* frameBuffer = NULL;					// 32 frames in buffer (64 halved frames for interlaced videos)
+int frameBufferCount = 32;
 int topBg;
 int bottomBg;
 bool useBufferHalf = true;
@@ -457,7 +457,7 @@ int playRvid(const char* filename) {
 	videoYpos = 0;
 
 	if (rvidInterlaced) {
-		frameBufferCount = 60;
+		frameBufferCount = 64;
 		if (rvidVRes <= 190/2) {
 			// Adjust video positioning
 			for (int i = rvidVRes; i < 192/2; i += 2) {
@@ -465,7 +465,7 @@ int playRvid(const char* filename) {
 			}
 		}
 	} else {
-		frameBufferCount = 30;
+		frameBufferCount = 32;
 		if (rvidVRes <= 190) {
 			// Adjust video positioning
 			for (int i = rvidVRes; i < 192; i += 2) {
@@ -524,6 +524,8 @@ int playRvid(const char* filename) {
 	sprintf(timeStamp, "00:00:00/%s:%s:%s",
 	numberMark[3], numberMark[4], numberMark[5]);
 	updateVideoGuiFrame = true;
+
+	frameBuffer = new u8[0xC000*32];
 
 	fseek(rvid, rvidFramesOffset, SEEK_SET);
 	loadedFrames = 0;
@@ -883,6 +885,7 @@ int playRvid(const char* filename) {
 
 	// while (dmaBusy(3));
 	irqSet(IRQ_HBLANK, HBlankNull);
+	delete[] frameBuffer;
 	bgInitSub(3, BgType_Bmp16, BgSize_B16_256x256, 0, 0);
 
 	showVideoGui = false;
