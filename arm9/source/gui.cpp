@@ -21,9 +21,36 @@ static int barAdjust = 0;
 
 static int buttonTexID[2];
 
+extern u16* colorTable;
+extern u16 whiteColor;
+static u16 titleBarColor = RGB15(0/8, 176/8, 248/8);
+static u16 titleBarEdgeColor = RGB15(160/8, 224/8, 248/8);
+static u16 bottomGrayBarColor = RGB15(184/8, 184/8, 184/8);
+static u16 playBarEdgeColor = RGB15(152/8, 152/8, 152/8);
+static u16 playBarGrayPartColor = RGB15(96/8, 96/8, 96/8);
+static u16 playBarSliderEdgeColor = RGB15(120/8, 120/8, 120/8);
+static u16 playBarSliderShadeColor = RGB15(216/8, 216/8, 216/8);
+
 static glImage buttonImage[2][(128 / 32) * (128 / 64)];
 
 void loadGraphics(void) {
+	if (colorTable) {
+		titleBarColor = colorTable[titleBarColor];
+		titleBarEdgeColor = colorTable[titleBarEdgeColor];
+		bottomGrayBarColor = colorTable[bottomGrayBarColor];
+		playBarEdgeColor = colorTable[playBarEdgeColor];
+		playBarGrayPartColor = colorTable[playBarGrayPartColor];
+		playBarSliderEdgeColor = colorTable[playBarSliderEdgeColor];
+		playBarSliderShadeColor = colorTable[playBarSliderShadeColor];
+
+		u16* buttonsPalChange = (u16*)buttonsPal;
+		u16* large_buttonsPalChange = (u16*)large_buttonsPal;
+		for (int i = 0; i < 16; i++) {
+			buttonsPalChange[i] = colorTable[buttonsPalChange[i]];
+			large_buttonsPalChange[i] = colorTable[large_buttonsPalChange[i]];
+		}
+	}
+
 	buttonTexID[0] = glLoadTileSet(buttonImage[0], // pointer to glImage array
 							128, // sprite width
 							64, // sprite height
@@ -78,23 +105,23 @@ void renderGui(void) {
 
 	glBegin2D();
 	{
-		glBoxFilled(0, 0, 255, 191, RGB15(255/8, 255/8, 255/8));		// BG
+		glBoxFilled(0, 0, 255, 191, whiteColor);		// BG
 		/*if (currentFrame > loadedFrames) {
 			glBoxFilled(0, 0, 255, 59, RGB15(248/8, 0/8, 0/8));			// Title bar
 			glBoxFilled(0, 58, 255, 58, RGB15(255/8, 0/8, 0/8));		// Title bar edge
 		} else {*/
-			glBoxFilled(0, 0, 255, 59, RGB15(0/8, 176/8, 248/8));			// Title bar
-			glBoxFilled(0, 58, 255, 58, RGB15(160/8, 224/8, 248/8));		// Title bar edge
+			glBoxFilled(0, 0, 255, 59, titleBarColor);			// Title bar
+			glBoxFilled(0, 58, 255, 58, titleBarEdgeColor);		// Title bar edge
 		//}
-		glBoxFilled(0, 160, 255, 191, RGB15(184/8, 184/8, 184/8));	// Bottom gray bar
-		glBoxFilled(14, 142, 241, 145, RGB15(152/8, 152/8, 152/8));	// Play bar horizontal edge
-		glBoxFilled(15, 141, 240, 146, RGB15(152/8, 152/8, 152/8));	// Play bar mid edge
-		glBoxFilled(16, 140, 239, 147, RGB15(152/8, 152/8, 152/8));	// Play bar vertical edge
-		glBoxFilled(16, 142, 239, 145, RGB15(255/8, 255/8, 255/8));	// Behind gray part of play bar
-		glBoxFilled(16+barAdjust, 142, 239, 145, RGB15(96/8, 96/8, 96/8));	// Gray part of play bar
-		glBoxFilled(12+barAdjust, 134, 19+barAdjust, 153, RGB15(120/8, 120/8, 120/8));	// Play bar slider edge
-		glBoxFilled(14+barAdjust, 136, 17+barAdjust, 151, RGB15(255/8, 255/8, 255/8));	// Play bar slider
-		glBoxFilled(14+barAdjust, 148, 17+barAdjust, 151, RGB15(216/8, 216/8, 216/8));	// Play bar slider shading
+		glBoxFilled(0, 160, 255, 191, bottomGrayBarColor);	// Bottom gray bar
+		glBoxFilled(14, 142, 241, 145, playBarEdgeColor);	// Play bar horizontal edge
+		glBoxFilled(15, 141, 240, 146, playBarEdgeColor);	// Play bar mid edge
+		glBoxFilled(16, 140, 239, 147, playBarEdgeColor);	// Play bar vertical edge
+		glBoxFilled(16, 142, 239, 145, whiteColor);	// Behind gray part of play bar
+		glBoxFilled(16+barAdjust, 142, 239, 145, playBarGrayPartColor);	// Gray part of play bar
+		glBoxFilled(12+barAdjust, 134, 19+barAdjust, 153, playBarSliderEdgeColor);	// Play bar slider edge
+		glBoxFilled(14+barAdjust, 136, 17+barAdjust, 151, whiteColor);	// Play bar slider
+		glBoxFilled(14+barAdjust, 148, 17+barAdjust, 151, playBarSliderShadeColor);	// Play bar slider shading
 
 		glSprite(73, 76, GL_FLIP_NONE, &buttonImage[0][videoPlaying]);
 		glSprite(2, 162, GL_FLIP_NONE, buttonImage[1]);

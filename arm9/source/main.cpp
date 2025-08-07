@@ -44,6 +44,20 @@
 
 vu32* sharedAddr = (vu32*)0x02FFFD00;
 
+u32 getFileSize(const char *fileName)
+{
+	FILE* fp = fopen(fileName, "rb");
+	u32 fsize = 0;
+	if (fp) {
+		fseek(fp, 0, SEEK_END);
+		fsize = ftell(fp);			// Get source file's size
+		fseek(fp, 0, SEEK_SET);
+	}
+	fclose(fp);
+
+	return fsize;
+}
+
 extern rvidHeaderCheckInfo rvidHeaderCheck;
 // extern rvidHeaderInfo1 rvidHeader1;
 extern rvidHeaderInfo2 rvidHeader2;
@@ -74,8 +88,18 @@ void clearBrightness(void) {
 	screenBrightness = 0;
 }
 
+u16* colorTable = NULL;
+bool invertedColors = false;
+bool noWhiteFade = false;
+
+u16 whiteColor = 0xFFFF;
+
 // Ported from PAlib (obsolete)
 void SetBrightness(u8 screen, s8 bright) {
+	if ((invertedColors && bright != 0) || (noWhiteFade && bright > 0)) {
+		bright -= bright*2; // Invert brightness to match the inverted colors
+	}
+
 	u16 mode = 1 << 14;
 
 	if (bright < 0) {
@@ -362,6 +386,15 @@ ITCM_CODE void renderFrames(void) {
 bool confirmReturn = false;
 bool confirmStop = false;
 
+static inline void loadFramePal(const int num) {
+	fread(palBuffer[num], 2, 256, rvid);
+	if (colorTable) {
+		for (int i = 0; i < 256; i++) {
+			palBuffer[num][i] = colorTable[palBuffer[num][i]];
+		}
+	}
+}
+
 void sndUpdateStream(void) {
 	if (!updateSoundBuffer) {
 		return;
@@ -501,7 +534,7 @@ int playRvid(const char* filename) {
 			for (int i = 0; i < frameBufferCount/2; i++) {
 				for (int b = 0; b < 2; b++) {
 					const int pos = (i*2)+b;
-					fread(palBuffer[pos], 2, 256, rvid);
+					loadFramePal(pos);
 					fread(compressedFrameBuffer, 1, compressedFrameSizes[pos], rvid);
 					lzssDecompress(compressedFrameBuffer, frameBuffer+(pos*(0x100*rvidVRes)));
 					DC_FlushRange(frameBuffer+(pos*(0x100*rvidVRes)), 0x100*rvidVRes);
@@ -512,7 +545,7 @@ int playRvid(const char* filename) {
 			for (int i = 0; i < frameBufferCount/2; i++) {
 				for (int b = 0; b < 2; b++) {
 					const int pos = (i*2)+b;
-					fread(palBuffer[pos], 2, 256, rvid);
+					loadFramePal(pos);
 					fread(frameBuffer+(pos*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
 				}
 				loadedFrames++;
@@ -524,7 +557,7 @@ int playRvid(const char* filename) {
 			fseek(rvidFrameSizeTable, 0x200, SEEK_SET);
 			fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
 			for (int i = 0; i < frameBufferCount/2; i++) {
-				fread(palBuffer[i], 2, 256, rvid);
+				loadFramePal(i);
 				fread(compressedFrameBuffer, 1, compressedFrameSizes[i], rvid);
 				lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
 				DC_FlushRange(frameBuffer+(i*(0x100*rvidVRes)), 0x100*rvidVRes);
@@ -532,7 +565,7 @@ int playRvid(const char* filename) {
 			}
 		} else {
 			for (int i = 0; i < frameBufferCount/2; i++) {
-				fread(palBuffer[i], 2, 256, rvid);
+				loadFramePal(i);
 				fread(frameBuffer+(i*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
 				loadedFrames++;
 			}
@@ -564,10 +597,10 @@ int playRvid(const char* filename) {
 		consoleClear();
 	}
 
-	dmaFillHalfWords(0xFFFF, BG_PALETTE_SUB, 256*2);	// Fill top screen with white
+	dmaFillHalfWords(whiteColor, BG_PALETTE_SUB, 256*2);	// Fill top screen with white
 	topBg = bgInitSub(3, BgType_Bmp8, BgSize_B8_256x256, 0, 0);
 	if (rvidDualScreen) {
-		dmaFillHalfWords(0xFFFF, BG_PALETTE, 256*2);	// Fill bottom screen with white
+		dmaFillHalfWords(whiteColor, BG_PALETTE, 256*2);	// Fill bottom screen with white
 		bottomBg = bgInit(3, BgType_Bmp8, BgSize_B8_256x256, 0, 0);
 	}
 
@@ -631,7 +664,7 @@ int playRvid(const char* filename) {
 									}
 									if (compressedFrameSizes[loadedPos % 128] > 0
 									|| compressedFrameSizes[loadedPos % 128] <= sizeof(compressedFrameBuffer)) {
-										fread(palBuffer[pos], 2, 256, rvid);
+										loadFramePal(pos);
 										fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedPos % 128], rvid);
 										sndUpdateStream();
 										lzssDecompress(compressedFrameBuffer, frameBuffer+(pos*(0x100*rvidVRes)));
@@ -642,7 +675,7 @@ int playRvid(const char* filename) {
 							} else {
 								for (int b = 0; b < 2; b++) {
 									const int pos = (i*2)+b;
-									fread(palBuffer[pos], 2, 256, rvid);
+									loadFramePal(pos);
 									fread(frameBuffer+(pos*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
 									sndUpdateStream();
 								}
@@ -654,7 +687,7 @@ int playRvid(const char* filename) {
 								}
 								if (compressedFrameSizes[loadedFrames % 128] > 0
 								|| compressedFrameSizes[loadedFrames % 128] <= sizeof(compressedFrameBuffer)) {
-									fread(palBuffer[i], 2, 256, rvid);
+									loadFramePal(i);
 									fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedFrames % 128], rvid);
 									sndUpdateStream();
 									lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
@@ -662,7 +695,7 @@ int playRvid(const char* filename) {
 									sndUpdateStream();
 								}
 							} else {
-								fread(palBuffer[i], 2, 256, rvid);
+								loadFramePal(i);
 								fread(frameBuffer+(i*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
 								sndUpdateStream();
 							}
@@ -692,7 +725,7 @@ int playRvid(const char* filename) {
 									}
 									if (compressedFrameSizes[loadedPos % 128] > 0
 									|| compressedFrameSizes[loadedPos % 128] <= sizeof(compressedFrameBuffer)) {
-										fread(palBuffer[pos], 2, 256, rvid);
+										loadFramePal(pos);
 										fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedPos % 128], rvid);
 										sndUpdateStream();
 										lzssDecompress(compressedFrameBuffer, frameBuffer+(pos*(0x100*rvidVRes)));
@@ -703,7 +736,7 @@ int playRvid(const char* filename) {
 							} else {
 								for (int b = 0; b < 2; b++) {
 									const int pos = (i*2)+b;
-									fread(palBuffer[pos], 2, 256, rvid);
+									loadFramePal(pos);
 									fread(frameBuffer+(pos*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
 									sndUpdateStream();
 								}
@@ -715,7 +748,7 @@ int playRvid(const char* filename) {
 								}
 								if (compressedFrameSizes[loadedFrames % 128] > 0
 								|| compressedFrameSizes[loadedFrames % 128] <= sizeof(compressedFrameBuffer)) {
-									fread(palBuffer[i], 2, 256, rvid);
+									loadFramePal(i);
 									fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedFrames % 128], rvid);
 									sndUpdateStream();
 									lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
@@ -723,7 +756,7 @@ int playRvid(const char* filename) {
 									sndUpdateStream();
 								}
 							} else {
-								fread(palBuffer[i], 2, 256, rvid);
+								loadFramePal(i);
 								fread(frameBuffer+(i*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
 								sndUpdateStream();
 							}
@@ -778,7 +811,7 @@ int playRvid(const char* filename) {
 					for (int i = 0; i < frameBufferCount/2; i++) {
 						for (int b = 0; b < 2; b++) {
 							const int pos = (i*2)+b;
-							fread(palBuffer[pos], 2, 256, rvid);
+							loadFramePal(pos);
 							fread(compressedFrameBuffer, 1, compressedFrameSizes[pos], rvid);
 							lzssDecompress(compressedFrameBuffer, frameBuffer+(pos*(0x100*rvidVRes)));
 							DC_FlushRange(frameBuffer+(pos*(0x100*rvidVRes)), 0x100*rvidVRes);
@@ -789,7 +822,7 @@ int playRvid(const char* filename) {
 					for (int i = 0; i < frameBufferCount/2; i++) {
 						for (int b = 0; b < 2; b++) {
 							const int pos = (i*2)+b;
-							fread(palBuffer[pos], 2, 256, rvid);
+							loadFramePal(pos);
 							fread(frameBuffer+(pos*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
 						}
 						loadedFrames++;
@@ -800,7 +833,7 @@ int playRvid(const char* filename) {
 					fseek(rvidFrameSizeTable, 0x200, SEEK_SET);
 					fread(compressedFrameSizes, sizeof(u32), 128, rvidFrameSizeTable);
 					for (int i = 0; i < frameBufferCount/2; i++) {
-						fread(palBuffer[i], 2, 256, rvid);
+						loadFramePal(i);
 						fread(compressedFrameBuffer, 1, compressedFrameSizes[i], rvid);
 						lzssDecompress(compressedFrameBuffer, frameBuffer+(i*(0x100*rvidVRes)));
 						DC_FlushRange(frameBuffer+(i*(0x100*rvidVRes)), 0x100*rvidVRes);
@@ -808,7 +841,7 @@ int playRvid(const char* filename) {
 					}
 				} else {
 					for (int i = 0; i < frameBufferCount/2; i++) {
-						fread(palBuffer[i], 2, 256, rvid);
+						loadFramePal(i);
 						fread(frameBuffer+(i*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
 						loadedFrames++;
 					}
@@ -878,6 +911,11 @@ void LoadBMP(void) {
 	for(unsigned i=0;i<image.size()/4;i++) {
 		BG_GFX_SUB[i] = image[i*4]>>3 | (image[(i*4)+1]>>3)<<5 | (image[(i*4)+2]>>3)<<10 | BIT(15);
 	}
+	if (colorTable) {
+		for(unsigned i=0;i<image.size()/4;i++) {
+			BG_GFX_SUB[i] = colorTable[BG_GFX_SUB[i] % 0x8000] | BIT(15);
+		}
+	}
 }
 
 static std::string filename;
@@ -892,10 +930,54 @@ int main(int argc, char **argv) {
 		stop();
 	}
 
-	// nitroFSInit();
+	char currentSettingPath[40];
+	sprintf(currentSettingPath, "/_nds/colorLut/currentSetting.txt");
+
+	if (access(currentSettingPath, F_OK) == 0) {
+		// Load color LUT
+		char lutName[128] = {0};
+		FILE* file = fopen(currentSettingPath, "rb");
+		fread(lutName, 1, 128, file);
+		fclose(file);
+
+		char colorTablePath[256];
+		sprintf(colorTablePath, "/_nds/colorLut/%s.lut", lutName);
+
+		u32 colorTableSize = getFileSize(colorTablePath);
+		if (colorTableSize > 0x10000 && colorTableSize < 0x20000) {
+			colorTableSize = 0x10000;
+		}
+		if (colorTableSize == 0x10000 || colorTableSize == 0x20000) {
+			colorTable = new u16[colorTableSize/sizeof(u16)];
+
+			FILE* file = fopen(colorTablePath, "rb");
+			fread(colorTable, 1, colorTableSize, file);
+			fclose(file);
+
+			const u16 color0 = colorTable[0] | BIT(15);
+			const u16 color7FFF = colorTable[0x7FFF] | BIT(15);
+
+			invertedColors =
+			  (color0 >= 0xF000 && color0 <= 0xFFFF
+			&& color7FFF >= 0x8000 && color7FFF <= 0x8FFF);
+			if (!invertedColors) noWhiteFade = (color7FFF < 0xF000);
+
+			vramSetBankD(VRAM_D_LCD);
+			tonccpy(VRAM_D, colorTable, colorTableSize); // Copy LUT to VRAM
+			if (colorTableSize == 0x10000) {
+				tonccpy(VRAM_D+(0x10000/2), colorTable, colorTableSize); // Copy LUT to VRAM
+			}
+			delete[] colorTable; // Free up RAM space
+			colorTable = VRAM_D;
+
+			whiteColor = colorTable[0xFFFF];
+		}
+	}
 
 	SetBrightness(0, 31);
 	SetBrightness(1, 31);
+
+	// nitroFSInit();
 
 	if (isDSiMode()) {
 		sharedAddr = (vu32*)0x0CFFFD00;
@@ -929,9 +1011,6 @@ int main(int argc, char **argv) {
 
 	loadGraphics();
 
-	dmaFillHalfWords(0, BG_GFX, 0x18000);		// Clear top screen
-	dmaFillHalfWords(0, BG_GFX_SUB, 0x18000);	// Clear bottom screen
-
 	lcdMainOnBottom();
 
 	keysSetRepeat(25,5);
@@ -961,6 +1040,11 @@ int main(int argc, char **argv) {
 			videoSetMode(MODE_0_2D);
 			vramSetBankG(VRAM_G_MAIN_BG);
 			consoleInit(NULL, 0, BgType_Text4bpp, BgSize_T_256x256, 15, 0, true, true);
+			if (colorTable) {
+				for (int i = 0; i < 256; i++) {
+					BG_PALETTE[i] = colorTable[BG_PALETTE[i]];
+				}
+			}
 			LoadBMP();
 			fadeType = true;
 

@@ -36,6 +36,8 @@
 #include "uvcoord_large_font.h"
 #include "TextPane.h"
 
+extern u16* colorTable;
+
 using namespace std;
 
 FontGraphic smallFont;
@@ -50,7 +52,18 @@ list<TextPane> panes;
 
 void fontInit()
 {
-	
+	if (colorTable) {
+		u16* palChange = (u16*)small_fontPal;
+		for (int i = 0; i < 16; i++) {
+			palChange[i] = colorTable[palChange[i]];
+		}
+
+		palChange = (u16*)large_fontPal;
+		for (int i = 0; i < 4; i++) {
+			palChange[i] = colorTable[palChange[i]];
+		}
+	}
+
 	smallFont.load(0, smallFontImages, // pointer to glImage array
 				DATE_TIME_FONT_NUM_IMAGES, // Texture packer auto-generated #define
 				date_time_font_texcoords, // Texture packer auto-generated array
