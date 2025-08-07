@@ -31,6 +31,8 @@
 #include <string.h>
 #include "fpsAdjust.h"
 
+vu32* sharedAddr = (vu32*)0x02FFFD00;
+
 static fpsa_t sActiveFpsa;
 
 extern void enableSound();
@@ -194,6 +196,16 @@ void IPCSyncHandler(void) {
 			den = 1;
 			startFpsa = true;
 			break;
+		case 3: {
+			const u16 freq = sharedAddr[2];
+			for (int channel = 0; channel < 2; channel++) {
+				SCHANNEL_CR(channel) &= ~SCHANNEL_ENABLE;
+				SCHANNEL_SOURCE(channel) = sharedAddr[0];
+				SCHANNEL_LENGTH(channel) = sharedAddr[1];
+				SCHANNEL_TIMER(channel) = SOUND_FREQ(freq);
+				SCHANNEL_CR(channel) = SCHANNEL_ENABLE | SOUND_VOL(127) | SOUND_PAN(channel ? 127 : 0) | SOUND_FORMAT_16BIT | SOUND_ONE_SHOT;
+			}
+		} break;
 	}
 
 	if (startFpsa) {

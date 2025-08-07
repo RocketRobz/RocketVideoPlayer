@@ -42,6 +42,8 @@
 
 #include "rvidHeader.h"
 
+vu32* sharedAddr = (vu32*)0x02FFFD00;
+
 extern rvidHeaderCheckInfo rvidHeaderCheck;
 // extern rvidHeaderInfo1 rvidHeader1;
 extern rvidHeaderInfo2 rvidHeader2;
@@ -62,8 +64,6 @@ u16 soundBufferLen = 0;
 int soundBufferDivide = 6;
 bool useSoundBufferHalf = false;
 bool updateSoundBuffer = false;
-bool replaySoundBuffer = false;
-int sndId[2] = {0};
 
 bool fadeType = false;
 
@@ -201,9 +201,22 @@ ITCM_CODE void renderFrames(void) {
 			if (!updateSoundBuffer && ((frameOfRefreshRate % (frameOfRefreshRateLimit/soundBufferDivide)) == 0)) {
 				soundBufferPos += soundBufferReadLen/soundBufferDivide;
 				soundBufferLen -= soundBufferReadLen/soundBufferDivide;
-				replaySoundBuffer = videoPausedPrior;
+				if (videoPausedPrior) {
+					sharedAddr[0] = (u32)soundBufferPos;
+					sharedAddr[1] = (soundBufferLen*sizeof(u16)) >> 2;
+					sharedAddr[2] = rvidSampleRate;
+					IPC_SendSync(3);
+					videoPausedPrior = false;
+				}
 			}
 			if ((frameOfRefreshRate % frameOfRefreshRateLimit) == 0) {
+				sharedAddr[0] = (u32)&soundBuffer[useSoundBufferHalf];
+				sharedAddr[1] = (soundBufferReadLen*sizeof(u16)) >> 2;
+				sharedAddr[2] = rvidSampleRate;
+				IPC_SendSync(3);
+
+				soundBufferPos = (u16*)&soundBuffer[useSoundBufferHalf];
+				soundBufferLen = rvidSampleRate;
 				updateSoundBuffer = true;
 			}
 		}
@@ -345,21 +358,13 @@ bool confirmReturn = false;
 bool confirmStop = false;
 
 void sndUpdateStream(void) {
-	if (updateSoundBuffer) {
-		sndId[0] = soundPlaySample(soundBuffer[useSoundBufferHalf], SoundFormat_16Bit, soundBufferReadLen*sizeof(u16), rvidSampleRate, 127, 0, false, 0);
-		sndId[1] = soundPlaySample(soundBuffer[useSoundBufferHalf], SoundFormat_16Bit, soundBufferReadLen*sizeof(u16), rvidSampleRate, 127, 127, false, 0);
-		soundBufferPos = (u16*)&soundBuffer[useSoundBufferHalf];
-		soundBufferLen = rvidSampleRate;
-		useSoundBufferHalf = !useSoundBufferHalf;
-		toncset(soundBuffer[useSoundBufferHalf], 0, soundBufferReadLen*sizeof(u16));
-		fread(soundBuffer[useSoundBufferHalf], sizeof(u16), soundBufferReadLen, rvidSound);
-		updateSoundBuffer = false;
-	} else if (replaySoundBuffer) {
-		sndId[0] = soundPlaySample(soundBufferPos, SoundFormat_16Bit, soundBufferLen*sizeof(u16), rvidSampleRate, 127, 0, false, 0);
-		sndId[1] = soundPlaySample(soundBufferPos, SoundFormat_16Bit, soundBufferLen*sizeof(u16), rvidSampleRate, 127, 127, false, 0);
-		videoPausedPrior = false;
+	if (!updateSoundBuffer) {
+		return;
 	}
-	replaySoundBuffer = false;
+	useSoundBufferHalf = !useSoundBufferHalf;
+	toncset(soundBuffer[useSoundBufferHalf], 0, soundBufferReadLen*sizeof(u16));
+	fread(soundBuffer[useSoundBufferHalf], sizeof(u16), soundBufferReadLen, rvidSound);
+	updateSoundBuffer = false;
 }
 
 bool playerControls(void) {
@@ -370,8 +375,8 @@ bool playerControls(void) {
 	if ((keysDown() & KEY_A) || ((keysDown() & KEY_LID) && videoPlaying)
 	|| (!rvidDualScreen && (keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
 		if (videoPlaying) {
-			soundKill(sndId[0]);
-			soundKill(sndId[1]);
+			soundKill(0);
+			soundKill(1);
 			videoPlaying = false;
 			updateVideoGuiFrame = true;
 		} else {
@@ -754,8 +759,8 @@ int playRvid(const char* filename) {
 			bottomField = false;
 
 			if (rvidHasSound) {
-				soundKill(sndId[0]);
-				soundKill(sndId[1]);
+				soundKill(0);
+				soundKill(1);
 			}
 
 			// Reload video
@@ -824,8 +829,8 @@ int playRvid(const char* filename) {
 	IPC_SendSync(0); // Disable frame rate adjustment
 
 	if (rvidHasSound) {
-		soundKill(sndId[0]);
-		soundKill(sndId[1]);
+		soundKill(0);
+		soundKill(1);
 	}
 
 	if (!bottomBacklight) {
@@ -886,6 +891,10 @@ int main(int argc, char **argv) {
 
 	SetBrightness(0, 31);
 	SetBrightness(1, 31);
+
+	if (isDSiMode()) {
+		sharedAddr = (vu32*)0x0CFFFD00;
+	}
 
 	irqSet(IRQ_VBLANK, renderFrames);
 	irqEnable(IRQ_VBLANK);
