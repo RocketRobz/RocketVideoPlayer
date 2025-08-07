@@ -139,8 +139,6 @@ touchPosition touch;
 FILE* rvid;
 FILE* rvidFrameSizeTable;
 FILE* rvidSound;
-u32 rvidSizeProcessed = 0;
-u32 rvidCurrentOffset = 0;
 bool showVideoGui = false;
 bool updateVideoGuiFrame = true;
 bool videoPlaying = false;
@@ -794,7 +792,6 @@ int playRvid(const char* filename) {
 			frameOfRefreshRate = 0;
 			currentFrame = 0;
 			currentFrameInBuffer = 0;
-			rvidSizeProcessed = 0;
 			frameDelay = 0;
 			frameDelayEven = true;
 			bottomField = false;
@@ -896,7 +893,6 @@ int playRvid(const char* filename) {
 	frameOfRefreshRate = 0;
 	currentFrame = 0;
 	currentFrameInBuffer = 0;
-	rvidSizeProcessed = 0;
 	frameDelay = 0;
 	frameDelayEven = true;
 	bottomField = false;
