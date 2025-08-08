@@ -33,6 +33,7 @@
 #include "top_png_bin.h"
 #include "gl2d.h"
 #include "graphics/lodepng.h"
+#include "graphics/fontHandler.h"
 #include "gui.h"
 #include "nitrofs.h"
 #include "tonccpy.h"
@@ -158,8 +159,7 @@ bool frameDelayEven = true;
 bool bottomField = false;
 
 char filenameToDisplay[256];
-
-char numberMark[6][16];
+bool filenameDisplayCentered = false;
 
 char timeStamp[96];
 
@@ -321,24 +321,8 @@ ITCM_CODE void renderFrames(void) {
 			}
 
 			// Current time stamp
-			if (hourMark < 10) {
-				sprintf(numberMark[0], "0%i", hourMark);
-			} else {
-				sprintf(numberMark[0], "%i", hourMark);
-			}
-			if (minuteMark < 10) {
-				sprintf(numberMark[1], "0%i", minuteMark);
-			} else {
-				sprintf(numberMark[1], "%i", minuteMark);
-			}
-			if (secondMark < 10) {
-				sprintf(numberMark[2], "0%i", secondMark);
-			} else {
-				sprintf(numberMark[2], "%i", secondMark);
-			}
-
-			sprintf(timeStamp, "%s:%s:%s/%s:%s:%s",
-			numberMark[0], numberMark[1], numberMark[2], numberMark[3], numberMark[4], numberMark[5]);
+			sprintf(timeStamp, "%02i:%02i:%02i/%02i:%02i:%02i",
+			hourMark, minuteMark, secondMark, videoHourMark, videoMinuteMark, videoSecondMark);
 			updateVideoGuiFrame = true;
 		}
 
@@ -561,6 +545,7 @@ int playRvid(const char* filename) {
 			break;
 		}
 	}
+	filenameDisplayCentered = (calcLargeFontWidth(filenameToDisplay) <= 248);
 
 	videoHourMark = -1;
 	videoMinuteMark = 59;
@@ -580,26 +565,8 @@ int playRvid(const char* filename) {
 	}
 
 	// Full time stamp
-	if (videoHourMark < 10) {
-		sprintf(numberMark[3], "0%i", videoHourMark);
-	} else {
-		sprintf(numberMark[3], "%i", videoHourMark);
-	}
-	//printf(":");
-	if (videoMinuteMark < 10) {
-		sprintf(numberMark[4], "0%i", videoMinuteMark);
-	} else {
-		sprintf(numberMark[4], "%i", videoMinuteMark);
-	}
-	//printf(":");
-	if (videoSecondMark < 10) {
-		sprintf(numberMark[5], "0%i", videoSecondMark);
-	} else {
-		sprintf(numberMark[5], "%i", videoSecondMark);
-	}
-
-	sprintf(timeStamp, "00:00:00/%s:%s:%s",
-	numberMark[3], numberMark[4], numberMark[5]);
+	sprintf(timeStamp, "00:00:00/%02i:%02i:%02i",
+	videoHourMark, videoMinuteMark, videoSecondMark);
 	updateVideoGuiFrame = true;
 	updatePlayBar();
 
@@ -648,8 +615,11 @@ int playRvid(const char* filename) {
 	if (rvidDualScreen) {
 		dmaFillHalfWords(whiteColor, BG_PALETTE, 256*2);	// Fill bottom screen with white
 		bottomBg = bgInit(3, BgType_Bmp8, BgSize_B8_256x256, 0, 0);
+	} else {
+		bgInit(3, BgType_Bmp16, BgSize_B16_256x256, 0, 0);
 	}
 
+	REG_BG3PD = 0x100;
 	if (rvidInterlaced) {
 		REG_BG3PD_SUB = 0x80;
 		if (rvidDualScreen) {
@@ -664,9 +634,11 @@ int playRvid(const char* filename) {
 	dmaCopyWords(3, compressedFrameBuffer, bgGetGfxPtr(topBg), 256*192);
 	if (rvidDualScreen) {
 		dmaCopyWords(3, compressedFrameBuffer, bgGetGfxPtr(bottomBg), 256*192);
+	} else {
+		renderGuiBg();
 	}
 
-	videoSetMode(rvidDualScreen ? (MODE_5_2D | DISPLAY_BG3_ACTIVE) : MODE_5_3D);
+	videoSetMode(rvidDualScreen ? (MODE_5_2D | DISPLAY_BG3_ACTIVE) : (MODE_5_3D | DISPLAY_BG3_ACTIVE));
 	showVideoGui = true;
 	updateVideoGuiFrame = true;
 
@@ -777,8 +749,8 @@ int playRvid(const char* filename) {
 			secondMark = 59;
 
 			if (currentFrame == 0) {
-				sprintf(timeStamp, "00:00:00/%s:%s:%s",
-				numberMark[3], numberMark[4], numberMark[5]);
+				sprintf(timeStamp, "00:00:00/%02i:%02i:%02i",
+				videoHourMark, videoMinuteMark, videoSecondMark);
 				updateVideoGuiFrame = true;
 				updatePlayBar();
 			} else {
@@ -809,24 +781,8 @@ int playRvid(const char* filename) {
 				}
 
 				// Current time stamp
-				if (hourMarkDisplay < 10) {
-					sprintf(numberMark[0], "0%i", hourMarkDisplay);
-				} else {
-					sprintf(numberMark[0], "%i", hourMarkDisplay);
-				}
-				if (minuteMarkDisplay < 10) {
-					sprintf(numberMark[1], "0%i", minuteMarkDisplay);
-				} else {
-					sprintf(numberMark[1], "%i", minuteMarkDisplay);
-				}
-				if (secondMarkDisplay < 10) {
-					sprintf(numberMark[2], "0%i", secondMarkDisplay);
-				} else {
-					sprintf(numberMark[2], "%i", secondMarkDisplay);
-				}
-
-				sprintf(timeStamp, "%s:%s:%s/%s:%s:%s",
-				numberMark[0], numberMark[1], numberMark[2], numberMark[3], numberMark[4], numberMark[5]);
+				sprintf(timeStamp, "%02i:%02i:%02i/%02i:%02i:%02i",
+				hourMark, minuteMark, secondMark, videoHourMark, videoMinuteMark, videoSecondMark);
 				updateVideoGuiFrame = true;
 
 				if (updateVideoGuiFrame) {
@@ -1038,8 +994,6 @@ int main(int argc, char **argv) {
 	vramSetBankB(VRAM_B_TEXTURE);
 	vramSetBankC(VRAM_C_SUB_BG);
 	vramSetBankE(VRAM_E_TEX_PALETTE);
-	vramSetBankF(VRAM_F_TEX_PALETTE_SLOT4);
-	vramSetBankG(VRAM_G_TEX_PALETTE_SLOT5); // 16Kb of palette ram, and font textures take up 8*16 bytes.
 
 	bgInit(3, BgType_Bmp16, BgSize_B16_256x256, 0, 0);
 	bgInitSub(3, BgType_Bmp16, BgSize_B16_256x256, 0, 0);

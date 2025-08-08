@@ -2,6 +2,7 @@
 
 #include "gl2d.h"
 #include "graphics/fontHandler.h"
+#include "tonccpy.h"
 
 #include "buttons.h"
 #include "large_buttons.h"
@@ -14,6 +15,7 @@ extern int currentFrame;
 extern int loadedFrames;
 
 extern char filenameToDisplay[256];
+extern bool filenameDisplayCentered;
 
 extern char timeStamp[96];
 
@@ -107,30 +109,36 @@ void resetPlayBar(void) {
 	barAdjust = 0;
 }
 
+void renderGuiBg(void) {
+	toncset16(BG_GFX+(256*60), whiteColor | BIT(15), 256*100); // BG
+	toncset16(BG_GFX, titleBarColor | BIT(15), 256*60); // Title bar
+	toncset16(BG_GFX+(256*58), titleBarEdgeColor | BIT(15), 256); // Title bar edge
+	toncset16(BG_GFX+(256*160), bottomGrayBarColor | BIT(15), 256*32); // Bottom gray bar
+
+	// Play bar edges
+	toncset16(BG_GFX+(256*140)+16, playBarEdgeColor | BIT(15), 224);
+	toncset16(BG_GFX+(256*141)+15, playBarEdgeColor | BIT(15), 226);
+
+	for (int i = 142; i <= 145; i++) {
+		toncset16(BG_GFX+(256*i)+14, playBarEdgeColor | BIT(15), 2);
+		toncset16(BG_GFX+(256*i)+240, playBarEdgeColor | BIT(15), 2);
+	}
+
+	toncset16(BG_GFX+(256*146)+15, playBarEdgeColor | BIT(15), 226);
+	toncset16(BG_GFX+(256*147)+16, playBarEdgeColor | BIT(15), 224);
+}
+
 void renderGui(void) {
 	clearText(false);
-	if (calcLargeFontWidth(filenameToDisplay) > 248) {
-		printLarge(false, 4, 20, filenameToDisplay);
-	} else {
+	if (filenameDisplayCentered) {
 		printLargeCentered(false, 20, filenameToDisplay);
+	} else {
+		printLarge(false, 4, 20, filenameToDisplay);
 	}
 	printSmallCentered(false, 120, timeStamp);
 
 	glBegin2D();
 	{
-		glBoxFilled(0, 0, 255, 191, whiteColor);		// BG
-		/*if (currentFrame > loadedFrames) {
-			glBoxFilled(0, 0, 255, 59, RGB15(248/8, 0/8, 0/8));			// Title bar
-			glBoxFilled(0, 58, 255, 58, RGB15(255/8, 0/8, 0/8));		// Title bar edge
-		} else {*/
-			glBoxFilled(0, 0, 255, 59, titleBarColor);			// Title bar
-			glBoxFilled(0, 58, 255, 58, titleBarEdgeColor);		// Title bar edge
-		//}
-		glBoxFilled(0, 160, 255, 191, bottomGrayBarColor);	// Bottom gray bar
-		glBoxFilled(14, 142, 241, 145, playBarEdgeColor);	// Play bar horizontal edge
-		glBoxFilled(15, 141, 240, 146, playBarEdgeColor);	// Play bar mid edge
-		glBoxFilled(16, 140, 239, 147, playBarEdgeColor);	// Play bar vertical edge
-		glBoxFilled(16, 142, 239, 145, whiteColor);	// Behind gray part of play bar
 		glBoxFilled(16+barAdjust, 142, 239, 145, playBarGrayPartColor);	// Gray part of play bar
 		glBoxFilled(12+barAdjust, 134, 19+barAdjust, 153, playBarSliderEdgeColor);	// Play bar slider edge
 		glBoxFilled(14+barAdjust, 136, 17+barAdjust, 151, whiteColor);	// Play bar slider
