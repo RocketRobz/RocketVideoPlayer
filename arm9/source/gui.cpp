@@ -109,7 +109,11 @@ void resetPlayBar(void) {
 
 void renderGui(void) {
 	clearText(false);
-	printLarge(false, 4, 20, filenameToDisplay);
+	if (calcLargeFontWidth(filenameToDisplay) > 248) {
+		printLarge(false, 4, 20, filenameToDisplay);
+	} else {
+		printLargeCentered(false, 20, filenameToDisplay);
+	}
 	printSmallCentered(false, 120, timeStamp);
 
 	glBegin2D();
