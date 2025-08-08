@@ -867,7 +867,11 @@ int playRvid(const char* filename) {
 			fseek(rvid, rvidSeekOffset, SEEK_SET);
 			loadedFrames = currentFrame;
 			for (int i = 0; i < frameBufferCount/2; i++) {
-				loadFrame(i);
+				if (loadedFrames < rvidFrames) {
+					loadFrame(i);
+				} else {
+					break;
+				}
 			}
 
 			if (rvidHasSound) {
