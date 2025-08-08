@@ -412,6 +412,10 @@ static inline void loadFramePal(const int num) {
 }
 
 void loadFrame(const int num) {
+	if (loadedFrames >= rvidFrames) {
+		return;
+	}
+
 	if (rvidDualScreen) {
 		if (rvidCompressed) {
 			for (int b = 0; b < 2; b++) {
@@ -695,10 +699,7 @@ int playRvid(const char* filename) {
 		{
 			if (useBufferHalf) {
 				for (int i = frameBufferCount/2; i < frameBufferCount; i++) {
-					if (loadedFrames < rvidFrames) {
-						loadFrame(i);
-					}
-
+					loadFrame(i);
 					if (playerControls()) {
 						break;
 					}
@@ -710,10 +711,7 @@ int playRvid(const char* filename) {
 		{
 			if (!useBufferHalf) {
 				for (int i = 0; i < frameBufferCount/2; i++) {
-					if (loadedFrames < rvidFrames) {
-						loadFrame(i);
-					}
-
+					loadFrame(i);
 					if (playerControls()) {
 						break;
 					}
@@ -867,11 +865,7 @@ int playRvid(const char* filename) {
 			fseek(rvid, rvidSeekOffset, SEEK_SET);
 			loadedFrames = currentFrame;
 			for (int i = 0; i < frameBufferCount/2; i++) {
-				if (loadedFrames < rvidFrames) {
-					loadFrame(i);
-				} else {
-					break;
-				}
+				loadFrame(i);
 			}
 
 			if (rvidHasSound) {
