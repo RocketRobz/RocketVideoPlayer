@@ -126,6 +126,8 @@ void renderGuiBg(void) {
 
 	toncset16(BG_GFX+(256*146)+15, playBarEdgeColor | BIT(15), 226);
 	toncset16(BG_GFX+(256*147)+16, playBarEdgeColor | BIT(15), 224);
+
+	largeFont_clearFontCharCache();
 }
 
 void renderGui(void) {
@@ -135,7 +137,8 @@ void renderGui(void) {
 	} else {
 		printLarge(false, 4, 20, filenameToDisplay);
 	}
-	printSmallCentered(false, 120, timeStamp);
+	// printSmallCentered(false, 120, timeStamp);
+	printSmall(false, 68, 120, timeStamp);
 
 	glBegin2D();
 	{

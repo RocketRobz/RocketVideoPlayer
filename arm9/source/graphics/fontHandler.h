@@ -28,6 +28,7 @@ void fontInit(const int favoriteColor);
 void updateText(bool top);
 void clearText(bool top);
 void clearText();
+void largeFont_clearFontCharCache();
 void printSmall(bool top, int x, int y, const char *message);
 void printSmallCentered(bool top, int y, const char *message);
 void printLarge(bool top, int x, int y, const char *message);

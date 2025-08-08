@@ -21,6 +21,11 @@ private:
 	unsigned int imageCount;
 	char buffer[256];
 	char buffer2[256];
+	bool fontCharCacheEnabled = false;
+	u16 fontCharCache[256] = {0xFFFF};
+	bool fontCharCached = false;
+	int centeredXCache;
+	bool centeredXCached = false;
 	unsigned int getSpriteIndex(const u16 letter);
 
 public:
@@ -36,8 +41,10 @@ public:
 			int pallette_width,
 			const u16 *palette,
 			const uint8 *texture,
-			const unsigned short int *_mapping
+			const unsigned short int *_mapping,
+			const bool enableFontCharCache
 			);
+	void clearFontCharCache();
 	void print(int x, int y, const char *text);
 	int calcWidth(const char *text);
 	void print(int x, int y, int value);

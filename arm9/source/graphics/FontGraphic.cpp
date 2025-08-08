@@ -26,13 +26,15 @@ int FontGraphic::load(int textureID, glImage *_font_sprite,
 				  int pallette_width,
 				  const u16 *palette,
 				  const uint8 *texture,
-				  const unsigned short int *_mapping
+				  const unsigned short int *_mapping,
+				  const bool enableFontCharCache
 				  )
 
 {
 	fontSprite = _font_sprite;
 	imageCount = numframes;
 	mapping = _mapping;
+	fontCharCacheEnabled = enableFontCharCache;
 	if (fontTextureID[textureID]) glDeleteTextures(1, &fontTextureID[textureID]);
 	fontTextureID[textureID] =
 			glLoadSpriteSet(fontSprite,
@@ -59,9 +61,21 @@ unsigned int FontGraphic::getSpriteIndex(const u16 letter) {
 	for (unsigned int i = 0; i < imageCount; i++) {
 		if (mapping[i] == letter) {
 			spriteIndex = i;
+			break;
 		}
 	}
 	return spriteIndex;
+}
+
+void FontGraphic::clearFontCharCache() {
+	if (!fontCharCacheEnabled) {
+		return;
+	}
+	for (int i = 0; i < 256; i++) {
+		fontCharCache[i] = 0xFFFF;
+	}
+	fontCharCached = false;
+	centeredXCached = false;
 }
 
 void FontGraphic::print(int x, int y, const char *text)
@@ -69,6 +83,15 @@ void FontGraphic::print(int x, int y, const char *text)
 	unsigned short int fontChar;
 	unsigned char lowBits;
 	unsigned char highBits;
+	if (fontCharCached) {
+		for (int i = 0; i < 256; i++) {
+			if (fontCharCache[i] == 0xFFFF) break;
+			glSprite(x, y, GL_FLIP_NONE, &fontSprite[fontCharCache[i]]);
+			x += fontSprite[fontCharCache[i]].width;
+		}
+		return;
+	}
+	int i = 0;
 	while (*text)
 	{
 		lowBits = *(unsigned char*) text++;
@@ -77,14 +100,17 @@ void FontGraphic::print(int x, int y, const char *text)
 		} else {
 			lowBits = *(unsigned char*) text++; // LSB
 			highBits = *(unsigned char*) text++; // HSB
-			u16 assembled = (u16)(lowBits | highBits << 8);
-			
-			fontChar = getSpriteIndex(assembled);
+			fontChar = getSpriteIndex((u16)(lowBits | highBits << 8));
+		}
+		if (fontCharCacheEnabled) {
+			fontCharCache[i] = fontChar;
+			i++;
 		}
 		
 		glSprite(x, y, GL_FLIP_NONE, &fontSprite[fontChar]);
 		x += fontSprite[fontChar].width;
 	}
+	fontCharCached = fontCharCacheEnabled;
 }
 
 int FontGraphic::calcWidth(const char *text)
@@ -118,6 +144,9 @@ void FontGraphic::print(int x, int y, int value)
 
 int FontGraphic::getCenteredX(const char *text)
 {
+	if (centeredXCached) {
+		return centeredXCache;
+	}
 	unsigned short int fontChar;
 	unsigned char lowBits;
 	unsigned char highBits;
@@ -135,7 +164,12 @@ int FontGraphic::getCenteredX(const char *text)
 
 		total_width += fontSprite[fontChar].width;
 	}
-	return (SCREEN_WIDTH - total_width) / 2;
+	const int result = (SCREEN_WIDTH - total_width) / 2;
+	if (fontCharCacheEnabled) {
+		centeredXCache = result;
+		centeredXCached = true;
+	}
+	return result;
 }
 
 void FontGraphic::printCentered(int y, const char *text)
@@ -145,6 +179,15 @@ void FontGraphic::printCentered(int y, const char *text)
 	unsigned char highBits;	
 
 	int x = getCenteredX(text);
+	if (fontCharCached) {
+		for (int i = 0; i < 256; i++) {
+			if (fontCharCache[i] == 0xFFFF) break;
+			glSprite(x, y, GL_FLIP_NONE, &fontSprite[fontCharCache[i]]);
+			x += fontSprite[fontCharCache[i]].width;
+		}
+		return;
+	}
+	int i = 0;
 	while (*text)
 	{
 		lowBits = *(unsigned char*) text++;
@@ -155,11 +198,15 @@ void FontGraphic::printCentered(int y, const char *text)
 			highBits = *(unsigned char*) text++;
 			fontChar = getSpriteIndex((u16)(lowBits | highBits << 8));
 		}
+		if (fontCharCacheEnabled) {
+			fontCharCache[i] = fontChar;
+			i++;
+		}
 
-		fontChar = getSpriteIndex(*(unsigned char*) text++);
 		glSprite(x, y, GL_FLIP_NONE, &fontSprite[fontChar]);
 		x += fontSprite[fontChar].width;
 	}
+	fontCharCached = fontCharCacheEnabled;
 }
 
 void FontGraphic::printCentered(int y, int value)
