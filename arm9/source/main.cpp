@@ -207,6 +207,38 @@ ITCM_CODE void fillBordersInterlaced(void) {
 void HBlankNull(void) {
 }
 
+ITCM_CODE void dmaFrameToScreen(void) {
+	if (rvidDualScreen) {
+		if (rvidInterlaced) {
+			REG_BG3Y_SUB = bottomField ? -1 : 0;
+			REG_BG3Y = bottomField ? -1 : 0;
+		}
+		const int currentFrameInBufferDoubled = currentFrameInBuffer*2;
+		dmaCopyWordsAsynch(0, frameBuffer+(currentFrameInBufferDoubled*(0x100*rvidVRes)), bgGetGfxPtr(topBg)+((256/2)*videoYpos), 0x100*rvidVRes);
+		dmaCopyWordsAsynch(1, frameBuffer+((currentFrameInBufferDoubled+1)*(0x100*rvidVRes)), bgGetGfxPtr(bottomBg)+((256/2)*videoYpos), 0x100*rvidVRes);
+		if (rvidVRes == (rvidInterlaced ? 96 : 192)) {
+			dmaCopyHalfWordsAsynch(2, palBuffer[currentFrameInBufferDoubled], BG_PALETTE_SUB, 256*2);
+			dmaCopyHalfWordsAsynch(3, palBuffer[currentFrameInBufferDoubled+1], BG_PALETTE, 256*2);
+		} else {
+			dmaCopyHalfWordsAsynch(2, palBuffer[currentFrameInBufferDoubled]+1, BG_PALETTE_SUB+1, 255*2);
+			dmaCopyHalfWordsAsynch(3, palBuffer[currentFrameInBufferDoubled+1]+1, BG_PALETTE+1, 255*2);
+			SPRITE_PALETTE_SUB[0] = palBuffer[currentFrameInBufferDoubled][0];
+			SPRITE_PALETTE[0] = palBuffer[currentFrameInBufferDoubled+1][0];
+		}
+	} else {
+		if (rvidInterlaced) {
+			REG_BG3Y_SUB = bottomField ? -1 : 0;
+		}
+		dmaCopyWordsAsynch(0, frameBuffer+(currentFrameInBuffer*(0x100*rvidVRes)), bgGetGfxPtr(topBg)+((256/2)*videoYpos), 0x100*rvidVRes);
+		if (rvidVRes == (rvidInterlaced ? 96 : 192)) {
+			dmaCopyHalfWordsAsynch(2, palBuffer[currentFrameInBuffer], BG_PALETTE_SUB, 256*2);
+		} else {
+			dmaCopyHalfWordsAsynch(2, palBuffer[currentFrameInBuffer]+1, BG_PALETTE_SUB+1, 255*2);
+			SPRITE_PALETTE_SUB[0] = palBuffer[currentFrameInBuffer][0];
+		}
+	}
+}
+
 ITCM_CODE void renderFrames(void) {
 	if (fadeType) {
 		screenBrightness--;
@@ -271,35 +303,7 @@ ITCM_CODE void renderFrames(void) {
 	}
 	if (videoPlaying && (currentFrame <= loadedFrames) && displayFrame) {
 		if (currentFrame < rvidFrames) {
-			if (rvidDualScreen) {
-				if (rvidInterlaced) {
-					REG_BG3Y_SUB = bottomField ? -1 : 0;
-					REG_BG3Y = bottomField ? -1 : 0;
-				}
-				const int currentFrameInBufferDoubled = currentFrameInBuffer*2;
-				dmaCopyWordsAsynch(0, frameBuffer+(currentFrameInBufferDoubled*(0x100*rvidVRes)), bgGetGfxPtr(topBg)+((256/2)*videoYpos), 0x100*rvidVRes);
-				dmaCopyWordsAsynch(1, frameBuffer+((currentFrameInBufferDoubled+1)*(0x100*rvidVRes)), bgGetGfxPtr(bottomBg)+((256/2)*videoYpos), 0x100*rvidVRes);
-				if (rvidVRes == (rvidInterlaced ? 96 : 192)) {
-					dmaCopyHalfWordsAsynch(2, palBuffer[currentFrameInBufferDoubled], BG_PALETTE_SUB, 256*2);
-					dmaCopyHalfWordsAsynch(3, palBuffer[currentFrameInBufferDoubled+1], BG_PALETTE, 256*2);
-				} else {
-					dmaCopyHalfWordsAsynch(2, palBuffer[currentFrameInBufferDoubled]+1, BG_PALETTE_SUB+1, 255*2);
-					dmaCopyHalfWordsAsynch(3, palBuffer[currentFrameInBufferDoubled+1]+1, BG_PALETTE+1, 255*2);
-					SPRITE_PALETTE_SUB[0] = palBuffer[currentFrameInBufferDoubled][0];
-					SPRITE_PALETTE[0] = palBuffer[currentFrameInBufferDoubled+1][0];
-				}
-			} else {
-				if (rvidInterlaced) {
-					REG_BG3Y_SUB = bottomField ? -1 : 0;
-				}
-				dmaCopyWordsAsynch(0, frameBuffer+(currentFrameInBuffer*(0x100*rvidVRes)), bgGetGfxPtr(topBg)+((256/2)*videoYpos), 0x100*rvidVRes);
-				if (rvidVRes == (rvidInterlaced ? 96 : 192)) {
-					dmaCopyHalfWordsAsynch(2, palBuffer[currentFrameInBuffer], BG_PALETTE_SUB, 256*2);
-				} else {
-					dmaCopyHalfWordsAsynch(2, palBuffer[currentFrameInBuffer]+1, BG_PALETTE_SUB+1, 255*2);
-					SPRITE_PALETTE_SUB[0] = palBuffer[currentFrameInBuffer][0];
-				}
-			}
+			dmaFrameToScreen();
 		}
 		if (!rvidDualScreen && ((currentFrame % rvidFps) == 0)) {
 			secondMark++;
@@ -318,13 +322,11 @@ ITCM_CODE void renderFrames(void) {
 			} else {
 				sprintf(numberMark[0], "%i", hourMark);
 			}
-			//printf(":");
 			if (minuteMark < 10) {
 				sprintf(numberMark[1], "0%i", minuteMark);
 			} else {
 				sprintf(numberMark[1], "%i", minuteMark);
 			}
-			//printf(":");
 			if (secondMark < 10) {
 				sprintf(numberMark[2], "0%i", secondMark);
 			} else {
@@ -383,6 +385,8 @@ ITCM_CODE void renderFrames(void) {
 
 bool confirmReturn = false;
 bool confirmStop = false;
+int videoJump = 0;
+bool doubleJump = false;
 
 void sndUpdateStream(void) {
 	if (!updateSoundBuffer) {
@@ -452,8 +456,10 @@ bool playerControls(void) {
 
 	scanKeys();
 	touchRead(&touch);
-	if ((keysDown() & KEY_A) || ((keysDown() & KEY_LID) && videoPlaying)
-	|| (!rvidDualScreen && (keysDown() & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
+	const int pressed = keysDown();
+	const int held = keysHeld();
+	if ((pressed & KEY_A) || ((pressed & KEY_LID) && videoPlaying)
+	|| (!rvidDualScreen && (pressed & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
 		if (videoPlaying) {
 			soundKill(0);
 			soundKill(1);
@@ -465,16 +471,38 @@ bool playerControls(void) {
 			updateVideoGuiFrame = true;
 		}
 	}
-	if ((keysDown() & KEY_B)
-	|| (!rvidDualScreen && (keysDown() & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
+	if ((pressed & KEY_B)
+	|| (!rvidDualScreen && (pressed & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
 		confirmReturn = true;
 		return true;
 	}
-	if ((keysDown() & KEY_LEFT) && currentFrame > 0) {
+	doubleJump = (held & KEY_R);
+	if ((held & KEY_LEFT) && (held & KEY_DOWN)) {
+		videoJump = -3;
+		return true;
+	} else if ((held & KEY_UP) && (held & KEY_RIGHT)) {
+		videoJump = 3;
+		return true;
+	}
+	if (held & KEY_LEFT) {
+		videoJump = -1;
+		return true;
+	} else if (held & KEY_RIGHT) {
+		videoJump = 1;
+		return true;
+	} else if (held & KEY_DOWN) {
+		videoJump = -2;
+		return true;
+	} else if (held & KEY_UP) {
+		videoJump = 2;
+		return true;
+	}
+	if (((pressed & KEY_L)
+	|| (!rvidDualScreen && (pressed & KEY_TOUCH) && touch.px >= 14 && touch.px <= 19 && touch.py >= 140 && touch.py <= 147)) && currentFrame > 0) {
 		confirmStop = true;
 		return true;
 	}
-	if (!rvidDualScreen && (keysDown() & KEY_SELECT)) {
+	if (!rvidDualScreen && (pressed & KEY_SELECT)) {
 		bottomBacklightSwitch();
 	}
 
@@ -565,6 +593,7 @@ int playRvid(const char* filename) {
 	sprintf(timeStamp, "00:00:00/%s:%s:%s",
 	numberMark[3], numberMark[4], numberMark[5]);
 	updateVideoGuiFrame = true;
+	updatePlayBar();
 
 	frameBuffer = new u8[0xC000*32];
 
@@ -657,8 +686,8 @@ int playRvid(const char* filename) {
 	} */
 	videoPlaying = true;
 	while (1) {
-		if ((currentFrame % frameBufferCount) >= 0
-		&& (currentFrame % frameBufferCount) < frameBufferCount/2)
+		if (currentFrameInBuffer >= 0
+		 && currentFrameInBuffer < frameBufferCount/2)
 		{
 			if (useBufferHalf) {
 				for (int i = frameBufferCount/2; i < frameBufferCount; i++) {
@@ -672,8 +701,8 @@ int playRvid(const char* filename) {
 				}
 				useBufferHalf = false;
 			}
-		} else if ((currentFrame % frameBufferCount) >= frameBufferCount/2
-				&& (currentFrame % frameBufferCount) < frameBufferCount)
+		} else if (currentFrameInBuffer >= frameBufferCount/2
+				&& currentFrameInBuffer < frameBufferCount)
 		{
 			if (!useBufferHalf) {
 				for (int i = 0; i < frameBufferCount/2; i++) {
@@ -689,17 +718,12 @@ int playRvid(const char* filename) {
 			}
 		}
 		playerControls();
-		if (confirmStop || currentFrame > (int)rvidFrames) {
+		if (currentFrame > (int)rvidFrames) {
+			confirmStop = true;
+		}
+		if (confirmStop || videoJump != 0) {
 			videoPlaying = false;
 			swiWaitForVBlank();
-
-			hourMark = -1;
-			minuteMark = 59;
-			secondMark = 59;
-
-			sprintf(timeStamp, "00:00:00/%s:%s:%s",
-			numberMark[3], numberMark[4], numberMark[5]);
-			updateVideoGuiFrame = true;
 
 			useBufferHalf = true;
 			useSoundBufferHalf = false;
@@ -707,7 +731,37 @@ int playRvid(const char* filename) {
 			videoPausedPrior = false;
 			displayFrame = true;
 			frameOfRefreshRate = 0;
-			currentFrame = 0;
+			const int currentFrameBak = currentFrame;
+			if (videoJump == -1) { // Left
+				currentFrame /= rvidFps;
+				currentFrame -= doubleJump ? 30 : 5;
+				currentFrame *= rvidFps;
+			} else if (videoJump == 1) { // Right
+				currentFrame /= rvidFps;
+				currentFrame += doubleJump ? 30 : 5;
+				currentFrame *= rvidFps;
+			} else if (videoJump == -2) { // Down
+				currentFrame /= rvidFps;
+				currentFrame -= doubleJump ? 60 : 10;
+				currentFrame *= rvidFps;
+			} else if (videoJump == 2) { // Up
+				currentFrame /= rvidFps;
+				currentFrame += doubleJump ? 60 : 10;
+				currentFrame *= rvidFps;
+			} else if (videoJump == -3) { // Left+Down
+				currentFrame /= rvidFps;
+				currentFrame -= doubleJump ? 120 : 15;
+				currentFrame *= rvidFps;
+			} else if (videoJump == 3) { // Up+Right
+				currentFrame /= rvidFps;
+				currentFrame += doubleJump ? 120 : 15;
+				currentFrame *= rvidFps;
+			}
+			if (confirmStop || currentFrame < 0) {
+				currentFrame = 0;
+			} else if (currentFrame > (int)rvidFrames) {
+				currentFrame = currentFrameBak;
+			}
 			currentFrameInBuffer = 0;
 			frameDelay = 0;
 			frameDelayEven = true;
@@ -718,20 +772,113 @@ int playRvid(const char* filename) {
 				soundKill(1);
 			}
 
+			hourMark = -1;
+			minuteMark = 59;
+			secondMark = 59;
+
+			if (currentFrame == 0) {
+				sprintf(timeStamp, "00:00:00/%s:%s:%s",
+				numberMark[3], numberMark[4], numberMark[5]);
+				updateVideoGuiFrame = true;
+				updatePlayBar();
+			} else {
+				for (int i = 0; i < currentFrame/rvidFps; i++) {
+					secondMark++;
+					if (secondMark == 60) {
+						secondMark = 0;
+						minuteMark++;
+						if (minuteMark == 60) {
+							minuteMark = 0;
+							hourMark++;
+						}
+					}
+				}
+
+				int hourMarkDisplay = hourMark;
+				int minuteMarkDisplay = minuteMark;
+				int secondMarkDisplay = secondMark;
+
+				secondMarkDisplay++;
+				if (secondMarkDisplay == 60) {
+					secondMarkDisplay = 0;
+					minuteMarkDisplay++;
+					if (minuteMarkDisplay == 60) {
+						minuteMarkDisplay = 0;
+						hourMarkDisplay++;
+					}
+				}
+
+				// Current time stamp
+				if (hourMarkDisplay < 10) {
+					sprintf(numberMark[0], "0%i", hourMarkDisplay);
+				} else {
+					sprintf(numberMark[0], "%i", hourMarkDisplay);
+				}
+				if (minuteMarkDisplay < 10) {
+					sprintf(numberMark[1], "0%i", minuteMarkDisplay);
+				} else {
+					sprintf(numberMark[1], "%i", minuteMarkDisplay);
+				}
+				if (secondMarkDisplay < 10) {
+					sprintf(numberMark[2], "0%i", secondMarkDisplay);
+				} else {
+					sprintf(numberMark[2], "%i", secondMarkDisplay);
+				}
+
+				sprintf(timeStamp, "%s:%s:%s/%s:%s:%s",
+				numberMark[0], numberMark[1], numberMark[2], numberMark[3], numberMark[4], numberMark[5]);
+				updateVideoGuiFrame = true;
+
+				if (updateVideoGuiFrame) {
+					updatePlayBar();
+				} else {
+					updateVideoGuiFrame = updatePlayBar();
+				}
+			}
+
 			// Reload video
-			fseek(rvid, rvidFramesOffset, SEEK_SET);
-			loadedFrames = 0;
+			u32 rvidSeekOffset = rvidFramesOffset;
+			if (currentFrame > 0) {
+				if (rvidCompressed) {
+					if (rvidDualScreen) {
+						for (int i = 0; i < currentFrame; i++) {
+							for (int b = 0; b < 2; b++) {
+								rvidSeekOffset += 0x200;
+								rvidSeekOffset += compressedFrameSizes[(i*2)+b];
+							}
+						}
+					} else {
+						for (int i = 0; i < currentFrame; i++) {
+							rvidSeekOffset += 0x200;
+							rvidSeekOffset += compressedFrameSizes[i];
+						}
+					}
+				} else {
+					rvidSeekOffset += (0x200+(0x100*rvidVRes))*currentFrame;
+					if (rvidDualScreen) {
+						rvidSeekOffset += (0x200+(0x100*rvidVRes))*currentFrame;
+					}
+				}
+			}
+			fseek(rvid, rvidSeekOffset, SEEK_SET);
+			loadedFrames = currentFrame;
 			for (int i = 0; i < frameBufferCount/2; i++) {
 				loadFrame(i);
 			}
 
 			if (rvidHasSound) {
-				fseek(rvidSound, rvidSoundOffset, SEEK_SET);
+				fseek(rvidSound, rvidSoundOffset+((soundBufferReadLen*sizeof(u16))*(currentFrame/rvidFps)), SEEK_SET);
 				toncset(soundBuffer[0], 0, soundBufferReadLen*sizeof(u16));
 				fread(soundBuffer[0], sizeof(u16), soundBufferReadLen, rvidSound);
 			}
 
+			if (videoJump != 0) {
+				swiWaitForVBlank();
+				dmaFrameToScreen();
+			}
+
 			confirmStop = false;
+			videoJump = 0;
 		}
 		if (confirmReturn) {
 			break;
