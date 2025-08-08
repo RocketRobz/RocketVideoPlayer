@@ -657,16 +657,14 @@ int playRvid(const char* filename) {
 		}
 	}
 
-	u8* dsImageBuffer8 = new u8[256*192];
 	for (int i = 0; i < 256*192; i++) {
-		dsImageBuffer8[i] = 0;
+		compressedFrameBuffer[i] = 0;
 	}
 
-	dmaCopyWords(3, dsImageBuffer8, bgGetGfxPtr(topBg), 256*192);
+	dmaCopyWords(3, compressedFrameBuffer, bgGetGfxPtr(topBg), 256*192);
 	if (rvidDualScreen) {
-		dmaCopyWords(3, dsImageBuffer8, bgGetGfxPtr(bottomBg), 256*192);
+		dmaCopyWords(3, compressedFrameBuffer, bgGetGfxPtr(bottomBg), 256*192);
 	}
-	delete[] dsImageBuffer8;
 
 	videoSetMode(rvidDualScreen ? (MODE_5_2D | DISPLAY_BG3_ACTIVE) : MODE_5_3D);
 	showVideoGui = true;
