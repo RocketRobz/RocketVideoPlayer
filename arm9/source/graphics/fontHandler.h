@@ -24,7 +24,7 @@
 
 #pragma once
 
-void fontInit();
+void fontInit(const int favoriteColor);
 void updateText(bool top);
 void clearText(bool top);
 void clearText();

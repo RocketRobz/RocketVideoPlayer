@@ -30,6 +30,7 @@
 // GRIT auto-genrated arrays of images
 #include "small_font.h"
 #include "large_font.h"
+#include "../userpal.h"
 
 // Texture UV coords
 #include "uvcoord_date_time_font.h"
@@ -50,17 +51,20 @@ list<TextEntry> topText, bottomText;
 list<TextPane> panes;
 
 
-void fontInit()
+void fontInit(const int favoriteColor)
 {
+	u16* largePalChange = (u16*)large_fontPal;
+	largePalChange[1] = userPal[favoriteColor][1];
+	largePalChange[2] = userPal[favoriteColor][2];
+
 	if (colorTable) {
-		u16* palChange = (u16*)small_fontPal;
+		u16* smallPalChange = (u16*)small_fontPal;
 		for (int i = 0; i < 16; i++) {
-			palChange[i] = colorTable[palChange[i]];
+			smallPalChange[i] = colorTable[smallPalChange[i]];
 		}
 
-		palChange = (u16*)large_fontPal;
 		for (int i = 0; i < 4; i++) {
-			palChange[i] = colorTable[palChange[i]];
+			largePalChange[i] = colorTable[largePalChange[i]];
 		}
 	}
 

@@ -42,6 +42,10 @@
 
 #include "rvidHeader.h"
 
+bool useTwlCfg     = false;
+u32 *twlCfgPointer = (u32*)0x02FFFDFC;
+u8 *twlCfgAddr     = NULL;
+
 vu32* sharedAddr = (vu32*)0x02FFFD00;
 
 u32 getFileSize(const char *fileName)
@@ -1009,6 +1013,12 @@ int main(int argc, char **argv) {
 	// nitroFSInit();
 
 	if (isDSiMode()) {
+		if(*twlCfgPointer < 0x02000000 || *twlCfgPointer >= 0x03000000) {
+			*twlCfgPointer = 0x02000400;
+		}
+		twlCfgAddr = (u8*)*twlCfgPointer;
+		useTwlCfg  = ((twlCfgAddr[0] != 0) && (twlCfgAddr[1] == 0) && (twlCfgAddr[2] == 0) && (twlCfgAddr[4] == 0) && (twlCfgAddr[0x48] != 0));
+
 		sharedAddr = (vu32*)0x0CFFFD00;
 	}
 
