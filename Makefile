@@ -16,6 +16,17 @@ export VERSION_MINOR	:= 99
 export VERSTRING	:=	$(VERSION_MAJOR).$(VERSION_MINOR)
 
 #---------------------------------------------------------------------------------
+# External tools
+#---------------------------------------------------------------------------------
+ifeq ($(OS),Windows_NT)
+MAKECIA 	?= make_cia.exe
+
+else
+MAKECIA 	?= make_cia
+
+endif
+
+#---------------------------------------------------------------------------------
 # path to tools - this can be deleted if you set the path in windows
 #---------------------------------------------------------------------------------
 export PATH		:=	$(DEVKITARM)/bin:$(PATH)
@@ -25,11 +36,18 @@ export PATH		:=	$(DEVKITARM)/bin:$(PATH)
 #---------------------------------------------------------------------------------
 # main targets
 #---------------------------------------------------------------------------------
-all: libfat4 $(TARGET).nds
+all: libfat4 $(TARGET).nds $(TARGET).dsi
 
 $(TARGET).nds	:	$(TARGET).arm7 $(TARGET).arm9
 	ndstool	-c $(TARGET).nds -7 arm7/$(TARGET).arm7.elf -9 arm9/$(TARGET).arm9.elf \
 			-b $(CURDIR)/icon.bmp "Rocket Video Player;Rocket Robz"
+
+$(TARGET).dsi	:	$(TARGET).arm7 $(TARGET).arm9
+	ndstool	-c $(TARGET).dsi -7 arm7/$(TARGET).arm7.elf -9 arm9/$(TARGET).arm9.elf \
+			-b $(CURDIR)/icon.bmp "Rocket Video Player;Rocket Robz" \
+			-g HRVA 00 "ROCKETVIDEO" -z 80040000 -u 00030004
+
+	@$(TOPDIR)/$(MAKECIA) --srl=$(TARGET).dsi
 
 #---------------------------------------------------------------------------------
 $(TARGET).arm7	: arm7/$(TARGET).elf
