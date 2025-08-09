@@ -31,5 +31,4 @@ Before Vid2RVID makes the video file, dithering gets applied to the frames in or
 
 # Credits
 * [Gericom](https://github.com/Gericom): LZ77 decompressor code from [EFE/EveryFileExplorer](https://github.com/Gericom/EveryFileExplorer), and frame rate adjustment code from [FastVideoDSPlayer](https://github.com/Gericom/FastVideoDSPlayer) (though not used for 24FPS/48FPS videos).
-* [Drenn](https://github.com/Drenn1): GameYob's .bmp renderer.
 * [devkitPro](https://github.com/devkitPro): nds-hb-menu's file browsing code, and the use of devkitPro, devkitARM, libnds, and libfat.
