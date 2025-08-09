@@ -17,7 +17,7 @@ To play videos, you'll need to convert them to the Rocket Video (`.rvid`) format
 
 # Video UI Controls
 - `A` or touch `Play`/`Pause` button: Play/Pause video
-- `L` shoulder or touch the left of the play bar: Stop video
+- `L` shoulder or touch the left tip of the play bar: Stop video
 - D-Pad `Left`/`Right`: Jump 5 seconds (30 seconds with `R` shoulder held)
 - D-Pad `Down`/`Up`: Jump 10 seconds (1 minute with `R` shoulder held)
 - D-Pad `Left`+`Down`/`Up`+`Right`: Jump 15 seconds (2 minutes with `R` shoulder held)
@@ -31,5 +31,5 @@ The DS and DSi consoles support 256 colors by storing them in the background pal
 Before Vid2RVID makes the video file, dithering gets applied to the frames in order to simulate/achieve more on-screen colors to reduce color banding. Results may vary depending on the frame or video.
 
 # Credits
-* [Gericom](https://github.com/Gericom): LZ77 decompressor code from [EFE/EveryFileExplorer](https://github.com/Gericom/EveryFileExplorer), and frame rate adjustment code from [FastVideoDSPlayer](https://github.com/Gericom/FastVideoDSPlayer) (though not used for 24FPS/48FPS videos).
-* [devkitPro](https://github.com/devkitPro): nds-hb-menu's file browsing code, and the use of devkitPro, devkitARM, libnds, and libfat.
+- [Gericom](https://github.com/Gericom): LZ77 decompressor code from [EFE/EveryFileExplorer](https://github.com/Gericom/EveryFileExplorer), and frame rate adjustment code from [FastVideoDSPlayer](https://github.com/Gericom/FastVideoDSPlayer) (though not used for 24FPS/48FPS videos).
+- [devkitPro](https://github.com/devkitPro): nds-hb-menu's file browsing code, and the use of devkitPro, devkitARM, libnds, and libfat.
