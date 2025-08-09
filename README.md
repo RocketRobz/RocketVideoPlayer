@@ -11,7 +11,7 @@ To play videos, you'll need to convert them to the Rocket Video (`.rvid`) format
 - Support for videos up to 60FPS (compatible with even the DS & DS Lite systems)!
 - 256 color video playback (combined with dithering to simulate more colors) in the RGB565 color format!
 - Support for dual-screen videos (up to 30FPS)!
-- Support for audio up to 32khz.
+- Support for audio up to 32khz Mono.
 - The video UI from the "Nintendo DSi + Internet" app, with the title bar now containing the console's set color.
 - Console-based file browser to search for your `.rvid` file.
 
