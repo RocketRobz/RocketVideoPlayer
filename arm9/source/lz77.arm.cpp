@@ -1,10 +1,6 @@
-#include <nds.h>
-#include "tonccpy.h"
+#include <nds/ndstypes.h>
 
-#define __itcm __attribute__((section(".itcm")))
-
-void __itcm
-lzssDecompress(u8* source, u8* destination) {
+ITCM_CODE void lzssDecompress(u8* source, u8* destination) {
 	u32 leng = (source[1] | (source[2] << 8) | (source[3] << 16));
 	int Offs = 4;
 	int dstoffs = 0;

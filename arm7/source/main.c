@@ -234,44 +234,48 @@ void powerButtonCB() {
 //---------------------------------------------------------------------------------
 int main() {
 //---------------------------------------------------------------------------------
-    // nocashMessage("ARM7 main.c main");
-	
-	// Grab from DS header in GBA slot
-	// *(u16*)0x02FFFC36 = *(u16*)0x0800015E;	// Header CRC16
-	// *(u32*)0x02FFFC38 = *(u32*)0x0800000C;	// Game Code
+    // Initialize sound hardware
+    enableSound();
 
-	// clear sound registers
-	dmaFillWords(0, (void*)0x04000400, 0x100);
+    // Read user information from the firmware (name, birthday, etc)
+    readUserSettings();
 
-	enableSound();
+    // Stop LED blinking
+    ledBlink(LED_ALWAYS_ON);
 
-	readUserSettings();
-	ledBlink(0);
+    // Using the calibration values read from the firmware with
+    // readUserSettings(), calculate some internal values to convert raw
+    // coordinates into screen coordinates.
+    touchInit();
 
-	irqInit();
-	// Start the RTC tracking IRQ
-	initClockIRQ();
-	
-	touchInit();
-	fifoInit();
-	
-	SetYtrigger(80);
-	
-	installSoundFIFO();
-	installSystemFIFO();
+    irqInit();
+    fifoInit();
 
+    installSoundFIFO();
+    installSystemFIFO(); // Sleep mode, storage, firmware...
+
+    // This sets a callback that is called when the power button in a DSi
+    // console is pressed. It has no effect in a DS.
+    setPowerButtonCB(powerButtonCB);
+
+    // Read current date from the RTC and setup an interrupt to update the time
+    // regularly. The interrupt simply adds one second every time, it doesn't
+    // read the date. Reading the RTC is very slow, so it's a bad idea to do it
+    // frequently.
+    initClockIRQTimer(3);
+
+    // Now that the FIFO is setup we can start sending input data to the ARM9.
 	irqSet(IRQ_VBLANK, VblankHandler);
 	irqSet(IRQ_IPC_SYNC, IPCSyncHandler);
 	irqEnable(IRQ_VBLANK | IRQ_IPC_SYNC);
 
-	setPowerButtonCB(powerButtonCB);
-	
-	// Keep the ARM7 mostly idle
 	while (!exitflag) {
-		if ( 0 == (REG_KEYINPUT & (KEY_SELECT | KEY_START | KEY_L | KEY_R))) {
-			exitflag = true;
-		}
-		// fifocheck();
+        const uint16_t key_mask = KEY_SELECT | KEY_START | KEY_L | KEY_R;
+        uint16_t keys_pressed = ~REG_KEYINPUT;
+
+        if ((keys_pressed & key_mask) == key_mask)
+            exitflag = true;
+
 		swiWaitForVBlank();
 	}
 	return 0;

@@ -1,56 +1,100 @@
-#---------------------------------------------------------------------------------
-.SUFFIXES:
-#---------------------------------------------------------------------------------
-ifeq ($(strip $(DEVKITARM)),)
-$(error "Please set DEVKITARM in your environment. export DEVKITARM=<path to>devkitARM)
+# SPDX-License-Identifier: CC0-1.0
+#
+# SPDX-FileContributor: Antonio Niño Díaz, 2023
+
+BLOCKSDS	?= /opt/blocksds/core
+BLOCKSDSEXT	?= /opt/blocksds/external
+
+# User config
+# ===========
+
+NAME		:= RocketVideoPlayer
+
+GAME_TITLE	:= Rocket Video Player
+GAME_AUTHOR	:= Rocket Robz
+GAME_ICON	:= icon.png
+
+# DLDI and internal SD slot of DSi
+# --------------------------------
+
+# Root folder of the SD image
+SDROOT		:= sdroot
+# Name of the generated image it "DSi-1.sd" for no$gba in DSi mode
+SDIMAGE		:= image.bin
+
+# Source code paths
+# -----------------
+
+# List of folders to combine into the root of NitroFS:
+NITROFSDIR	:=
+
+# Tools
+# -----
+
+MAKE		:= make
+RM		:= rm -rf
+
+# Verbose flag
+# ------------
+
+ifeq ($(VERBOSE),1)
+V		:=
+else
+V		:= @
 endif
 
-include $(DEVKITARM)/ds_rules
+# Directories
+# -----------
 
-export TARGET		:=	RocketVideoPlayer
-export TOPDIR		:=	$(CURDIR)
-#export NITRODATA	:=	nitrofiles
+ARM9DIR		:= arm9
+ARM7DIR		:= arm7
 
-export VERSION_MAJOR	:= 1
-export VERSION_MINOR	:= 99
-export VERSTRING	:=	$(VERSION_MAJOR).$(VERSION_MINOR)
+# Build artfacts
+# --------------
 
-#---------------------------------------------------------------------------------
-# path to tools - this can be deleted if you set the path in windows
-#---------------------------------------------------------------------------------
-export PATH		:=	$(DEVKITARM)/bin:$(PATH)
+ROM		:= $(NAME).nds
 
-.PHONY: $(TARGET).arm7 $(TARGET).arm9 libfat4
+# Targets
+# -------
 
-#---------------------------------------------------------------------------------
-# main targets
-#---------------------------------------------------------------------------------
-all: libfat4 $(TARGET).nds
+.PHONY: all clean arm9 arm7 dldipatch sdimage
 
-$(TARGET).nds	:	$(TARGET).arm7 $(TARGET).arm9
-	ndstool	-c $(TARGET).nds -7 arm7/$(TARGET).arm7.elf -9 arm9/$(TARGET).arm9.elf \
-			-b $(CURDIR)/icon.bmp "Rocket Video Player;Rocket Robz"
+all: $(ROM)
 
-#---------------------------------------------------------------------------------
-$(TARGET).arm7	: arm7/$(TARGET).elf
-$(TARGET).arm9	: arm9/$(TARGET).elf
-
-#---------------------------------------------------------------------------------
-arm7/$(TARGET).elf:
-	$(MAKE) -C arm7
-	
-#---------------------------------------------------------------------------------
-arm9/$(TARGET).elf:
-	$(MAKE) -C arm9
-
-#---------------------------------------------------------------------------------
 clean:
-	$(MAKE) -C arm9 clean
-	$(MAKE) -C arm7 clean
-	rm -f arm9/data/load.bin
-	rm -f arm9/source/version.h
-	@$(MAKE) -C libs/libfat4 clean
-	rm -f $(TARGET).ds.gba $(TARGET).nds $(TARGET).arm7 $(TARGET).arm9 $(TARGET).nds.orig.nds $(TARGET).cia
+	@echo "  CLEAN"
+	$(V)$(MAKE) -f Makefile.arm9 clean --no-print-directory
+	$(V)$(MAKE) -f Makefile.arm7 clean --no-print-directory
+	$(V)$(RM) $(ROM) build $(SDIMAGE)
 
-libfat4:
-	$(MAKE) -C libs/libfat4
+arm9:
+	$(V)+$(MAKE) -f Makefile.arm9 --no-print-directory
+
+arm7:
+	$(V)+$(MAKE) -f Makefile.arm7 --no-print-directory
+
+ifneq ($(strip $(NITROFSDIR)),)
+# Additional arguments for ndstool
+NDSTOOL_ARGS	:= -d $(NITROFSDIR)
+
+# Make the NDS ROM depend on the filesystem only if it is needed
+$(ROM): $(NITROFSDIR)
+endif
+
+GAME_FULL_TITLE := $(GAME_TITLE);$(GAME_AUTHOR)
+
+$(ROM): arm9 arm7
+	@echo "  NDSTOOL $@"
+	$(V)$(BLOCKSDS)/tools/ndstool/ndstool -c $@ \
+		-7 build/arm7.elf -9 build/arm9.elf \
+		-b $(GAME_ICON) "$(GAME_FULL_TITLE)" \
+		$(NDSTOOL_ARGS)
+
+sdimage:
+	@echo "  MKFATIMG $(SDIMAGE) $(SDROOT)"
+	$(V)$(BLOCKSDS)/tools/mkfatimg/mkfatimg -t $(SDROOT) $(SDIMAGE)
+
+dldipatch: $(ROM)
+	@echo "  DLDIPATCH $(ROM)"
+	$(V)$(BLOCKSDS)/tools/dldipatch/dldipatch patch \
+		$(BLOCKSDS)/sys/dldi_r4/r4tf.dldi $(ROM)

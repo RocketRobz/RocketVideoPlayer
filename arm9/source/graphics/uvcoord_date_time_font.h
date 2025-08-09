@@ -13,7 +13,7 @@ DATE_TIME_FONT texture coordinates
 #define TEXT_DTY 8
 
 // The U coordinates are invalid
-static constexpr unsigned int date_time_font_texcoords[] = {
+static constexpr u16 date_time_font_texcoords[] = {
     0, 0, 4, TEXT_DTY, // SPACE
     8, 0, 8, TEXT_DTY, // SOLIDUS
     16, 0, 8, TEXT_DTY, // DIGIT ZERO

@@ -1,24 +1,3 @@
-/*-----------------------------------------------------------------
- Copyright (C) 2005 - 2013
-	Michael "Chishm" Chisholm
-	Dave "WinterMute" Murphy
-	Claudio "sverx"
-
- This program is free software; you can redistribute it and/or
- modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation; either version 2
- of the License, or (at your option) any later version.
-
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
-
- You should have received a copy of the GNU General Public License
- along with this program; if not, write to the Free Software
- Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-
-------------------------------------------------------------------*/
 #include <nds.h>
 #include <nds/arm9/dldi.h>
 #include <stdio.h>
@@ -30,12 +9,11 @@
 #include <unistd.h>
 
 #include "file_browse.h"
-#include "top_png_bin.h"
+#include "top.png_bin.h"
 #include "gl2d.h"
 #include "graphics/lodepng.h"
 #include "graphics/fontHandler.h"
 #include "gui.h"
-#include "nitrofs.h"
 #include "tonccpy.h"
 #include "lz77.h"
 
@@ -412,7 +390,6 @@ void loadFrame(const int num) {
 					fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedFramesPos], rvid);
 					sndUpdateStream();
 					lzssDecompress(compressedFrameBuffer, frameBuffer+(pos*(0x100*rvidVRes)));
-					DC_FlushRange(frameBuffer+(pos*(0x100*rvidVRes)), 0x100*rvidVRes);
 				}
 				sndUpdateStream();
 			}
@@ -433,7 +410,6 @@ void loadFrame(const int num) {
 				fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedFrames], rvid);
 				sndUpdateStream();
 				lzssDecompress(compressedFrameBuffer, frameBuffer+(num*(0x100*rvidVRes)));
-				DC_FlushRange(frameBuffer+(num*(0x100*rvidVRes)), 0x100*rvidVRes);
 			}
 		} else {
 			fread(frameBuffer+(num*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
@@ -910,7 +886,7 @@ int main(int argc, char **argv) {
 
 	if (!fatInitDefault()) {
 		consoleDemoInit();
-		iprintf ("fatinitDefault failed!\n");
+		printf ("fatinitDefault failed!\n");
 		stop();
 	}
 
@@ -962,7 +938,7 @@ int main(int argc, char **argv) {
 	SetBrightness(0, 31);
 	SetBrightness(1, 31);
 
-	// nitroFSInit();
+	// nitroFSInit(NULL);
 
 	if (isDSiMode()) {
 		if(*twlCfgPointer < 0x02000000 || *twlCfgPointer >= 0x03000000) {
@@ -1041,7 +1017,7 @@ int main(int argc, char **argv) {
 		}
 
 		if ( strcasecmp (filename.c_str() + filename.size() - 5, ".rvid") != 0 ) {
-			iprintf("No .rvid file specified.\n");
+			printf("No .rvid file specified.\n");
 			if (argc < 2) {
 				for (int i = 0; i < 60*2; i++) {
 					swiWaitForVBlank();

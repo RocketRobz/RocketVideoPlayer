@@ -18,7 +18,7 @@ LARGE_FONT texture coordinates
 // meaning that they must be in sorted ascending order from lowest UTF16 codepoint 
 // to highest
 
-static constexpr unsigned int large_font_texcoords[] = {
+static constexpr u16 large_font_texcoords[] = {
     0, 0, 5, TEXT_LY, // SPACE
     14, 0, 5, TEXT_LY, // EXCLAMATION MARK
     28, 0, 7, TEXT_LY, // QUOTATION MARK
