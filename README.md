@@ -16,10 +16,10 @@ To play videos, you'll need to convert them to the Rocket Video (`.rvid`) format
 
 # Video UI Controls
 - `A` or touch `Play`/`Pause` button: Play/Pause video
-- `L` or touch the left of the play bar: Stop video
-- D-Pad `Left`/`Right`: Jump 5 seconds (30 seconds with `R` trigger held)
-- D-Pad `Down`/`Up`: Jump 10 seconds (1 minute with `R` trigger held)
-- D-Pad `Left`+`Down`/`Up`+`Right`: Jump 15 seconds (2 minutes with `R` trigger held)
+- `L` shoulder or touch the left of the play bar: Stop video
+- D-Pad `Left`/`Right`: Jump 5 seconds (30 seconds with `R` shoulder held)
+- D-Pad `Down`/`Up`: Jump 10 seconds (1 minute with `R` shoulder held)
+- D-Pad `Left`+`Down`/`Up`+`Right`: Jump 15 seconds (2 minutes with `R` shoulder held)
 - `B` or touch `Return`: Exit video
 
 # Why 256 colors?
