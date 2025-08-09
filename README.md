@@ -25,7 +25,7 @@ To play videos, you'll need to convert them to the Rocket Video (`.rvid`) format
 # Why 256 colors?
 
 The choice for 256 color video was made due to full bitmap video loading being slow (ex. 4:3 24FPS videos slowing down later during playback on DS & DS Lite), and allows videos that are 24-30FPS or higher to play without slowdown.     
-The DS and DSi consoles support 256 colors by storing then in the background palette space, and each pixel of the video frames would point to the color's number, cutting each frame size in half when compared to storing each pixel as the individual colors.
+The DS and DSi consoles support 256 colors by storing them in the background palette space, and each pixel of the video frames would point to the color's number, cutting each frame size in half when compared to storing each pixel as the individual colors.
 
 Before Vid2RVID makes the video file, dithering gets applied to the frames in order to simulate/achieve more on-screen colors to reduce color banding. Results may vary depending on the frame or video.
 
