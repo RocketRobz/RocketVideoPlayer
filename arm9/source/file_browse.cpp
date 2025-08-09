@@ -30,7 +30,7 @@
 
 #include <nds.h>
 
-#define SCREEN_COLS 32
+#define SCREEN_COLS 33
 #define ENTRIES_PER_SCREEN 22
 #define ENTRIES_START_ROW 2
 #define ENTRY_PAGE_LENGTH 10
@@ -121,9 +121,9 @@ void showDirectoryContents (const vector<DirEntry>& dirContents, int startRow) {
 	}
 
 	// Move to 2nd row
-	iprintf ("\x1b[1;0H");
+	// iprintf ("\x1b[1;0H");
 	// Print line of dashes
-	iprintf ("--------------------------------");
+	// iprintf ("--------------------------------");
 
 	// Print directory listing
 	for (int i = 0; i < ((int)dirContents.size() - startRow) && i < ENTRIES_PER_SCREEN; i++) {
@@ -136,11 +136,11 @@ void showDirectoryContents (const vector<DirEntry>& dirContents, int startRow) {
 		if (entry->isDirectory) {
 			strncpy (entryName, entry->name.c_str(), SCREEN_COLS);
 			entryName[SCREEN_COLS - 3] = '\0';
-			iprintf (" [%s]", entryName);
+			iprintf ("[%s]", entryName);
 		} else {
 			strncpy (entryName, entry->name.c_str(), SCREEN_COLS);
 			entryName[SCREEN_COLS - 1] = '\0';
-			iprintf (" %s", entryName);
+			iprintf ("%s", entryName);
 		}
 	}
 }
@@ -156,11 +156,13 @@ string browseForFile (const vector<string>& extensionList) {
 
 	while (true) {
 		// Clear old cursors
-		for (int i = ENTRIES_START_ROW; i < ENTRIES_PER_SCREEN + ENTRIES_START_ROW; i++) {
+		/* for (int i = ENTRIES_START_ROW; i < ENTRIES_PER_SCREEN + ENTRIES_START_ROW; i++) {
 			iprintf ("\x1b[%d;0H ", i);
-		}
+		} */
 		// Show cursor
-		iprintf ("\x1b[%d;0H*", fileOffset - screenOffset + ENTRIES_START_ROW);
+		extern int fileCursorPosition;
+		fileCursorPosition = fileOffset - screenOffset + ENTRIES_START_ROW;
+		// iprintf ("\x1b[%d;0H*", fileCursorPosition);
 
 		// Power saving loop. Only poll the keys once per frame and sleep the CPU if there is nothing else to do
 		do {

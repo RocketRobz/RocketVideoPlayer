@@ -171,6 +171,21 @@ int videoHourMark = -1;
 int videoMinuteMark = 59;
 int videoSecondMark = 59;
 
+int fileCursorPosition = 2;
+u16 fileHighlightColor = 0;
+
+ITCM_CODE void fileHighlighter(void) {
+	int scanline = REG_VCOUNT;
+	scanline++;
+	if (scanline == 11) {
+		BG_PALETTE[0] = whiteColor;
+	} else if (scanline >= fileCursorPosition*8 && scanline < (fileCursorPosition+1)*8) {
+		BG_PALETTE[0] = fileHighlightColor;
+	} else {
+		BG_PALETTE[0] = blackColor;
+	}
+}
+
 ITCM_CODE void fillBorders(void) {
 	int scanline = REG_VCOUNT;
 	if (scanline > videoYpos+rvidVRes) {
@@ -1035,9 +1050,14 @@ int main(int argc, char **argv) {
 				}
 			}
 			LoadBMP();
+			irqSet(IRQ_HBLANK, fileHighlighter);
+			irqEnable(IRQ_HBLANK);
 			fadeType = true;
 
 			filename = browseForFile(extensionList);
+
+			irqSet(IRQ_HBLANK, HBlankNull);
+			BG_PALETTE[0] = blackColor;
 		}
 
 		if ( strcasecmp (filename.c_str() + filename.size() - 5, ".rvid") != 0 ) {

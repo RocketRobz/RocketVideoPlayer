@@ -62,6 +62,9 @@ void loadGraphics(void) {
 		}
 	}
 
+	extern u16 fileHighlightColor;
+	fileHighlightColor = titleBarColor;
+
 	buttonTexID[0] = glLoadTileSet(buttonImage[0], // pointer to glImage array
 							128, // sprite width
 							64, // sprite height
