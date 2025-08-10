@@ -8,9 +8,11 @@ rvidHeaderInfo2 rvidHeader2;
 
 int rvidFrames = 0;
 int rvidFps = 0;
+int rvidHRes = 0;
 int rvidVRes = 0;
 bool rvidInterlaced = false;
 bool rvidDualScreen = false;
+int rvidOver256Colors = 0;
 bool rvidHasSound = false;
 u16 rvidSampleRate = 0;
 bool rvidCompressed = false;
@@ -54,8 +56,10 @@ void readRvidHeader(FILE* rvid) {
 	rvidDualScreen = rvidHeader2.dualScreen;
 	rvidSampleRate = rvidHeader2.sampleRate;
 	rvidCompressed = rvidHeader2.framesCompressed;
+	rvidOver256Colors = rvidHeader2.bmpMode;
 	rvidFramesOffset = rvidHeader2.framesOffset;
 	rvidSoundOffset = rvidHeader2.soundOffset;
 
+	rvidHRes = rvidOver256Colors ? 0x200 : 0x100;
 	rvidHasSound = (rvidSampleRate && rvidSoundOffset);
 }
