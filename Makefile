@@ -65,10 +65,9 @@ arm9/$(TARGET).elf:
 clean:
 	$(MAKE) -C arm9 clean
 	$(MAKE) -C arm7 clean
-	rm -f arm9/data/load.bin
 	rm -f arm9/source/version.h
 	@$(MAKE) -C libs/libfat4 clean
-	rm -f $(TARGET).ds.gba $(TARGET).nds $(TARGET).arm7 $(TARGET).arm9 $(TARGET).nds.orig.nds $(TARGET).cia
+	rm -f $(TARGET).nds $(TARGET).arm7 $(TARGET).arm9 $(TARGET).dsi $(TARGET).cia
 
 libfat4:
 	$(MAKE) -C libs/libfat4
