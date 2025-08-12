@@ -251,10 +251,8 @@ ITCM_CODE void HBlank_dmaDualFrameToScreen(void) {
 
 ITCM_CODE void HBlank_dmaFrameToScreenInterlaced(void) {
 	int scanline = REG_VCOUNT;
+	const int scanlineVid = scanline+1;
 	int check1 = (videoYpos*2);
-	if (REG_BG3Y_SUB == -1) {
-		check1++;
-	}
 	const int check2 = (rvidVRes*2);
 	if (scanline > check1+check2) {
 		return;
@@ -265,19 +263,18 @@ ITCM_CODE void HBlank_dmaFrameToScreenInterlaced(void) {
 		if (scanline < check1 || scanline >= check1+check2) {
 			BG_PALETTE_SUB[0] = blackColor;
 		} else {
-			dmaCopyWordsAsynch(0, frameBuffer+(currentFrameInBufferForHBlank*(0x200*rvidVRes))+(((scanline/2)-(videoYpos*2))*0x200), BG_PALETTE_SUB, 256*2);
+			const int videoScanline = (scanlineVid-check1)/2;
+			dmaCopyWordsAsynch(0, frameBuffer+(currentFrameInBufferForHBlank*(0x200*rvidVRes))+(videoScanline*0x200), BG_PALETTE_SUB, 256*2);
 		}
 	}
 }
 
 ITCM_CODE void HBlank_dmaDualFrameToScreenInterlaced(void) {
 	int scanline = REG_VCOUNT;
-	const int currentFrameInBufferDoubled = currentFrameInBufferForHBlank*2;
+	const int scanlineVid = scanline+1;
 	int check1 = (videoYpos*2);
-	if (REG_BG3Y_SUB == -1) {
-		check1++;
-	}
 	const int check2 = (rvidVRes*2);
+	const int currentFrameInBufferDoubled = currentFrameInBufferForHBlank*2;
 	if (scanline > check1+check2) {
 		return;
 	} else if (check2 == 192 && scanline == check2) {
@@ -289,8 +286,9 @@ ITCM_CODE void HBlank_dmaDualFrameToScreenInterlaced(void) {
 			BG_PALETTE_SUB[0] = blackColor;
 			BG_PALETTE[0] = blackColor;
 		} else {
-			dmaCopyWordsAsynch(0, frameBuffer+(currentFrameInBufferDoubled*(0x200*rvidVRes))+(((scanline/2)-(videoYpos*2))*0x200), BG_PALETTE_SUB, 256*2);
-			dmaCopyWordsAsynch(1, frameBuffer+((currentFrameInBufferDoubled+1)*(0x200*rvidVRes))+(((scanline/2)-(videoYpos*2))*0x200), BG_PALETTE, 256*2);
+			const int videoScanline = (scanlineVid-check1)/2;
+			dmaCopyWordsAsynch(0, frameBuffer+(currentFrameInBufferDoubled*(0x200*rvidVRes))+(videoScanline*0x200), BG_PALETTE_SUB, 256*2);
+			dmaCopyWordsAsynch(1, frameBuffer+((currentFrameInBufferDoubled+1)*(0x200*rvidVRes))+(videoScanline*0x200), BG_PALETTE, 256*2);
 		}
 	}
 }
