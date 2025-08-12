@@ -25,5 +25,5 @@ To play videos, you'll need to convert them to the Rocket Video (`.rvid`) format
 - `B` or touch `Return`: Exit video
 
 # Credits
-- [Gericom](https://github.com/Gericom): LZ77 decompressor code from [EFE/EveryFileExplorer](https://github.com/Gericom/EveryFileExplorer), and frame rate adjustment code from [FastVideoDSPlayer](https://github.com/Gericom/FastVideoDSPlayer) (though not used for 24FPS/48FPS videos).
+- [Gericom](https://github.com/Gericom): LZ77 decompressor code from [EFE/EveryFileExplorer](https://github.com/Gericom/EveryFileExplorer), and frame rate + play bar adjustment code from [FastVideoDSPlayer](https://github.com/Gericom/FastVideoDSPlayer) (though not used for 24FPS/48FPS videos).
 - [devkitPro](https://github.com/devkitPro): nds-hb-menu's file browsing code, and the use of devkitPro, devkitARM, libnds, and libfat.

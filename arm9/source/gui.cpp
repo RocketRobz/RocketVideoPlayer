@@ -97,9 +97,10 @@ void loadGraphics(void) {
 }
 
 bool updatePlayBar(void) {
-	barAdjust = (currentFrame*2)/((rvidFrames*2)/224);
-	if (barAdjust > 224) {
+	if (currentFrame >= rvidFrames) {
 		barAdjust = 224;
+	} else {
+		barAdjust = (currentFrame * 224 * (0x800000 / rvidFrames) + 0x400000) >> 23;
 	}
 	if (currentBarAdjust == barAdjust) {
 		return false;
