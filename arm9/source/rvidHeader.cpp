@@ -16,7 +16,7 @@ int rvidOver256Colors = 0;
 bool rvidHasSound = false;
 u16 rvidSampleRate = 0;
 bool rvidCompressed = false;
-u32 rvidFramesOffset = 0;
+u32 rvidCompressedFrameSizeTableOffset = 0;
 u32 rvidSoundOffset = 0;
 
 void readRvidHeader(FILE* rvid) {
@@ -55,11 +55,13 @@ void readRvidHeader(FILE* rvid) {
 	rvidInterlaced = rvidHeader2.interlaced;
 	rvidDualScreen = rvidHeader2.dualScreen;
 	rvidSampleRate = rvidHeader2.sampleRate;
-	rvidCompressed = rvidHeader2.framesCompressed;
 	rvidOver256Colors = rvidHeader2.bmpMode;
-	rvidFramesOffset = rvidHeader2.framesOffset;
+	rvidCompressedFrameSizeTableOffset = rvidHeader2.compressedFrameSizeTableOffset;
 	rvidSoundOffset = rvidHeader2.soundOffset;
 
 	rvidHRes = rvidOver256Colors ? 0x200 : 0x100;
+	rvidCompressed = (rvidCompressedFrameSizeTableOffset > 0);
 	rvidHasSound = (rvidSampleRate && rvidSoundOffset);
+
+	fseek(rvid, 0x200, SEEK_SET);
 }

@@ -47,6 +47,8 @@ extern rvidHeaderCheckInfo rvidHeaderCheck;
 // extern rvidHeaderInfo1 rvidHeader1;
 extern rvidHeaderInfo2 rvidHeader2;
 
+u32* frameOffsets = NULL;
+
 // u8 compressedFrameBuffer[0xC000];
 u8 compressedFrameBuffer[0x18000];
 u16* compressedFrameSizes16 = NULL;
@@ -127,6 +129,7 @@ char filePath[PATH_MAX];
 touchPosition touch;
 
 FILE* rvid;
+u32 rvidCurrentOffset = 0;
 FILE* rvidSound;
 bool showVideoGui = false;
 bool updateVideoGuiFrame = true;
@@ -139,6 +142,7 @@ int frameOfRefreshRateLimit = 60;
 int currentFrame = 0;
 int currentFrameInBuffer = 0;
 int currentFrameInBufferForHBlank = 0;
+int loadedSingleFrames = 0;
 int loadedFrames = 0;
 int frameDelay = 0;
 bool frameDelayEven = true;
@@ -484,15 +488,23 @@ void sndUpdateStream(void) {
 	updateSoundBuffer = false;
 }
 
-static inline void loadFramePal(const int num) {
+static inline void loadFramePal(const int num, const int loadedFrameNum) {
 	if (rvidOver256Colors) return;
 
-	fread(palBuffer[num], 2, 256, rvid);
-	if (colorTable) {
-		for (int i = 0; i < 256; i++) {
-			palBuffer[num][i] = colorTable[palBuffer[num][i]];
+	static int previousNum = 0;
+
+	if (rvidCurrentOffset == frameOffsets[loadedFrameNum]) {
+		tonccpy(palBuffer[num], palBuffer[previousNum], 256*2);
+	} else {
+		fread(palBuffer[num], 2, 256, rvid);
+		if (colorTable) {
+			for (int i = 0; i < 256; i++) {
+				palBuffer[num][i] = colorTable[palBuffer[num][i]];
+			}
 		}
 	}
+
+	previousNum = num;
 }
 
 /* static inline void applyColorLutToFrame(u16* frame) {
@@ -514,14 +526,65 @@ void loadFrame(const int num) {
 		return;
 	}
 
+	static int previousNum = 0;
+	static int previousNumDS = 0;
+
 	if (rvidDualScreen) {
 		if (rvidCompressed) {
 			for (int b = 0; b < 2; b++) {
 				const int pos = (num*2)+b;
-				const int loadedFramesPos = (loadedFrames*2)+b;
-				loadFramePal(pos);
-				const u32 size = rvidOver256Colors ? compressedFrameSizes32[loadedFramesPos] : compressedFrameSizes16[loadedFramesPos];
+				loadFramePal(pos, loadedSingleFrames);
 				u8* dst = frameBuffer+(pos*(rvidHRes*rvidVRes));
+				if (rvidCurrentOffset == frameOffsets[loadedSingleFrames]) {
+					// Duplicate frame found
+					const u8* src = frameBuffer+(previousNumDS*(rvidHRes*rvidVRes));
+					tonccpy(dst, src, rvidHRes*rvidVRes);
+				} else {
+					const int loadedFramesPos = (loadedFrames*2)+b;
+					const u32 size = rvidOver256Colors ? compressedFrameSizes32[loadedFramesPos] : compressedFrameSizes16[loadedFramesPos];
+					if (size == (unsigned)rvidHRes*rvidVRes) {
+						fread(dst, 1, rvidHRes*rvidVRes, rvid);
+					} else {
+						fread(compressedFrameBuffer, 1, size, rvid);
+						sndUpdateStream();
+						lzssDecompress(compressedFrameBuffer, dst);
+					}
+					// applyColorLutToFrame((u16*)dst);
+				}
+				sndUpdateStream();
+				rvidCurrentOffset = frameOffsets[loadedSingleFrames];
+				loadedSingleFrames++;
+				previousNumDS = pos;
+			}
+		} else {
+			for (int b = 0; b < 2; b++) {
+				const int pos = (num*2)+b;
+				loadFramePal(pos, loadedSingleFrames);
+				u8* dst = frameBuffer+(pos*(rvidHRes*rvidVRes));
+				if (rvidCurrentOffset == frameOffsets[loadedSingleFrames]) {
+					// Duplicate frame found
+					const u8* src = frameBuffer+(previousNumDS*(rvidHRes*rvidVRes));
+					tonccpy(dst, src, rvidHRes*rvidVRes);
+				} else {
+					fread(dst, 1, rvidHRes*rvidVRes, rvid);
+					// applyColorLutToFrame((u16*)dst);
+				}
+				sndUpdateStream();
+				rvidCurrentOffset = frameOffsets[loadedSingleFrames];
+				loadedSingleFrames++;
+				previousNumDS = pos;
+			}
+		}
+	} else {
+		loadFramePal(num, loadedFrames);
+		u8* dst = frameBuffer+(num*(rvidHRes*rvidVRes));
+		if (rvidCurrentOffset == frameOffsets[loadedFrames]) {
+			// Duplicate frame found
+			const u8* src = frameBuffer+(previousNum*(rvidHRes*rvidVRes));
+			tonccpy(dst, src, rvidHRes*rvidVRes);
+		} else {
+			if (rvidCompressed) {
+				const u32 size = rvidOver256Colors ? compressedFrameSizes32[loadedFrames] : compressedFrameSizes16[loadedFrames];
 				if (size == (unsigned)rvidHRes*rvidVRes) {
 					fread(dst, 1, rvidHRes*rvidVRes, rvid);
 				} else {
@@ -529,38 +592,16 @@ void loadFrame(const int num) {
 					sndUpdateStream();
 					lzssDecompress(compressedFrameBuffer, dst);
 				}
-				// applyColorLutToFrame((u16*)dst);
-				sndUpdateStream();
-			}
-		} else {
-			for (int b = 0; b < 2; b++) {
-				const int pos = (num*2)+b;
-				loadFramePal(pos);
-				u8* dst = frameBuffer+(pos*(rvidHRes*rvidVRes));
-				fread(dst, 1, rvidHRes*rvidVRes, rvid);
-				// applyColorLutToFrame((u16*)dst);
-				sndUpdateStream();
-			}
-		}
-	} else {
-		loadFramePal(num);
-		u8* dst = frameBuffer+(num*(rvidHRes*rvidVRes));
-		if (rvidCompressed) {
-			const u32 size = rvidOver256Colors ? compressedFrameSizes32[loadedFrames] : compressedFrameSizes16[loadedFrames];
-			if (size == (unsigned)rvidHRes*rvidVRes) {
-				fread(dst, 1, rvidHRes*rvidVRes, rvid);
 			} else {
-				fread(compressedFrameBuffer, 1, size, rvid);
-				sndUpdateStream();
-				lzssDecompress(compressedFrameBuffer, dst);
+				fread(dst, 1, rvidHRes*rvidVRes, rvid);
 			}
-		} else {
-			fread(dst, 1, rvidHRes*rvidVRes, rvid);
+			// applyColorLutToFrame((u16*)dst);
 		}
-		// applyColorLutToFrame((u16*)dst);
 		sndUpdateStream();
+		rvidCurrentOffset = frameOffsets[loadedFrames];
 	}
 	loadedFrames++;
+	previousNum = num;
 }
 
 bool playerControls(void) {
@@ -708,19 +749,27 @@ int playRvid(const char* filename) {
 		frameBuffer = new u8[0xC000*32];
 	}
 
-	if (rvidCompressed) {
-		fseek(rvid, 0x200, SEEK_SET);
-		const u32 tableSize = (rvidFramesOffset-0x200);
-		if (rvidOver256Colors) {
-			compressedFrameSizes32 = new u32[tableSize/4];
-			fread(compressedFrameSizes32, 4, tableSize/4, rvid);
-		} else {
-			compressedFrameSizes16 = new u16[tableSize/2];
-			fread(compressedFrameSizes16, 2, tableSize/2, rvid);
-		}
+	if (rvidDualScreen) {
+		frameOffsets = new u32[rvidFrames*2];
+		fread(frameOffsets, 4, rvidFrames*2, rvid);
 	} else {
-		fseek(rvid, rvidFramesOffset, SEEK_SET);
+		frameOffsets = new u32[rvidFrames];
+		fread(frameOffsets, 4, rvidFrames, rvid);
 	}
+
+	if (rvidCompressed) {
+		fseek(rvid, rvidCompressedFrameSizeTableOffset, SEEK_SET);
+		if (rvidOver256Colors) {
+			compressedFrameSizes32 = new u32[rvidFrames];
+			fread(compressedFrameSizes32, 4, rvidFrames, rvid);
+		} else {
+			compressedFrameSizes16 = new u16[rvidFrames];
+			fread(compressedFrameSizes16, 2, rvidFrames, rvid);
+		}
+	}
+	rvidCurrentOffset = 0;
+	fseek(rvid, frameOffsets[0], SEEK_SET);
+	loadedSingleFrames = 0;
 	loadedFrames = 0;
 	for (int i = 0; i < frameBufferCount/2; i++) {
 		loadFrame(i);
@@ -957,40 +1006,18 @@ int playRvid(const char* filename) {
 			}
 
 			// Reload video
-			u32 rvidSeekOffset = rvidFramesOffset;
-			if (currentFrame > 0) {
-				if (rvidCompressed) {
-					if (rvidDualScreen) {
-						for (int i = 0; i < currentFrame; i++) {
-							for (int b = 0; b < 2; b++) {
-								if (rvidOver256Colors) {
-									rvidSeekOffset += compressedFrameSizes32[(i*2)+b];
-								} else {
-									rvidSeekOffset += 0x200;
-									rvidSeekOffset += compressedFrameSizes16[(i*2)+b];
-								}
-							}
-						}
-					} else {
-						for (int i = 0; i < currentFrame; i++) {
-							if (rvidOver256Colors) {
-								rvidSeekOffset += compressedFrameSizes32[i];
-							} else {
-								rvidSeekOffset += 0x200;
-								rvidSeekOffset += compressedFrameSizes16[i];
-							}
-						}
-					}
-				} else {
-					const u16 palLength = !rvidOver256Colors ? 0x200 : 0;
-					rvidSeekOffset += (palLength+(rvidHRes*rvidVRes))*currentFrame;
-					if (rvidDualScreen) {
-						rvidSeekOffset += (palLength+(rvidHRes*rvidVRes))*currentFrame;
-					}
-				}
+			rvidCurrentOffset = 0;
+			u32 rvidNextOffset = 0;
+			if (rvidDualScreen) {
+				rvidNextOffset = frameOffsets[currentFrame*2];
+			} else {
+				rvidNextOffset = frameOffsets[currentFrame];
 			}
-			fseek(rvid, rvidSeekOffset, SEEK_SET);
-			loadedFrames = currentFrame;
+			fseek(rvid, rvidNextOffset, SEEK_SET);
+			loadedSingleFrames = loadedFrames = currentFrame;
+			if (rvidDualScreen) {
+				loadedSingleFrames *= 2;
+			}
 			for (int i = 0; i < frameBufferCount/2; i++) {
 				loadFrame(i);
 			}
@@ -1043,6 +1070,7 @@ int playRvid(const char* filename) {
 			delete[] compressedFrameSizes16;
 		}
 	}
+	delete[] frameOffsets;
 	delete[] frameBuffer;
 	bgInitSub(3, BgType_Bmp16, BgSize_B16_256x256, 0, 0);
 
