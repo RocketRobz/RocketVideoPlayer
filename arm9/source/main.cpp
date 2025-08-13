@@ -809,10 +809,12 @@ int playRvid(const char* filename) {
 	}
 
 	if (rvidHasSound) {
-		// Ensure video and audio stay in sync
 		soundBufferReadLen = rvidSampleRate;
-		for (int i = 0; i < rvidSampleRate; i += 1000) {
-			soundBufferReadLen++;
+		if (rvidReduceFpsBy01) {
+			// Ensure video and audio stay in sync
+			for (int i = 0; i < rvidSampleRate; i += 1000) {
+				soundBufferReadLen++;
+			}
 		}
 
 		rvidSound = fopen(filename, "rb");
@@ -905,7 +907,9 @@ int playRvid(const char* filename) {
 		IPC_SendSync(1);
 	} else {
 		frameOfRefreshRateLimit = 60;
-		IPC_SendSync(2);
+		if (!rvidReduceFpsBy01) {
+			IPC_SendSync(2);
+		}
 	}
 
 	videoPlaying = true;
