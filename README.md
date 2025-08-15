@@ -9,8 +9,9 @@ To play videos, you'll need to convert them to the Rocket Video (`.rvid`) format
 
 # Features
 - Support for videos up to 60FPS (compatible with even the DS & DS Lite systems)!
-- Both 8-bit (256 colors) and 16-bit (RGB555/RGB565) bitmap videos are supported.
-    - Screen filters are not supported for 16-bit bitmap videos.
+- Both 8 BPP (256 colors) and 16 BPP (RGB555/RGB565) videos are supported.
+    - Your video's height must be 108px or less in order to use 16 BPP.
+    - Screen filters are not supported for 16 BPP videos.
 - Support for dual-screen videos (up to 30FPS)!
 - Support for audio up to 32khz Mono.
 - The video UI from the "Nintendo DSi + Internet" app, with the title bar now containing the console's set color.
