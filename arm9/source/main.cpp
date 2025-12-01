@@ -697,11 +697,13 @@ int playRvid(const char* filename) {
 		return 0;
 	} else if (rvidHeaderCheck.ver > 3) {
 		return 3;
-	} else if (rvidHeaderCheck.ver < 3) {
-		return 4;
 	}
 
 	readRvidHeader(rvid);
+
+	if (rvidHeaderCheck.ver < 3 && rvidCompressed) {
+		return 4;
+	}
 
 	if (rvidHasSound && (rvidSampleRate > 32000)) {
 		return 1;
@@ -787,7 +789,20 @@ int playRvid(const char* filename) {
 		fread(frameOffsets, 4, rvidFrames*2, rvid);
 	} else {
 		frameOffsets = new u32[rvidFrames];
-		fread(frameOffsets, 4, rvidFrames, rvid);
+		if (rvidHeaderCheck.ver >= 3) {
+			fread(frameOffsets, 4, rvidFrames, rvid);
+		} else {
+			/* if (rvidCompressed) {
+				fseek(rvid, rvidCompressedFrameSizeTableOffset, SEEK_SET);
+				compressedFrameSizes32 = new u32[rvidFrames];
+				fread(compressedFrameSizes32, 4, rvidFrames, rvid);
+			} else { */
+				frameOffsets[0] = 0x200;
+				for (int i = 1; i < rvidFrames; i++) {
+					frameOffsets[i] = frameOffsets[i-1] + 0x200*rvidVRes;
+				}
+			// }
+		}
 	}
 
 	if (rvidCompressed) {
@@ -1345,9 +1360,9 @@ int main(int argc, char **argv) {
 					}
 					if (err == 4) {
 						consoleClear();
-						printf("This Rocket Video file\n");
-						printf("contains a version which is\n");
-						printf("no longer supported.\n");
+						printf("Old compressed Rocket Video\n");
+						printf("files are currently not\n");
+						printf("supported.\n");
 					} else if (err == 3) {
 						consoleClear();
 						printf("This Rocket Video file\n");
