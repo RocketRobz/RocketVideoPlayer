@@ -5,11 +5,27 @@
   </a>
 </p>
 
-Play videos up to 60 FPS on DS & DS Lite!
-
 To play videos, you'll need to convert them to the Rocket Video (`.rvid`) format using [Vid2RVID](https://github.com/RocketRobz/Vid2RVID/releases).
 
+# Features
+- Support for videos up to 60FPS (compatible with even the DS & DS Lite systems)!
+- Both 8 BPP (256 colors) and 16 BPP (RGB555/RGB565) videos are supported.
+    - Your video's height must be 108px or less in order to use 16 BPP.
+    - Screen filters are not supported for 16 BPP videos.
+- Support for dual-screen videos (up to 30FPS)!
+- Support for audio up to 32khz Mono.
+- The video UI from the "Nintendo DSi + Internet" app, with the title bar now containing the console's set color.
+- Console-based file browser to search for your `.rvid` file.
+
+# Video UI Controls
+- `A` or touch `Play`/`Pause` button: Play/Pause video
+- `L` shoulder or touch the left tip of the play bar: Stop video
+- D-Pad `Left`/`Right`: Jump 5 seconds (30 seconds with `R` shoulder held)
+- D-Pad `Down`/`Up`: Jump 10 seconds (1 minute with `R` shoulder held)
+- D-Pad `Left`+`Down`/`Up`+`Right`: Jump 15 seconds (2 minutes with `R` shoulder held)
+- `SELECT`: Turn off/on bottom screen backlight (only applies to single-screen videos)
+- `B` or touch `Return`: Exit video
+
 # Credits
-* [Gericom](https://github.com/Gericom): LZ77 decompressor code from [EFE/EveryFileExplorer](https://github.com/Gericom/EveryFileExplorer), and frame rate adjustment code from [FastVideoDSPlayer](https://github.com/Gericom/FastVideoDSPlayer) (though not used for 24FPS/48FPS videos).
-* [Drenn](https://github.com/Drenn1): GameYob's .bmp renderer.
-* [devkitPro](https://github.com/devkitPro): nds-hb-menu's file browsing code, and the use of devkitPro, devkitARM, libnds, and libfat.
+- [Gericom](https://github.com/Gericom): LZ77 decompressor code from [EFE/EveryFileExplorer](https://github.com/Gericom/EveryFileExplorer), and frame rate + play bar adjustment code from [FastVideoDSPlayer](https://github.com/Gericom/FastVideoDSPlayer) (though not used for 24FPS/48FPS videos).
+- [devkitPro](https://github.com/devkitPro): nds-hb-menu's file browsing code, and the use of devkitPro, devkitARM, libnds, and libfat.

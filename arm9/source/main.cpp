@@ -26,6 +26,7 @@ u32 *twlCfgPointer = (u32*)0x02FFFDFC;
 u8 *twlCfgAddr     = NULL;
 
 vu32* sharedAddr = (vu32*)0x02FFFD00;
+// bool dsiWramAvailable = false;
 
 u32 getFileSize(const char *fileName)
 {
@@ -45,14 +46,22 @@ extern rvidHeaderCheckInfo rvidHeaderCheck;
 // extern rvidHeaderInfo1 rvidHeader1;
 extern rvidHeaderInfo2 rvidHeader2;
 
-u8 compressedFrameBuffer[0xC000];
-u16* compressedFrameSizes = NULL;
+u32* frameOffsets = NULL;
+
+// u8 compressedFrameBuffer[0xC000];
+u8 compressedFrameBuffer[0x18000];
+u8* savedFrameBuffer[2] = {NULL}; // Used for paused video via HBlank
+bool displaySavedFrameBuffer = false;
+u16* compressedFrameSizes16 = NULL;
+u32* compressedFrameSizes32 = NULL;
 
 u16 palBuffer[60][256];
 u8* frameBuffer = NULL;					// 32 frames in buffer (64 halved frames for interlaced videos)
 int frameBufferCount = 32;
 int topBg;
 int bottomBg;
+u16* topBgPtr = NULL;
+u16* bottomBgPtr = NULL;
 bool useBufferHalf = true;
 u16 soundBuffer[2][32032];
 u16* soundBufferPos = NULL;
@@ -63,13 +72,14 @@ bool useSoundBufferHalf = false;
 bool updateSoundBuffer = false;
 
 bool fadeType = false;
-
 int screenBrightness = 31;
 
 void clearBrightness(void) {
 	fadeType = true;
 	screenBrightness = 0;
 }
+
+bool reinitFileBrowserGfx = true;
 
 u16* colorTable = NULL;
 bool invertedColors = false;
@@ -120,6 +130,7 @@ char filePath[PATH_MAX];
 touchPosition touch;
 
 FILE* rvid;
+u32 rvidCurrentOffset = 0;
 FILE* rvidSound;
 bool showVideoGui = false;
 bool updateVideoGuiFrame = true;
@@ -131,6 +142,8 @@ int frameOfRefreshRate = 0;
 int frameOfRefreshRateLimit = 60;
 int currentFrame = 0;
 int currentFrameInBuffer = 0;
+int currentFrameInBufferForHBlank = 0;
+int loadedSingleFrames = 0;
 int loadedFrames = 0;
 int frameDelay = 0;
 bool frameDelayEven = true;
@@ -148,6 +161,21 @@ int secondMark = 59;
 int videoHourMark = -1;
 int videoMinuteMark = 59;
 int videoSecondMark = 59;
+
+int fileCursorPosition = 2;
+u16 fileHighlightColor = 0;
+
+ITCM_CODE void fileHighlighter(void) {
+	int scanline = REG_VCOUNT;
+	scanline++;
+	if (scanline == 11) {
+		BG_PALETTE[0] = whiteColor;
+	} else if (scanline >= fileCursorPosition*8 && scanline < (fileCursorPosition+1)*8) {
+		BG_PALETTE[0] = fileHighlightColor;
+	} else {
+		BG_PALETTE[0] = blackColor;
+	}
+}
 
 ITCM_CODE void fillBorders(void) {
 	int scanline = REG_VCOUNT;
@@ -186,37 +214,151 @@ ITCM_CODE void fillBordersInterlaced(void) {
 	}
 }
 
+ITCM_CODE void HBlank_dmaFrameToScreen(void) {
+	int scanline = REG_VCOUNT;
+	const u8* src = displaySavedFrameBuffer ? savedFrameBuffer[0] : frameBuffer+(currentFrameInBufferForHBlank*(0x200*rvidVRes));
+	if (scanline > videoYpos+rvidVRes) {
+		return;
+	} else if (rvidVRes == 192 && scanline == rvidVRes) {
+		dmaCopyWordsAsynch(0, src, BG_PALETTE_SUB, 256*2);
+	} else {
+		scanline++;
+		if (scanline < videoYpos || scanline >= videoYpos+rvidVRes) {
+			BG_PALETTE_SUB[0] = blackColor;
+		} else {
+			dmaCopyWordsAsynch(0, src+((scanline-videoYpos)*0x200), BG_PALETTE_SUB, 256*2);
+		}
+	}
+}
+
+ITCM_CODE void HBlank_dmaDualFrameToScreen(void) {
+	int scanline = REG_VCOUNT;
+	const int currentFrameInBufferDoubled = currentFrameInBufferForHBlank*2;
+	const u8* srcTop = displaySavedFrameBuffer ? savedFrameBuffer[0] : frameBuffer+(currentFrameInBufferDoubled*(0x200*rvidVRes));
+	const u8* srcBottom = displaySavedFrameBuffer ? savedFrameBuffer[1] : frameBuffer+((currentFrameInBufferDoubled+1)*(0x200*rvidVRes));
+	if (scanline > videoYpos+rvidVRes) {
+		return;
+	} else if (rvidVRes == 192 && scanline == rvidVRes) {
+		dmaCopyWordsAsynch(0, srcTop, BG_PALETTE_SUB, 256*2);
+		dmaCopyWordsAsynch(1, srcBottom, BG_PALETTE, 256*2);
+	} else {
+		scanline++;
+		if (scanline < videoYpos || scanline >= videoYpos+rvidVRes) {
+			BG_PALETTE_SUB[0] = blackColor;
+			BG_PALETTE[0] = blackColor;
+		} else {
+			dmaCopyWordsAsynch(0, srcTop+((scanline-videoYpos)*0x200), BG_PALETTE_SUB, 256*2);
+			dmaCopyWordsAsynch(1, srcBottom+((scanline-videoYpos)*0x200), BG_PALETTE, 256*2);
+		}
+	}
+}
+
+ITCM_CODE void HBlank_dmaFrameToScreenInterlaced(void) {
+	int scanline = REG_VCOUNT;
+	const int scanlineVid = scanline+1;
+	int check1 = (videoYpos*2);
+	const int check2 = (rvidVRes*2);
+	const u8* src = displaySavedFrameBuffer ? savedFrameBuffer[0] : frameBuffer+(currentFrameInBufferForHBlank*(0x200*rvidVRes));
+	if (scanline > check1+check2) {
+		return;
+	} else if (check2 == 192 && scanline == check2) {
+		dmaCopyWordsAsynch(0, src, BG_PALETTE_SUB, 256*2);
+	} else {
+		scanline++;
+		if (scanline < check1 || scanline >= check1+check2) {
+			BG_PALETTE_SUB[0] = blackColor;
+		} else {
+			const int videoScanline = (scanlineVid-check1)/2;
+			dmaCopyWordsAsynch(0, src+(videoScanline*0x200), BG_PALETTE_SUB, 256*2);
+		}
+	}
+}
+
+ITCM_CODE void HBlank_dmaDualFrameToScreenInterlaced(void) {
+	int scanline = REG_VCOUNT;
+	const int scanlineVid = scanline+1;
+	int check1 = (videoYpos*2);
+	const int check2 = (rvidVRes*2);
+	const int currentFrameInBufferDoubled = currentFrameInBufferForHBlank*2;
+	const u8* srcTop = displaySavedFrameBuffer ? savedFrameBuffer[0] : frameBuffer+(currentFrameInBufferDoubled*(0x200*rvidVRes));
+	const u8* srcBottom = displaySavedFrameBuffer ? savedFrameBuffer[1] : frameBuffer+((currentFrameInBufferDoubled+1)*(0x200*rvidVRes));
+	if (scanline > check1+check2) {
+		return;
+	} else if (check2 == 192 && scanline == check2) {
+		dmaCopyWordsAsynch(0, srcTop, BG_PALETTE_SUB, 256*2);
+		dmaCopyWordsAsynch(1, srcBottom, BG_PALETTE, 256*2);
+	} else {
+		scanline++;
+		if (scanline < check1 || scanline >= check1+check2) {
+			BG_PALETTE_SUB[0] = blackColor;
+			BG_PALETTE[0] = blackColor;
+		} else {
+			const int videoScanline = (scanlineVid-check1)/2;
+			dmaCopyWordsAsynch(0, srcTop+(videoScanline*0x200), BG_PALETTE_SUB, 256*2);
+			dmaCopyWordsAsynch(1, srcBottom+(videoScanline*0x200), BG_PALETTE, 256*2);
+		}
+	}
+}
+
 void HBlankNull(void) {
 }
 
+ITCM_CODE void saveFrameBuffer(void) {
+	if (rvidDualScreen) {
+		const int currentFrameInBufferDoubled = currentFrameInBufferForHBlank*2;
+		tonccpy(savedFrameBuffer[0], frameBuffer+(currentFrameInBufferDoubled*(0x200*rvidVRes)), 0x200*rvidVRes);
+		tonccpy(savedFrameBuffer[1], frameBuffer+((currentFrameInBufferDoubled+1)*(0x200*rvidVRes)), 0x200*rvidVRes);
+	} else {
+		tonccpy(savedFrameBuffer[0], frameBuffer+(currentFrameInBufferForHBlank*(0x200*rvidVRes)), 0x200*rvidVRes);
+	}
+}
+
 ITCM_CODE void dmaFrameToScreen(void) {
+	if (rvidOver256Colors == 2) {
+		if (rvidInterlaced) {
+			REG_BG3Y_SUB = bottomField ? -1 : 0;
+			if (rvidDualScreen) {
+				REG_BG3Y = bottomField ? -1 : 0;
+			}
+		}
+		currentFrameInBufferForHBlank = currentFrameInBuffer;
+		if (!videoPlaying) {
+			saveFrameBuffer();
+		}
+		return;
+	}
+
 	if (rvidDualScreen) {
 		if (rvidInterlaced) {
 			REG_BG3Y_SUB = bottomField ? -1 : 0;
 			REG_BG3Y = bottomField ? -1 : 0;
 		}
 		const int currentFrameInBufferDoubled = currentFrameInBuffer*2;
-		dmaCopyWordsAsynch(0, frameBuffer+(currentFrameInBufferDoubled*(0x100*rvidVRes)), bgGetGfxPtr(topBg)+((256/2)*videoYpos), 0x100*rvidVRes);
-		dmaCopyWordsAsynch(1, frameBuffer+((currentFrameInBufferDoubled+1)*(0x100*rvidVRes)), bgGetGfxPtr(bottomBg)+((256/2)*videoYpos), 0x100*rvidVRes);
-		if (rvidVRes == (rvidInterlaced ? 96 : 192)) {
-			dmaCopyHalfWordsAsynch(2, palBuffer[currentFrameInBufferDoubled], BG_PALETTE_SUB, 256*2);
-			dmaCopyHalfWordsAsynch(3, palBuffer[currentFrameInBufferDoubled+1], BG_PALETTE, 256*2);
-		} else {
-			dmaCopyHalfWordsAsynch(2, palBuffer[currentFrameInBufferDoubled]+1, BG_PALETTE_SUB+1, 255*2);
-			dmaCopyHalfWordsAsynch(3, palBuffer[currentFrameInBufferDoubled+1]+1, BG_PALETTE+1, 255*2);
-			SPRITE_PALETTE_SUB[0] = palBuffer[currentFrameInBufferDoubled][0];
-			SPRITE_PALETTE[0] = palBuffer[currentFrameInBufferDoubled+1][0];
+		dmaCopyWordsAsynch(0, frameBuffer+(currentFrameInBufferDoubled*(rvidHRes*rvidVRes)), topBgPtr+((rvidHRes/2)*videoYpos), rvidHRes*rvidVRes);
+		dmaCopyWordsAsynch(1, frameBuffer+((currentFrameInBufferDoubled+1)*(rvidHRes*rvidVRes)), bottomBgPtr+((rvidHRes/2)*videoYpos), rvidHRes*rvidVRes);
+		if (!rvidOver256Colors) {
+			if (rvidVRes == (rvidInterlaced ? 96 : 192)) {
+				dmaCopyHalfWordsAsynch(2, palBuffer[currentFrameInBufferDoubled], BG_PALETTE_SUB, 256*2);
+				dmaCopyHalfWordsAsynch(3, palBuffer[currentFrameInBufferDoubled+1], BG_PALETTE, 256*2);
+			} else {
+				dmaCopyHalfWordsAsynch(2, palBuffer[currentFrameInBufferDoubled]+1, BG_PALETTE_SUB+1, 255*2);
+				dmaCopyHalfWordsAsynch(3, palBuffer[currentFrameInBufferDoubled+1]+1, BG_PALETTE+1, 255*2);
+				SPRITE_PALETTE_SUB[0] = palBuffer[currentFrameInBufferDoubled][0];
+				SPRITE_PALETTE[0] = palBuffer[currentFrameInBufferDoubled+1][0];
+			}
 		}
 	} else {
 		if (rvidInterlaced) {
 			REG_BG3Y_SUB = bottomField ? -1 : 0;
 		}
-		dmaCopyWordsAsynch(0, frameBuffer+(currentFrameInBuffer*(0x100*rvidVRes)), bgGetGfxPtr(topBg)+((256/2)*videoYpos), 0x100*rvidVRes);
-		if (rvidVRes == (rvidInterlaced ? 96 : 192)) {
-			dmaCopyHalfWordsAsynch(2, palBuffer[currentFrameInBuffer], BG_PALETTE_SUB, 256*2);
-		} else {
-			dmaCopyHalfWordsAsynch(2, palBuffer[currentFrameInBuffer]+1, BG_PALETTE_SUB+1, 255*2);
-			SPRITE_PALETTE_SUB[0] = palBuffer[currentFrameInBuffer][0];
+		dmaCopyWordsAsynch(0, frameBuffer+(currentFrameInBuffer*(rvidHRes*rvidVRes)), topBgPtr+((rvidHRes/2)*videoYpos), rvidHRes*rvidVRes);
+		if (!rvidOver256Colors) {
+			if (rvidVRes == (rvidInterlaced ? 96 : 192)) {
+				dmaCopyHalfWordsAsynch(2, palBuffer[currentFrameInBuffer], BG_PALETTE_SUB, 256*2);
+			} else {
+				dmaCopyHalfWordsAsynch(2, palBuffer[currentFrameInBuffer]+1, BG_PALETTE_SUB+1, 255*2);
+				SPRITE_PALETTE_SUB[0] = palBuffer[currentFrameInBuffer][0];
+			}
 		}
 	}
 }
@@ -239,16 +381,18 @@ ITCM_CODE void renderFrames(void) {
 				soundBufferLen -= soundBufferReadLen/soundBufferDivide;
 				if (videoPausedPrior) {
 					sharedAddr[0] = (u32)soundBufferPos;
-					sharedAddr[1] = (soundBufferLen*sizeof(u16)) >> 2;
+					sharedAddr[1] = (soundBufferLen*(rvidAudioIs16bit ? 2 : 1)) >> 2;
 					sharedAddr[2] = rvidSampleRate;
+					sharedAddr[3] = rvidAudioIs16bit;
 					IPC_SendSync(3);
 					videoPausedPrior = false;
 				}
 			}
 			if ((frameOfRefreshRate % frameOfRefreshRateLimit) == 0) {
 				sharedAddr[0] = (u32)&soundBuffer[useSoundBufferHalf];
-				sharedAddr[1] = (soundBufferReadLen*sizeof(u16)) >> 2;
+				sharedAddr[1] = (soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1)) >> 2;
 				sharedAddr[2] = rvidSampleRate;
+				sharedAddr[3] = rvidAudioIs16bit;
 				IPC_SendSync(3);
 
 				soundBufferPos = (u16*)&soundBuffer[useSoundBufferHalf];
@@ -359,64 +503,125 @@ void sndUpdateStream(void) {
 		return;
 	}
 	useSoundBufferHalf = !useSoundBufferHalf;
-	toncset(soundBuffer[useSoundBufferHalf], 0, soundBufferReadLen*sizeof(u16));
-	fread(soundBuffer[useSoundBufferHalf], sizeof(u16), soundBufferReadLen, rvidSound);
+	toncset(soundBuffer[useSoundBufferHalf], 0, soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1));
+	fread(soundBuffer[useSoundBufferHalf], rvidAudioIs16bit ? 2 : 1, soundBufferReadLen, rvidSound);
 	updateSoundBuffer = false;
 }
 
-static inline void loadFramePal(const int num) {
-	fread(palBuffer[num], 2, 256, rvid);
-	if (colorTable) {
-		for (int i = 0; i < 256; i++) {
-			palBuffer[num][i] = colorTable[palBuffer[num][i]];
+static inline void loadFramePal(const int num, const int loadedFrameNum) {
+	if (rvidOver256Colors) return;
+
+	static int previousNum = 0;
+
+	if (rvidCurrentOffset == frameOffsets[loadedFrameNum]) {
+		tonccpy(palBuffer[num], palBuffer[previousNum], 256*2);
+	} else {
+		fread(palBuffer[num], 2, 256, rvid);
+		if (colorTable) {
+			for (int i = 0; i < 256; i++) {
+				palBuffer[num][i] = colorTable[palBuffer[num][i]];
+			}
 		}
 	}
+
+	previousNum = num;
 }
+
+/* static inline void applyColorLutToFrame(u16* frame) {
+	if (!rvidOver256Colors || !colorTable) return;
+
+	if (rvidOver256Colors == 2) {
+		for (int i = 0; i < 256*rvidVRes; i++) {
+			frame[i] = colorTable[frame[i]];
+		}
+	} else {
+		for (int i = 0; i < 256*rvidVRes; i++) {
+			frame[i] = colorTable[frame[i]] | BIT(15);
+		}
+	}
+} */
 
 void loadFrame(const int num) {
 	if (loadedFrames >= rvidFrames) {
 		return;
 	}
 
+	static int previousNum = 0;
+	static int previousNumDS = 0;
+
 	if (rvidDualScreen) {
 		if (rvidCompressed) {
 			for (int b = 0; b < 2; b++) {
 				const int pos = (num*2)+b;
-				const int loadedFramesPos = (loadedFrames*2)+b;
-				loadFramePal(pos);
-				if (compressedFrameSizes[loadedFramesPos] == 0x100*rvidVRes) {
-					fread(frameBuffer+(pos*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
+				loadFramePal(pos, loadedSingleFrames);
+				u8* dst = frameBuffer+(pos*(rvidHRes*rvidVRes));
+				if (rvidCurrentOffset == frameOffsets[loadedSingleFrames]) {
+					// Duplicate frame found
+					const u8* src = frameBuffer+(previousNumDS*(rvidHRes*rvidVRes));
+					tonccpy(dst, src, rvidHRes*rvidVRes);
 				} else {
-					fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedFramesPos], rvid);
-					sndUpdateStream();
-					lzssDecompress(compressedFrameBuffer, frameBuffer+(pos*(0x100*rvidVRes)));
+					const int loadedFramesPos = (loadedFrames*2)+b;
+					const u32 size = rvidOver256Colors ? compressedFrameSizes32[loadedFramesPos] : compressedFrameSizes16[loadedFramesPos];
+					if (size == (unsigned)rvidHRes*rvidVRes) {
+						fread(dst, 1, rvidHRes*rvidVRes, rvid);
+					} else {
+						fread(compressedFrameBuffer, 1, size, rvid);
+						sndUpdateStream();
+						lzssDecompress(compressedFrameBuffer, dst);
+					}
+					// applyColorLutToFrame((u16*)dst);
 				}
 				sndUpdateStream();
+				rvidCurrentOffset = frameOffsets[loadedSingleFrames];
+				loadedSingleFrames++;
+				previousNumDS = pos;
 			}
 		} else {
 			for (int b = 0; b < 2; b++) {
 				const int pos = (num*2)+b;
-				loadFramePal(pos);
-				fread(frameBuffer+(pos*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
+				loadFramePal(pos, loadedSingleFrames);
+				u8* dst = frameBuffer+(pos*(rvidHRes*rvidVRes));
+				if (rvidCurrentOffset == frameOffsets[loadedSingleFrames]) {
+					// Duplicate frame found
+					const u8* src = frameBuffer+(previousNumDS*(rvidHRes*rvidVRes));
+					tonccpy(dst, src, rvidHRes*rvidVRes);
+				} else {
+					fread(dst, 1, rvidHRes*rvidVRes, rvid);
+					// applyColorLutToFrame((u16*)dst);
+				}
 				sndUpdateStream();
+				rvidCurrentOffset = frameOffsets[loadedSingleFrames];
+				loadedSingleFrames++;
+				previousNumDS = pos;
 			}
 		}
 	} else {
-		loadFramePal(num);
-		if (rvidCompressed) {
-			if (compressedFrameSizes[loadedFrames] == 0x100*rvidVRes) {
-				fread(frameBuffer+(num*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
-			} else {
-				fread(compressedFrameBuffer, 1, compressedFrameSizes[loadedFrames], rvid);
-				sndUpdateStream();
-				lzssDecompress(compressedFrameBuffer, frameBuffer+(num*(0x100*rvidVRes)));
-			}
+		loadFramePal(num, loadedFrames);
+		u8* dst = frameBuffer+(num*(rvidHRes*rvidVRes));
+		if (rvidCurrentOffset == frameOffsets[loadedFrames]) {
+			// Duplicate frame found
+			const u8* src = frameBuffer+(previousNum*(rvidHRes*rvidVRes));
+			tonccpy(dst, src, rvidHRes*rvidVRes);
 		} else {
-			fread(frameBuffer+(num*(0x100*rvidVRes)), 1, 0x100*rvidVRes, rvid);
+			if (rvidCompressed) {
+				const u32 size = rvidOver256Colors ? compressedFrameSizes32[loadedFrames] : compressedFrameSizes16[loadedFrames];
+				if (size == (unsigned)rvidHRes*rvidVRes) {
+					fread(dst, 1, rvidHRes*rvidVRes, rvid);
+				} else {
+					fread(compressedFrameBuffer, 1, size, rvid);
+					sndUpdateStream();
+					lzssDecompress(compressedFrameBuffer, dst);
+				}
+			} else {
+				fread(dst, 1, rvidHRes*rvidVRes, rvid);
+			}
+			// applyColorLutToFrame((u16*)dst);
 		}
 		sndUpdateStream();
+		rvidCurrentOffset = frameOffsets[loadedFrames];
 	}
 	loadedFrames++;
+	previousNum = num;
 }
 
 bool playerControls(void) {
@@ -433,10 +638,16 @@ bool playerControls(void) {
 			soundKill(1);
 			videoPlaying = false;
 			updateVideoGuiFrame = true;
+			if (rvidOver256Colors == 2) {
+				swiWaitForVBlank();
+				saveFrameBuffer();
+				displaySavedFrameBuffer = true;
+			}
 		} else {
 			videoPlaying = true;
 			videoPausedPrior = true;
 			updateVideoGuiFrame = true;
+			displaySavedFrameBuffer = false;
 		}
 	}
 	if ((pressed & KEY_B)
@@ -485,11 +696,21 @@ int playRvid(const char* filename) {
 		return 0;
 	} else if (rvidHeaderCheck.ver > 3) {
 		return 3;
-	} else if (rvidHeaderCheck.ver < 3) {
-		return 4;
 	}
 
 	readRvidHeader(rvid);
+
+	if (rvidHeaderCheck.ver < 3 && rvidCompressed) {
+		return 4;
+	}
+
+	if (rvidHasSound && (rvidSampleRate > 32000)) {
+		return 1;
+	}
+
+	if (rvidOver256Colors && colorTable) {
+		return 2;
+	}
 
 	videoYpos = 0;
 
@@ -509,6 +730,9 @@ int playRvid(const char* filename) {
 				videoYpos++;
 			}
 		}
+	}
+	if (rvidOver256Colors && !isDSiMode()) {
+		frameBufferCount /= 2;
 	}
 	if (rvidDualScreen) {
 		frameBufferCount /= 2;
@@ -546,36 +770,72 @@ int playRvid(const char* filename) {
 	updateVideoGuiFrame = true;
 	updatePlayBar();
 
-	frameBuffer = new u8[0xC000*32];
+	if (rvidOver256Colors) {
+		const int amount = isDSiMode() ? 32 : 16;
+		frameBuffer = new u8[0x18000*amount];
+		if (rvidOver256Colors == 2) {
+			savedFrameBuffer[0] = new u8[0x18000];
+			if (rvidDualScreen) {
+				savedFrameBuffer[1] = new u8[0x18000];
+			}
+		}
+	} else {
+		frameBuffer = new u8[0xC000*32];
+	}
+
+	if (rvidDualScreen) {
+		frameOffsets = new u32[rvidFrames*2];
+		fread(frameOffsets, 4, rvidFrames*2, rvid);
+	} else {
+		frameOffsets = new u32[rvidFrames];
+		if (rvidHeaderCheck.ver >= 3) {
+			fread(frameOffsets, 4, rvidFrames, rvid);
+		} else {
+			/* if (rvidCompressed) {
+				fseek(rvid, rvidCompressedFrameSizeTableOffset, SEEK_SET);
+				compressedFrameSizes32 = new u32[rvidFrames];
+				fread(compressedFrameSizes32, 4, rvidFrames, rvid);
+			} else { */
+				frameOffsets[0] = 0x200;
+				for (int i = 1; i < rvidFrames; i++) {
+					frameOffsets[i] = frameOffsets[i-1] + 0x200*rvidVRes;
+				}
+			// }
+		}
+	}
 
 	if (rvidCompressed) {
-		const u32 tableSize = (rvidFramesOffset-0x200);
-		compressedFrameSizes = new u16[tableSize/2];
-		fseek(rvid, 0x200, SEEK_SET);
-		fread(compressedFrameSizes, 2, tableSize/2, rvid);
-	} else {
-		fseek(rvid, rvidFramesOffset, SEEK_SET);
+		fseek(rvid, rvidCompressedFrameSizeTableOffset, SEEK_SET);
+		if (rvidOver256Colors) {
+			compressedFrameSizes32 = new u32[rvidFrames];
+			fread(compressedFrameSizes32, 4, rvidFrames, rvid);
+		} else {
+			compressedFrameSizes16 = new u16[rvidFrames];
+			fread(compressedFrameSizes16, 2, rvidFrames, rvid);
+		}
 	}
+	rvidCurrentOffset = 0;
+	fseek(rvid, frameOffsets[0], SEEK_SET);
+	loadedSingleFrames = 0;
 	loadedFrames = 0;
 	for (int i = 0; i < frameBufferCount/2; i++) {
 		loadFrame(i);
 	}
 
 	if (rvidHasSound) {
-		if (rvidSampleRate > 32000) {
-			return 1;
-		}
-		// Ensure video and audio stay in sync
 		soundBufferReadLen = rvidSampleRate;
-		for (int i = 0; i < rvidSampleRate; i += 1000) {
-			soundBufferReadLen++;
+		if (rvidReduceFpsBy01) {
+			// Ensure video and audio stay in sync
+			for (int i = 0; i < rvidSampleRate; i += 1000) {
+				soundBufferReadLen++;
+			}
 		}
 
 		rvidSound = fopen(filename, "rb");
 		fseek(rvidSound, rvidSoundOffset, SEEK_SET);
 		soundBufferDivide = (rvidFps == 25 || rvidFps == 50) ? 5 : 6;
-		toncset(soundBuffer[0], 0, soundBufferReadLen*sizeof(u16));
-		fread(soundBuffer[0], sizeof(u16), soundBufferReadLen, rvidSound);
+		toncset(soundBuffer[0], 0, soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1));
+		fread(soundBuffer[0], rvidAudioIs16bit ? 2 : 1, soundBufferReadLen, rvidSound);
 	}
 
 	if (fadeType) {
@@ -586,16 +846,19 @@ int playRvid(const char* filename) {
 		consoleClear();
 	}
 
-	dmaFillHalfWords(whiteColor, BG_PALETTE_SUB, 256*2);	// Fill top screen with white
-	topBg = bgInitSub(3, BgType_Bmp8, BgSize_B8_256x256, 0, 0);
+	dmaFillHalfWords((rvidOver256Colors == 1) ? blackColor : whiteColor, BG_PALETTE_SUB, 256*2);	// Fill top screen with black/white
+	topBg = bgInitSub(3, (rvidOver256Colors == 1) ? BgType_Bmp16 : BgType_Bmp8, (rvidOver256Colors == 1) ? BgSize_B16_256x256 : BgSize_B8_256x256, 0, 0);
+	topBgPtr = bgGetGfxPtr(topBg);
 	if (rvidDualScreen) {
-		dmaFillHalfWords(whiteColor, BG_PALETTE, 256*2);	// Fill bottom screen with white
-		bottomBg = bgInit(3, BgType_Bmp8, BgSize_B8_256x256, 0, 0);
+		dmaFillHalfWords((rvidOver256Colors == 1) ? blackColor : whiteColor, BG_PALETTE, 256*2);	// Fill bottom screen with black/white
+		bottomBg = bgInit(3, (rvidOver256Colors == 1) ? BgType_Bmp16 : BgType_Bmp8, (rvidOver256Colors == 1) ? BgSize_B16_256x256 : BgSize_B8_256x256, 0, 0);
+		bottomBgPtr = bgGetGfxPtr(bottomBg);
 	} else {
 		bgInit(3, BgType_Bmp16, BgSize_B16_256x256, 0, 0);
 	}
 
 	REG_BG3PD = 0x100;
+	REG_BG3Y = 0;
 	if (rvidInterlaced) {
 		REG_BG3PD_SUB = 0x80;
 		if (rvidDualScreen) {
@@ -603,13 +866,27 @@ int playRvid(const char* filename) {
 		}
 	}
 
-	for (int i = 0; i < 256*192; i++) {
-		compressedFrameBuffer[i] = 0;
+	if (rvidOver256Colors != 1) {
+		toncset(compressedFrameBuffer, 0, 256*192);
+		if (rvidOver256Colors == 2) {
+			for (int i = 256*videoYpos; i < 256*(videoYpos+rvidVRes); i++) {
+				compressedFrameBuffer[i] = i;
+			}
+		}
+		DC_FlushRange(compressedFrameBuffer, 256*192);
 	}
 
-	dmaCopyWords(3, compressedFrameBuffer, bgGetGfxPtr(topBg), 256*192);
+	if (rvidOver256Colors == 1) {
+		dmaFillHalfWords(whiteColor | BIT(15), topBgPtr, (256*192)*2);
+	} else {
+		dmaCopyWords(3, compressedFrameBuffer, topBgPtr, 256*192);
+	}
 	if (rvidDualScreen) {
-		dmaCopyWords(3, compressedFrameBuffer, bgGetGfxPtr(bottomBg), 256*192);
+		if (rvidOver256Colors == 1) {
+			dmaFillHalfWords(whiteColor | BIT(15), bottomBgPtr, (256*192)*2);
+		} else {
+			dmaCopyWords(3, compressedFrameBuffer, bottomBgPtr, 256*192);
+		}
 	} else {
 		renderGuiBg();
 	}
@@ -623,8 +900,20 @@ int playRvid(const char* filename) {
 		swiWaitForVBlank();
 	}
 
-	irqSet(IRQ_HBLANK, (rvidVRes == (rvidInterlaced ? 96 : 192)) ? HBlankNull : rvidInterlaced ? fillBordersInterlaced : fillBorders);
-	irqEnable(IRQ_HBLANK);
+	if ((rvidOver256Colors == 1) && (rvidVRes < (rvidInterlaced ? 96 : 192))) {
+		dmaFillHalfWords(0, topBgPtr, (256*192)*2);
+		if (rvidDualScreen) {
+			dmaFillHalfWords(0, bottomBgPtr, (256*192)*2);
+		}
+	}
+
+	if (rvidOver256Colors == 2) {
+		irqSet(IRQ_HBLANK, rvidInterlaced ? (rvidDualScreen ? HBlank_dmaDualFrameToScreenInterlaced : HBlank_dmaFrameToScreenInterlaced) : (rvidDualScreen ? HBlank_dmaDualFrameToScreen : HBlank_dmaFrameToScreen));
+		irqEnable(IRQ_HBLANK);
+	} else if (rvidOver256Colors == 0) {
+		irqSet(IRQ_HBLANK, (rvidVRes == (rvidInterlaced ? 96 : 192)) ? HBlankNull : rvidInterlaced ? fillBordersInterlaced : fillBorders);
+		irqEnable(IRQ_HBLANK);
+	}
 
 	// Enable frame rate adjustment
 	if (rvidFps == 25 || rvidFps == 50) {
@@ -632,12 +921,11 @@ int playRvid(const char* filename) {
 		IPC_SendSync(1);
 	} else {
 		frameOfRefreshRateLimit = 60;
-		IPC_SendSync(2);
+		if (!rvidReduceFpsBy01) {
+			IPC_SendSync(2);
+		}
 	}
 
-	/* if (rvidVRes < 192) {
-		dmaFillHalfWordsAsynch(3, 0, BG_GFX_SUB, 0x18000);	// Fill top screen with black
-	} */
 	videoPlaying = true;
 	while (1) {
 		if (currentFrameInBuffer >= 0
@@ -672,6 +960,10 @@ int playRvid(const char* filename) {
 		if (confirmStop || videoJump != 0) {
 			videoPlaying = false;
 			swiWaitForVBlank();
+			if ((rvidOver256Colors == 2) && !displaySavedFrameBuffer) {
+				saveFrameBuffer();
+				displaySavedFrameBuffer = true;
+			}
 
 			useBufferHalf = true;
 			useSoundBufferHalf = false;
@@ -769,39 +1061,26 @@ int playRvid(const char* filename) {
 			}
 
 			// Reload video
-			u32 rvidSeekOffset = rvidFramesOffset;
-			if (currentFrame > 0) {
-				if (rvidCompressed) {
-					if (rvidDualScreen) {
-						for (int i = 0; i < currentFrame; i++) {
-							for (int b = 0; b < 2; b++) {
-								rvidSeekOffset += 0x200;
-								rvidSeekOffset += compressedFrameSizes[(i*2)+b];
-							}
-						}
-					} else {
-						for (int i = 0; i < currentFrame; i++) {
-							rvidSeekOffset += 0x200;
-							rvidSeekOffset += compressedFrameSizes[i];
-						}
-					}
-				} else {
-					rvidSeekOffset += (0x200+(0x100*rvidVRes))*currentFrame;
-					if (rvidDualScreen) {
-						rvidSeekOffset += (0x200+(0x100*rvidVRes))*currentFrame;
-					}
-				}
+			rvidCurrentOffset = 0;
+			u32 rvidNextOffset = 0;
+			if (rvidDualScreen) {
+				rvidNextOffset = frameOffsets[currentFrame*2];
+			} else {
+				rvidNextOffset = frameOffsets[currentFrame];
 			}
-			fseek(rvid, rvidSeekOffset, SEEK_SET);
-			loadedFrames = currentFrame;
+			fseek(rvid, rvidNextOffset, SEEK_SET);
+			loadedSingleFrames = loadedFrames = currentFrame;
+			if (rvidDualScreen) {
+				loadedSingleFrames *= 2;
+			}
 			for (int i = 0; i < frameBufferCount/2; i++) {
 				loadFrame(i);
 			}
 
 			if (rvidHasSound) {
-				fseek(rvidSound, rvidSoundOffset+((soundBufferReadLen*sizeof(u16))*(currentFrame/rvidFps)), SEEK_SET);
-				toncset(soundBuffer[0], 0, soundBufferReadLen*sizeof(u16));
-				fread(soundBuffer[0], sizeof(u16), soundBufferReadLen, rvidSound);
+				fseek(rvidSound, rvidSoundOffset+((soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1))*(currentFrame/rvidFps)), SEEK_SET);
+				toncset(soundBuffer[0], 0, soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1));
+				fread(soundBuffer[0], rvidAudioIs16bit ? 2 : 1, soundBufferReadLen, rvidSound);
 			}
 
 			if (videoJump != 0) {
@@ -836,10 +1115,22 @@ int playRvid(const char* filename) {
 		swiWaitForVBlank();
 	}
 
-	// while (dmaBusy(3));
-	irqSet(IRQ_HBLANK, HBlankNull);
+	if (rvidOver256Colors != 1) {
+		irqSet(IRQ_HBLANK, HBlankNull);
+	}
 	if (rvidCompressed) {
-		delete[] compressedFrameSizes;
+		if (rvidOver256Colors) {
+			delete[] compressedFrameSizes32;
+		} else {
+			delete[] compressedFrameSizes16;
+		}
+	}
+	delete[] frameOffsets;
+	if (rvidOver256Colors == 2) {
+		delete[] savedFrameBuffer[0];
+		if (rvidDualScreen) {
+			delete[] savedFrameBuffer[1];
+		}
 	}
 	delete[] frameBuffer;
 	bgInitSub(3, BgType_Bmp16, BgSize_B16_256x256, 0, 0);
@@ -861,10 +1152,25 @@ int playRvid(const char* filename) {
 	minuteMark = 59;
 	secondMark = 59;
 
+	reinitFileBrowserGfx = true;
 	return 0;
 }
 
-void LoadBMP(void) {
+void setupFileBrowserGfx(void) {
+	if (!reinitFileBrowserGfx) {
+		return;
+	}
+	reinitFileBrowserGfx = false;
+
+	videoSetMode(MODE_0_2D);
+	vramSetBankG(VRAM_G_MAIN_BG);
+	consoleInit(NULL, 0, BgType_Text4bpp, BgSize_T_256x256, 15, 0, true, true);
+	if (colorTable) {
+		for (int i = 0; i < 256; i++) {
+			BG_PALETTE[i] = colorTable[BG_PALETTE[i]];
+		}
+	}
+
 	std::vector<unsigned char> image;
 	unsigned width, height;
 	lodepng::decode(image, width, height, top_png_bin, top_png_bin_size);
@@ -876,6 +1182,8 @@ void LoadBMP(void) {
 			BG_GFX_SUB[i] = colorTable[BG_GFX_SUB[i] % 0x8000] | BIT(15);
 		}
 	}
+
+	fadeType = true;
 }
 
 static std::string filename;
@@ -948,6 +1256,14 @@ int main(int argc, char **argv) {
 		useTwlCfg  = ((twlCfgAddr[0] != 0) && (twlCfgAddr[1] == 0) && (twlCfgAddr[2] == 0) && (twlCfgAddr[4] == 0) && (twlCfgAddr[0x48] != 0));
 
 		sharedAddr = (vu32*)0x0CFFFD00;
+
+		// u32 headerTidUppercase = *(u32*)0x02FFFE0C;
+		// u32 headerTidLowercase = *(u32*)0x02FFFE0C;
+		// headerTidLowercase += 0x20202020;
+
+		// *(vu32*)0x03700000 = headerTidUppercase;
+		// *(vu32*)0x03708000 = headerTidLowercase;
+		// dsiWramAvailable = ((*(vu32*)0x03700000 == headerTidUppercase) && (*(vu32*)0x03708000 == headerTidLowercase));
 	}
 
 	irqSet(IRQ_VBLANK, renderFrames);
@@ -1002,21 +1318,18 @@ int main(int argc, char **argv) {
 				filename.erase(0, last_slash_idx + 1);
 			}
 		} else {
-			videoSetMode(MODE_0_2D);
-			vramSetBankG(VRAM_G_MAIN_BG);
-			consoleInit(NULL, 0, BgType_Text4bpp, BgSize_T_256x256, 15, 0, true, true);
-			if (colorTable) {
-				for (int i = 0; i < 256; i++) {
-					BG_PALETTE[i] = colorTable[BG_PALETTE[i]];
-				}
-			}
-			LoadBMP();
-			fadeType = true;
+			setupFileBrowserGfx();
+			irqSet(IRQ_HBLANK, fileHighlighter);
+			irqEnable(IRQ_HBLANK);
 
 			filename = browseForFile(extensionList);
+
+			irqSet(IRQ_HBLANK, HBlankNull);
+			BG_PALETTE[0] = blackColor;
 		}
 
 		if ( strcasecmp (filename.c_str() + filename.size() - 5, ".rvid") != 0 ) {
+			consoleClear();
 			printf("No .rvid file specified.\n");
 			if (argc < 2) {
 				for (int i = 0; i < 60*2; i++) {
@@ -1038,14 +1351,17 @@ int main(int argc, char **argv) {
 						}
 					}
 				} else {
-					int err = playRvid(filename.c_str());
+					const int err = playRvid(filename.c_str());
 					fclose(rvid);
 					fclose(rvidSound);
+					if ((err > 0) && !fadeType) {
+						setupFileBrowserGfx();
+					}
 					if (err == 4) {
 						consoleClear();
-						printf("This Rocket Video file\n");
-						printf("contains a version which is\n");
-						printf("no longer supported.\n");
+						printf("Old compressed Rocket Video\n");
+						printf("files are currently not\n");
+						printf("supported.\n");
 					} else if (err == 3) {
 						consoleClear();
 						printf("This Rocket Video file\n");
@@ -1054,6 +1370,14 @@ int main(int argc, char **argv) {
 						printf("\n");
 						printf("Please update the player to\n");
 						printf("the latest version.\n");
+					} else if (err == 2) {
+						consoleClear();
+						printf("BMP16 videos are not supported\n");
+						printf("with screen filters.\n");
+						printf("\n");
+						printf("Please re-convert your video\n");
+						printf("to BMP8, or turn off the\n");
+						printf("screen filter.\n");
 					} else if (err == 1) {
 						consoleClear();
 						printf("Audio sample rate is higher\n");
@@ -1062,7 +1386,7 @@ int main(int argc, char **argv) {
 						printf("Please lower the sample rate\n");
 						printf("to 32000Hz or less.\n");
 					}
-					if ((err > 0) && (argc < 2)) {
+					if (err > 0) {
 						printf("\n");
 						printf("A: OK\n");
 						while (1) {
@@ -1070,6 +1394,9 @@ int main(int argc, char **argv) {
 							if (keysDown() & KEY_A) {
 								break;
 							}
+						}
+						if (argc >= 2) {
+							fadeType = false;
 						}
 						for (int i = 0; i < 25; i++) {
 							swiWaitForVBlank();

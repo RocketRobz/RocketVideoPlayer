@@ -1,6 +1,7 @@
 *.exe
 *.cia
 *.nds
+*.dsi
 *.o
 *.arm7
 Thumbs.db
@@ -11,3 +12,4 @@ Thumbs.db
 arm7/build
 arm9/build/
 desktop.ini
+!make_cia.exe

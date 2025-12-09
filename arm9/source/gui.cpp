@@ -62,6 +62,9 @@ void loadGraphics(void) {
 		}
 	}
 
+	extern u16 fileHighlightColor;
+	fileHighlightColor = titleBarColor;
+
 	buttonTexID[0] = glLoadTileSet(buttonImage[0], // pointer to glImage array
 							128, // sprite width
 							64, // sprite height
@@ -94,9 +97,10 @@ void loadGraphics(void) {
 }
 
 bool updatePlayBar(void) {
-	barAdjust = currentFrame/(rvidFrames/222);
-	if (barAdjust > 224) {
+	if (currentFrame >= rvidFrames) {
 		barAdjust = 224;
+	} else {
+		barAdjust = (currentFrame * 224 * (0x800000 / rvidFrames) + 0x400000) >> 23;
 	}
 	if (currentBarAdjust == barAdjust) {
 		return false;

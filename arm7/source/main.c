@@ -203,7 +203,7 @@ void IPCSyncHandler(void) {
 				SCHANNEL_SOURCE(channel) = sharedAddr[0];
 				SCHANNEL_LENGTH(channel) = sharedAddr[1];
 				SCHANNEL_TIMER(channel) = SOUND_FREQ(freq);
-				SCHANNEL_CR(channel) = SCHANNEL_ENABLE | SOUND_VOL(127) | SOUND_PAN(channel ? 127 : 0) | SOUND_FORMAT_16BIT | SOUND_ONE_SHOT;
+				SCHANNEL_CR(channel) = SCHANNEL_ENABLE | SOUND_VOL(127) | SOUND_PAN(channel ? 127 : 0) | (sharedAddr[3] ? SOUND_FORMAT_16BIT : SOUND_FORMAT_8BIT) | SOUND_ONE_SHOT;
 			}
 		} break;
 	}
