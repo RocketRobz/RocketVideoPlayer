@@ -30,6 +30,8 @@
 
 #include <nds.h>
 
+#define PATH_MAX 256
+
 #define SCREEN_COLS 33
 #define ENTRIES_PER_SCREEN 22
 #define ENTRIES_START_ROW 2
