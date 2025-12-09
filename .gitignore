@@ -9,6 +9,7 @@ Thumbs.db
 *.elf
 *.d
 *.map
+build
 arm7/build
 arm9/build/
 desktop.ini
