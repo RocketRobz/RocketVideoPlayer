@@ -196,7 +196,7 @@ ITCM_CODE void fillBorders(void) {
 ITCM_CODE void fillBordersInterlaced(void) {
 	int scanline = REG_VCOUNT;
 	int check1 = (videoYpos*2);
-	if (REG_BG3Y_SUB == -1) {
+	if (!bottomField) {
 		check1++;
 	}
 	const int check2 = (rvidVRes*2);
