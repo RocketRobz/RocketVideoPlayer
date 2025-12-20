@@ -257,6 +257,9 @@ ITCM_CODE void HBlank_dmaFrameToScreenInterlaced(void) {
 	int scanline = REG_VCOUNT;
 	const int scanlineVid = scanline+1;
 	int check1 = (videoYpos*2);
+	if (!bottomField) {
+		check1++;
+	}
 	const int check2 = (rvidVRes*2);
 	const u8* src = displaySavedFrameBuffer ? savedFrameBuffer[0] : frameBuffer+(currentFrameInBufferForHBlank*(0x200*rvidVRes));
 	if (scanline > check1+check2) {
@@ -264,11 +267,7 @@ ITCM_CODE void HBlank_dmaFrameToScreenInterlaced(void) {
 	} else if (check2 == 192 && scanline == check2) {
 		dmaCopyWordsAsynch(0, src, BG_PALETTE_SUB, 256*2);
 	} else {
-		if (bottomField) {
-			check1--;
-		} else {
-			scanline++;
-		}
+		scanline++;
 		if (scanline < check1 || scanline >= check1+check2) {
 			BG_PALETTE_SUB[0] = blackColor;
 		} else {
@@ -282,6 +281,9 @@ ITCM_CODE void HBlank_dmaDualFrameToScreenInterlaced(void) {
 	int scanline = REG_VCOUNT;
 	const int scanlineVid = scanline+1;
 	int check1 = (videoYpos*2);
+	if (!bottomField) {
+		check1++;
+	}
 	const int check2 = (rvidVRes*2);
 	const int currentFrameInBufferDoubled = currentFrameInBufferForHBlank*2;
 	const u8* srcTop = displaySavedFrameBuffer ? savedFrameBuffer[0] : frameBuffer+(currentFrameInBufferDoubled*(0x200*rvidVRes));
@@ -292,11 +294,7 @@ ITCM_CODE void HBlank_dmaDualFrameToScreenInterlaced(void) {
 		dmaCopyWordsAsynch(0, srcTop, BG_PALETTE_SUB, 256*2);
 		dmaCopyWordsAsynch(1, srcBottom, BG_PALETTE, 256*2);
 	} else {
-		if (bottomField) {
-			check1--;
-		} else {
-			scanline++;
-		}
+		scanline++;
 		if (scanline < check1 || scanline >= check1+check2) {
 			BG_PALETTE_SUB[0] = blackColor;
 			BG_PALETTE[0] = blackColor;
