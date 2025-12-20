@@ -118,7 +118,7 @@ CXXFLAGS	+= -std=gnu++14 $(WARNFLAGS) $(DEFINES) $(ARCH) \
 
 LDFLAGS		:= -mthumb -mthumb-interwork $(LIBDIRSFLAGS) \
 		   -Wl,-Map,$(MAP) -Wl,--gc-sections -nostdlib \
-		   -T$(BLOCKSDS)/sys/crts/ds_arm9.mem \
+		   -Tarm9/ds_arm9_hi.mem \
 		   -T$(BLOCKSDS)/sys/crts/ds_arm9.ld \
 		   -Wl,--no-warn-rwx-segments \
 		   -Wl,--start-group $(LIBS) -lgcc -Wl,--end-group
