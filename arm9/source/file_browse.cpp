@@ -30,6 +30,8 @@
 
 #include <nds.h>
 
+#define PATH_MAX 256
+
 #define SCREEN_COLS 33
 #define ENTRIES_PER_SCREEN 22
 #define ENTRIES_START_ROW 2
@@ -42,7 +44,7 @@ struct DirEntry {
 	bool isDirectory;
 } ;
 
-bool nameEndsWith (const string& name, const vector<string> extensionList) {
+static bool nameEndsWith (const string& name, const vector<string> extensionList) {
 
 	if (name.size() == 0) return false;
 
@@ -55,7 +57,7 @@ bool nameEndsWith (const string& name, const vector<string> extensionList) {
 	return false;
 }
 
-bool dirEntryPredicate (const DirEntry& lhs, const DirEntry& rhs) {
+static bool dirEntryPredicate (const DirEntry& lhs, const DirEntry& rhs) {
 
 	if (!lhs.isDirectory && rhs.isDirectory) {
 		return false;
@@ -66,15 +68,13 @@ bool dirEntryPredicate (const DirEntry& lhs, const DirEntry& rhs) {
 	return strcasecmp(lhs.name.c_str(), rhs.name.c_str()) < 0;
 }
 
-void getDirectoryContents (vector<DirEntry>& dirContents, const vector<string> extensionList) {
-	struct stat st;
-
+static void getDirectoryContents (vector<DirEntry>& dirContents, const vector<string> extensionList) {
 	dirContents.clear();
 
 	DIR *pdir = opendir (".");
 
 	if (pdir == NULL) {
-		iprintf ("Unable to open the directory.\n");
+		printf ("Unable to open the directory.\n");
 	} else {
 
 		while(true) {
@@ -83,9 +83,8 @@ void getDirectoryContents (vector<DirEntry>& dirContents, const vector<string> e
 			struct dirent* pent = readdir(pdir);
 			if(pent == NULL) break;
 
-			stat(pent->d_name, &st);
 			dirEntry.name = pent->d_name;
-			dirEntry.isDirectory = (st.st_mode & S_IFDIR) ? true : false;
+			dirEntry.isDirectory = (pent->d_type == DT_DIR);
 
 			if (dirEntry.name.compare(".") != 0 && (dirEntry.isDirectory || nameEndsWith(dirEntry.name, extensionList))) {
 				dirContents.push_back (dirEntry);
@@ -99,25 +98,24 @@ void getDirectoryContents (vector<DirEntry>& dirContents, const vector<string> e
 	sort(dirContents.begin(), dirContents.end(), dirEntryPredicate);
 }
 
-void getDirectoryContents (vector<DirEntry>& dirContents) {
+/* static void getDirectoryContents (vector<DirEntry>& dirContents) {
 	vector<string> extensionList;
 	getDirectoryContents (dirContents, extensionList);
-}
+} */
 
-void showDirectoryContents (const vector<DirEntry>& dirContents, int startRow) {
-	char path[PATH_MAX];
+static char path[PATH_MAX];
 
-
+static void showDirectoryContents (const vector<DirEntry>& dirContents, int startRow) {
 	getcwd(path, PATH_MAX);
 
 	// Clear the screen
-	iprintf ("\x1b[2J");
+	printf ("\x1b[2J");
 
 	// Print the path
 	if (strlen(path) < SCREEN_COLS) {
-		iprintf ("%s", path);
+		printf ("%s", path);
 	} else {
-		iprintf ("%s", path + strlen(path) - SCREEN_COLS);
+		printf ("%s", path + strlen(path) - SCREEN_COLS);
 	}
 
 	// Move to 2nd row
@@ -131,22 +129,23 @@ void showDirectoryContents (const vector<DirEntry>& dirContents, int startRow) {
 		char entryName[SCREEN_COLS + 1];
 
 		// Set row
-		iprintf ("\x1b[%d;0H", i + ENTRIES_START_ROW);
+		printf ("\x1b[%d;0H", i + ENTRIES_START_ROW);
 
 		if (entry->isDirectory) {
 			strncpy (entryName, entry->name.c_str(), SCREEN_COLS);
 			entryName[SCREEN_COLS - 3] = '\0';
-			iprintf ("[%s]", entryName);
+			printf ("[%s]", entryName);
 		} else {
 			strncpy (entryName, entry->name.c_str(), SCREEN_COLS);
 			entryName[SCREEN_COLS - 1] = '\0';
-			iprintf ("%s", entryName);
+			printf ("%s", entryName);
 		}
 	}
 }
 
 string browseForFile (const vector<string>& extensionList) {
 	int pressed = 0;
+	int pressedRepeat = 0;
 	int screenOffset = 0;
 	int fileOffset = 0;
 	vector<DirEntry> dirContents;
@@ -167,9 +166,13 @@ string browseForFile (const vector<string>& extensionList) {
 		// Power saving loop. Only poll the keys once per frame and sleep the CPU if there is nothing else to do
 		do {
 			scanKeys();
-			pressed = keysDownRepeat();
+			pressed = keysDown();
+			pressedRepeat = keysDownRepeat();
 			swiWaitForVBlank();
-		} while (!pressed);
+		} while (!pressed && !pressedRepeat);
+		if (pressed == 0) {
+			pressed = pressedRepeat;
+		}
 
 		if (pressed & KEY_UP) 		fileOffset -= 1;
 		if (pressed & KEY_DOWN) 	fileOffset += 1;
@@ -192,7 +195,7 @@ string browseForFile (const vector<string>& extensionList) {
 		if (pressed & KEY_A) {
 			DirEntry* entry = &dirContents.at(fileOffset);
 			if (entry->isDirectory) {
-				iprintf("Entering directory\n");
+				printf("Entering directory\n");
 				// Enter selected directory
 				chdir (entry->name.c_str());
 				getDirectoryContents (dirContents, extensionList);
@@ -201,7 +204,7 @@ string browseForFile (const vector<string>& extensionList) {
 				showDirectoryContents (dirContents, screenOffset);
 			} else {
 				// Clear the screen
-				iprintf ("\x1b[2J");
+				printf ("\x1b[2J");
 				// Return the chosen file
 				return entry->name;
 			}

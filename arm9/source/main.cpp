@@ -9,12 +9,11 @@
 #include <unistd.h>
 
 #include "file_browse.h"
-#include "top_png_bin.h"
+#include "top.png_bin.h"
 #include "gl2d.h"
 #include "graphics/lodepng.h"
 #include "graphics/fontHandler.h"
 #include "gui.h"
-#include "nitrofs.h"
 #include "tonccpy.h"
 #include "lz77.h"
 
@@ -1195,7 +1194,7 @@ int main(int argc, char **argv) {
 
 	if (!fatInitDefault()) {
 		consoleDemoInit();
-		iprintf ("fatinitDefault failed!\n");
+		printf ("fatinitDefault failed!\n");
 		stop();
 	}
 
@@ -1247,7 +1246,7 @@ int main(int argc, char **argv) {
 	SetBrightness(0, 31);
 	SetBrightness(1, 31);
 
-	// nitroFSInit();
+	// nitroFSInit(NULL);
 
 	if (isDSiMode()) {
 		if(*twlCfgPointer < 0x02000000 || *twlCfgPointer >= 0x03000000) {
@@ -1331,7 +1330,7 @@ int main(int argc, char **argv) {
 
 		if ( strcasecmp (filename.c_str() + filename.size() - 5, ".rvid") != 0 ) {
 			consoleClear();
-			iprintf("No .rvid file specified.\n");
+			printf("No .rvid file specified.\n");
 			if (argc < 2) {
 				for (int i = 0; i < 60*2; i++) {
 					swiWaitForVBlank();

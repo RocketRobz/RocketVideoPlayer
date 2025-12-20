@@ -1,73 +1,114 @@
-#---------------------------------------------------------------------------------
-.SUFFIXES:
-#---------------------------------------------------------------------------------
-ifeq ($(strip $(DEVKITARM)),)
-$(error "Please set DEVKITARM in your environment. export DEVKITARM=<path to>devkitARM)
-endif
+# SPDX-License-Identifier: CC0-1.0
+#
+# SPDX-FileContributor: Antonio Niño Díaz, 2023
 
-include $(DEVKITARM)/ds_rules
+BLOCKSDS	?= /opt/blocksds/core
+BLOCKSDSEXT	?= /opt/blocksds/external
 
-export TARGET		:=	RocketVideoPlayer
-export TOPDIR		:=	$(CURDIR)
-#export NITRODATA	:=	nitrofiles
+# User config
+# ===========
 
-export VERSION_MAJOR	:= 1
-export VERSION_MINOR	:= 99
-export VERSTRING	:=	$(VERSION_MAJOR).$(VERSION_MINOR)
+NAME		:= RocketVideoPlayer
 
-#---------------------------------------------------------------------------------
-# External tools
-#---------------------------------------------------------------------------------
+GAME_TITLE	:= Rocket Video Player
+GAME_AUTHOR	:= Rocket Robz
+GAME_ICON	:= icon.png
+
+# DLDI and internal SD slot of DSi
+# --------------------------------
+
+# Root folder of the SD image
+SDROOT		:= sdroot
+# Name of the generated image it "DSi-1.sd" for no$gba in DSi mode
+SDIMAGE		:= image.bin
+
+# Source code paths
+# -----------------
+
+# List of folders to combine into the root of NitroFS:
+NITROFSDIR	?=
+
+# Tools
+# -----
+
+MAKE		:= make
+RM		:= rm -rf
+
 ifeq ($(OS),Windows_NT)
-MAKECIA 	?= make_cia.exe
+MAKECIA 	?= ./make_cia.exe
 
 else
-MAKECIA 	?= make_cia
+MAKECIA 	?= ./make_cia
 
 endif
 
-#---------------------------------------------------------------------------------
-# path to tools - this can be deleted if you set the path in windows
-#---------------------------------------------------------------------------------
-export PATH		:=	$(DEVKITARM)/bin:$(PATH)
+# Verbose flag
+# ------------
 
-.PHONY: $(TARGET).arm7 $(TARGET).arm9 libfat4
+ifeq ($(VERBOSE),1)
+V		:=
+else
+V		:= @
+endif
 
-#---------------------------------------------------------------------------------
-# main targets
-#---------------------------------------------------------------------------------
-all: libfat4 $(TARGET).nds $(TARGET).dsi
+# Build artfacts
+# --------------
 
-$(TARGET).nds	:	$(TARGET).arm7 $(TARGET).arm9
-	ndstool	-c $(TARGET).nds -7 arm7/$(TARGET).arm7.elf -9 arm9/$(TARGET).arm9.elf \
-			-b $(CURDIR)/icon.bmp "Rocket Video Player;Rocket Robz"
+ROM			:= $(NAME).nds
+ROM_DSI		:= $(NAME).dsi
 
-$(TARGET).dsi	:	$(TARGET).arm7 $(TARGET).arm9
-	ndstool	-c $(TARGET).dsi -7 arm7/$(TARGET).arm7.elf -9 arm9/$(TARGET).arm9.elf \
-			-b $(CURDIR)/icon.bmp "Rocket Video Player;Rocket Robz" \
-			-g HRVA 00 "ROCKETVIDEO" -z 80040000 -u 00030004
+# Targets
+# -------
 
-	@$(TOPDIR)/$(MAKECIA) --srl=$(TARGET).dsi
+.PHONY: all clean arm9 arm7 dldipatch sdimage
 
-#---------------------------------------------------------------------------------
-$(TARGET).arm7	: arm7/$(TARGET).elf
-$(TARGET).arm9	: arm9/$(TARGET).elf
+all: $(ROM)
 
-#---------------------------------------------------------------------------------
-arm7/$(TARGET).elf:
-	$(MAKE) -C arm7
-	
-#---------------------------------------------------------------------------------
-arm9/$(TARGET).elf:
-	$(MAKE) -C arm9
-
-#---------------------------------------------------------------------------------
 clean:
-	$(MAKE) -C arm9 clean
-	$(MAKE) -C arm7 clean
-	rm -f arm9/source/version.h
-	@$(MAKE) -C libs/libfat4 clean
-	rm -f $(TARGET).nds $(TARGET).arm7 $(TARGET).arm9 $(TARGET).dsi $(TARGET).cia
+	@echo "  CLEAN"
+	$(V)$(MAKE) -f arm9/Makefile clean --no-print-directory
+	$(V)$(MAKE) -f arm7/Makefile clean --no-print-directory
+	$(V)$(RM) $(ROM) build $(SDIMAGE)
 
-libfat4:
-	$(MAKE) -C libs/libfat4
+arm9:
+	$(V)+$(MAKE) -f arm9/Makefile --no-print-directory
+
+arm7:
+	$(V)+$(MAKE) -f arm7/Makefile --no-print-directory
+
+ifneq ($(strip $(NITROFSDIR)),)
+# Additional arguments for ndstool
+NDSTOOL_ARGS	:= -d $(NITROFSDIR)
+
+# Make the NDS ROM depend on the filesystem only if it is needed
+$(ROM): $(NITROFSDIR)
+endif
+
+# Combine the title strings
+ifeq ($(strip $(GAME_SUBTITLE)),)
+    GAME_FULL_TITLE := $(GAME_TITLE);$(GAME_AUTHOR)
+else
+    GAME_FULL_TITLE := $(GAME_TITLE);$(GAME_SUBTITLE);$(GAME_AUTHOR)
+endif
+
+$(ROM): arm9 arm7
+	@echo "  NDSTOOL $@"
+	$(V)$(BLOCKSDS)/tools/ndstool/ndstool -c $@ \
+		-7 build/arm7.elf -9 build/arm9.elf \
+		-b $(GAME_ICON) "$(GAME_FULL_TITLE)" \
+		$(NDSTOOL_ARGS)
+	@echo "  NDSTOOL $(ROM_DSI)"
+	$(V)$(BLOCKSDS)/tools/ndstool/ndstool -c $(ROM_DSI) \
+		-7 build/arm7.elf -9 build/arm9.elf \
+		-b $(GAME_ICON) "$(GAME_FULL_TITLE)" \
+		-g HRVA 00 "ROCKETVIDEO"
+	$(V)$(MAKECIA) --srl=$(ROM_DSI)
+
+sdimage:
+	@echo "  MKFATIMG $(SDIMAGE) $(SDROOT)"
+	$(V)$(BLOCKSDS)/tools/mkfatimg/mkfatimg -t $(SDROOT) $(SDIMAGE)
+
+dldipatch: $(ROM)
+	@echo "  DLDIPATCH $(ROM)"
+	$(V)$(BLOCKSDS)/tools/dldipatch/dldipatch patch \
+		$(BLOCKSDS)/sys/dldi_r4/r4tf.dldi $(ROM)

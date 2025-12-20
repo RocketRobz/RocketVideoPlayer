@@ -18,7 +18,7 @@ int fontTextureID[2];
 
 int FontGraphic::load(int textureID, glImage *_font_sprite,
 				  const unsigned int numframes,
-				  const unsigned int *texcoords,
+				  const u16 *texcoords,
 				  GL_TEXTURE_TYPE_ENUM type,
 				  int sizeX,
 				  int sizeY,
