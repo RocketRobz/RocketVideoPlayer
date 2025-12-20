@@ -132,38 +132,39 @@ touchPosition touch;
 FILE* rvid;
 u32 rvidCurrentOffset = 0;
 FILE* rvidSound;
-bool showVideoGui = false;
-bool updateVideoGuiFrame = true;
-bool videoPlaying = false;
-bool videoPausedPrior = false;
-bool displayFrame = true;
-int videoYpos = 0;
-int frameOfRefreshRate = 0;
-int frameOfRefreshRateLimit = 60;
-int currentFrame = 0;
-int currentFrameInBuffer = 0;
-int currentFrameInBufferForHBlank = 0;
-int loadedSingleFrames = 0;
-int loadedFrames = 0;
-int frameDelay = 0;
-bool frameDelayEven = true;
-bool bottomField = false;
+DTCM_DATA bool showVideoGui = false;
+DTCM_DATA bool updateVideoGuiFrame = true;
+DTCM_DATA bool videoPlaying = false;
+DTCM_DATA bool videoPausedPrior = false;
+DTCM_DATA bool displayFrame = true;
+DTCM_DATA int videoYpos = 0;
+DTCM_DATA int frameOfRefreshRate = 0;
+DTCM_DATA int frameOfRefreshRateLimit = 60;
+DTCM_DATA int currentFrame = 0;
+DTCM_DATA int currentFrameInBuffer = 0;
+DTCM_DATA int currentFrameInBufferForHBlank = 0;
+DTCM_DATA int loadedSingleFrames = 0;
+DTCM_DATA int loadedFrames = 0;
+DTCM_DATA int frameDelay = 0;
+DTCM_DATA bool frameDelayEven = true;
+DTCM_DATA bool bottomField = false;
+DTCM_DATA bool bottomFieldForHBlank = false;
 
-char filenameToDisplay[256];
-bool filenameDisplayCentered = false;
+DTCM_DATA char filenameToDisplay[256];
+DTCM_DATA bool filenameDisplayCentered = false;
 
-char timeStamp[96];
+DTCM_DATA char timeStamp[96];
 
-int hourMark = -1;
-int minuteMark = 59;
-int secondMark = 59;
+DTCM_DATA int hourMark = -1;
+DTCM_DATA int minuteMark = 59;
+DTCM_DATA int secondMark = 59;
 
-int videoHourMark = -1;
-int videoMinuteMark = 59;
-int videoSecondMark = 59;
+DTCM_DATA int videoHourMark = -1;
+DTCM_DATA int videoMinuteMark = 59;
+DTCM_DATA int videoSecondMark = 59;
 
-int fileCursorPosition = 2;
-u16 fileHighlightColor = 0;
+DTCM_DATA int fileCursorPosition = 2;
+DTCM_DATA u16 fileHighlightColor = 0;
 
 ITCM_CODE void fileHighlighter(void) {
 	int scanline = REG_VCOUNT;
@@ -196,7 +197,7 @@ ITCM_CODE void fillBorders(void) {
 ITCM_CODE void fillBordersInterlaced(void) {
 	int scanline = REG_VCOUNT;
 	int check1 = (videoYpos*2);
-	if (!bottomField) {
+	if (bottomFieldForHBlank) {
 		check1++;
 	}
 	const int check2 = (rvidVRes*2);
@@ -257,7 +258,7 @@ ITCM_CODE void HBlank_dmaFrameToScreenInterlaced(void) {
 	int scanline = REG_VCOUNT;
 	const int scanlineVid = scanline+1;
 	int check1 = (videoYpos*2);
-	if (!bottomField) {
+	if (bottomFieldForHBlank) {
 		check1++;
 	}
 	const int check2 = (rvidVRes*2);
@@ -281,7 +282,7 @@ ITCM_CODE void HBlank_dmaDualFrameToScreenInterlaced(void) {
 	int scanline = REG_VCOUNT;
 	const int scanlineVid = scanline+1;
 	int check1 = (videoYpos*2);
-	if (!bottomField) {
+	if (bottomFieldForHBlank) {
 		check1++;
 	}
 	const int check2 = (rvidVRes*2);
@@ -326,6 +327,7 @@ ITCM_CODE void dmaFrameToScreen(void) {
 			if (rvidDualScreen) {
 				REG_BG3Y = bottomField ? -1 : 0;
 			}
+			bottomFieldForHBlank = bottomField;
 		}
 		currentFrameInBufferForHBlank = currentFrameInBuffer;
 		if (!videoPlaying) {
@@ -338,6 +340,7 @@ ITCM_CODE void dmaFrameToScreen(void) {
 		if (rvidInterlaced) {
 			REG_BG3Y_SUB = bottomField ? -1 : 0;
 			REG_BG3Y = bottomField ? -1 : 0;
+			bottomFieldForHBlank = bottomField;
 		}
 		const int currentFrameInBufferDoubled = currentFrameInBuffer*2;
 		dmaCopyWordsAsynch(0, frameBuffer+(currentFrameInBufferDoubled*(rvidHRes*rvidVRes)), topBgPtr+((rvidHRes/2)*videoYpos), rvidHRes*rvidVRes);
@@ -356,6 +359,7 @@ ITCM_CODE void dmaFrameToScreen(void) {
 	} else {
 		if (rvidInterlaced) {
 			REG_BG3Y_SUB = bottomField ? -1 : 0;
+			bottomFieldForHBlank = bottomField;
 		}
 		dmaCopyWordsAsynch(0, frameBuffer+(currentFrameInBuffer*(rvidHRes*rvidVRes)), topBgPtr+((rvidHRes/2)*videoYpos), rvidHRes*rvidVRes);
 		if (!rvidOver256Colors) {
