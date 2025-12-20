@@ -264,7 +264,11 @@ ITCM_CODE void HBlank_dmaFrameToScreenInterlaced(void) {
 	} else if (check2 == 192 && scanline == check2) {
 		dmaCopyWordsAsynch(0, src, BG_PALETTE_SUB, 256*2);
 	} else {
-		scanline++;
+		if (bottomField) {
+			check1--;
+		} else {
+			scanline++;
+		}
 		if (scanline < check1 || scanline >= check1+check2) {
 			BG_PALETTE_SUB[0] = blackColor;
 		} else {
@@ -288,7 +292,11 @@ ITCM_CODE void HBlank_dmaDualFrameToScreenInterlaced(void) {
 		dmaCopyWordsAsynch(0, srcTop, BG_PALETTE_SUB, 256*2);
 		dmaCopyWordsAsynch(1, srcBottom, BG_PALETTE, 256*2);
 	} else {
-		scanline++;
+		if (bottomField) {
+			check1--;
+		} else {
+			scanline++;
+		}
 		if (scanline < check1 || scanline >= check1+check2) {
 			BG_PALETTE_SUB[0] = blackColor;
 			BG_PALETTE[0] = blackColor;
