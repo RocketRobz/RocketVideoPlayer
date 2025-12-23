@@ -533,6 +533,7 @@ static inline void loadFramePal(const int num, const int loadedFrameNum) {
 			}
 		}
 	}
+	DC_FlushRange(palBuffer[num], 256*2);
 
 	previousNum = num;
 }
@@ -581,6 +582,7 @@ void loadFrame(const int num) {
 					}
 					// applyColorLutToFrame((u16*)dst);
 				}
+				DC_FlushRange(dst, rvidHRes*rvidVRes);
 				sndUpdateStream();
 				rvidCurrentOffset = frameOffsets[loadedSingleFrames];
 				loadedSingleFrames++;
@@ -599,6 +601,7 @@ void loadFrame(const int num) {
 					fread(dst, 1, rvidHRes*rvidVRes, rvid);
 					// applyColorLutToFrame((u16*)dst);
 				}
+				DC_FlushRange(dst, rvidHRes*rvidVRes);
 				sndUpdateStream();
 				rvidCurrentOffset = frameOffsets[loadedSingleFrames];
 				loadedSingleFrames++;
@@ -627,6 +630,7 @@ void loadFrame(const int num) {
 			}
 			// applyColorLutToFrame((u16*)dst);
 		}
+		DC_FlushRange(dst, rvidHRes*rvidVRes);
 		sndUpdateStream();
 		rvidCurrentOffset = frameOffsets[loadedFrames];
 	}
