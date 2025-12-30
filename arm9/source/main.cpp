@@ -65,6 +65,7 @@ u16* bottomBgPtr = NULL;
 bool useBufferHalf = true;
 u16* soundBuffer[2] = {NULL};
 u16* soundBufferPos = NULL;
+u8* soundBufferPos8 = NULL;
 u16 soundBufferReadLen = 0;
 u16 soundBufferLen = 0;
 int soundBufferDivide = 6;
@@ -387,10 +388,14 @@ ITCM_CODE void renderFrames(void) {
 	if (videoPlaying && (currentFrame <= loadedFrames) && !displayFrame) {
 		if (rvidHasSound) {
 			if (!updateSoundBuffer && ((frameOfRefreshRate % (frameOfRefreshRateLimit/soundBufferDivide)) == 0)) {
-				soundBufferPos += soundBufferReadLen/soundBufferDivide;
+				if (rvidAudioIs16bit) {
+					soundBufferPos += soundBufferReadLen/soundBufferDivide;
+				} else {
+					soundBufferPos8 += soundBufferReadLen/soundBufferDivide;
+				}
 				soundBufferLen -= soundBufferReadLen/soundBufferDivide;
 				if (videoPausedPrior) {
-					sharedAddr[0] = (u32)soundBufferPos;
+					sharedAddr[0] = rvidAudioIs16bit ? (u32)soundBufferPos : (u32)soundBufferPos8;
 					sharedAddr[1] = (soundBufferLen*(rvidAudioIs16bit ? 2 : 1)) >> 2;
 					sharedAddr[2] = rvidSampleRate;
 					sharedAddr[3] = rvidAudioIs16bit;
@@ -405,7 +410,11 @@ ITCM_CODE void renderFrames(void) {
 				sharedAddr[3] = rvidAudioIs16bit;
 				IPC_SendSync(3);
 
-				soundBufferPos = (u16*)soundBuffer[useSoundBufferHalf];
+				if (rvidAudioIs16bit) {
+					soundBufferPos = (u16*)sharedAddr[0];
+				} else {
+					soundBufferPos8 = (u8*)sharedAddr[0];
+				}
 				soundBufferLen = rvidSampleRate;
 				updateSoundBuffer = true;
 			}
