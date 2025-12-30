@@ -185,13 +185,13 @@ void IPCSyncHandler(void) {
 			fpsa_stop(&sActiveFpsa);
 			break;
 		case 1: {
-			// 50 FPS
-			num = 44000;
+			// 59.94 FPS
+			num = 60000;
 			den = 1001;
 			startFpsa = true;
 		}	break;
 		case 2:
-			// 59.94 FPS
+			// 60 FPS
 			num = 60;
 			den = 1;
 			startFpsa = true;
@@ -206,6 +206,24 @@ void IPCSyncHandler(void) {
 				SCHANNEL_CR(channel) = SCHANNEL_ENABLE | SOUND_VOL(127) | SOUND_PAN(channel ? 127 : 0) | (sharedAddr[3] ? SOUND_FORMAT_16BIT : SOUND_FORMAT_8BIT) | SOUND_ONE_SHOT;
 			}
 		} break;
+		case 4: {
+			// 47.95 FPS
+			num = 48000;
+			den = 1001;
+			startFpsa = true;
+		}	break;
+		case 5: {
+			// 48 FPS
+			num = 48;
+			den = 1;
+			startFpsa = true;
+		}	break;
+		case 6: {
+			// 50 FPS
+			num = 50;
+			den = 1;
+			startFpsa = true;
+		}	break;
 	}
 
 	if (startFpsa) {

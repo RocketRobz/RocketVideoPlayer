@@ -419,13 +419,13 @@ ITCM_CODE void renderFrames(void) {
 			default:
 				displayFrame = (frameDelay == frameOfRefreshRateLimit/rvidFps);
 				break;
-			case 6:
+			/* case 6:
 				displayFrame = (frameDelay == 4+frameDelayEven);
-				break;
+				break; */
 			case 11:
 				displayFrame = (frameDelay == 5+frameDelayEven);
 				break;
-			case 12:
+			/* case 12:
 				displayFrame = (frameDelay == 3+frameDelayEven);
 				break;
 			case 24:
@@ -434,7 +434,7 @@ ITCM_CODE void renderFrames(void) {
 				break;
 			case 48:
 				displayFrame = (frameDelay == 1+frameDelayEven);
-				break;
+				break; */
 		}
 	}
 	if (videoPlaying && (currentFrame <= loadedFrames) && displayFrame) {
@@ -474,12 +474,12 @@ ITCM_CODE void renderFrames(void) {
 			}
 		}
 		switch (rvidFps) {
-			case 6:
+			/* case 6:
 			case 12:
 			case 24:
 			case 48:
 				frameDelayEven = !frameDelayEven;
-				break;
+				break; */
 			case 11:
 				if ((currentFrame % 11) < 10) {
 					frameDelayEven = !frameDelayEven;
@@ -930,14 +930,15 @@ int playRvid(const char* filename) {
 	}
 
 	// Enable frame rate adjustment
-	if (rvidFps == 25 || rvidFps == 50) {
+	if (rvidFps == 6 || rvidFps == 12 || rvidFps == 24 || rvidFps == 48) {
+		frameOfRefreshRateLimit = 48;
+		IPC_SendSync(rvidReduceFpsBy01 ? 4 : 5);
+	} else if (rvidFps == 25 || rvidFps == 50) {
 		frameOfRefreshRateLimit = 50;
-		IPC_SendSync(1);
+		IPC_SendSync(6);
 	} else {
 		frameOfRefreshRateLimit = 60;
-		if (!rvidReduceFpsBy01) {
-			IPC_SendSync(2);
-		}
+		IPC_SendSync(rvidReduceFpsBy01 ? 1 : 2);
 	}
 
 	videoPlaying = true;
