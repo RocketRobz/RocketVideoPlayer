@@ -219,9 +219,9 @@ ITCM_CODE void fillBordersInterlaced(void) {
 ITCM_CODE void HBlank_dmaFrameToScreen(void) {
 	int scanline = REG_VCOUNT;
 	const u8* src = displaySavedFrameBuffer ? savedFrameBuffer[0] : frameBuffer+(currentFrameInBufferForHBlank*(0x200*rvidVRes));
-	if (scanline > videoYpos+rvidVRes) {
+	if (rvidVRes < 192 && scanline > videoYpos+rvidVRes) {
 		return;
-	} else if (rvidVRes == 192 && scanline == rvidVRes) {
+	} else if (rvidVRes == 192 && scanline >= rvidVRes) {
 		dmaCopyWordsAsynch(0, src, BG_PALETTE_SUB, 256*2);
 	} else {
 		scanline++;
@@ -238,9 +238,9 @@ ITCM_CODE void HBlank_dmaDualFrameToScreen(void) {
 	const int currentFrameInBufferDoubled = currentFrameInBufferForHBlank*2;
 	const u8* srcTop = displaySavedFrameBuffer ? savedFrameBuffer[0] : frameBuffer+(currentFrameInBufferDoubled*(0x200*rvidVRes));
 	const u8* srcBottom = displaySavedFrameBuffer ? savedFrameBuffer[1] : frameBuffer+((currentFrameInBufferDoubled+1)*(0x200*rvidVRes));
-	if (scanline > videoYpos+rvidVRes) {
+	if (rvidVRes < 192 && scanline > videoYpos+rvidVRes) {
 		return;
-	} else if (rvidVRes == 192 && scanline == rvidVRes) {
+	} else if (rvidVRes == 192 && scanline >= rvidVRes) {
 		dmaCopyWordsAsynch(0, srcTop, BG_PALETTE_SUB, 256*2);
 		dmaCopyWordsAsynch(1, srcBottom, BG_PALETTE, 256*2);
 	} else {
@@ -264,9 +264,9 @@ ITCM_CODE void HBlank_dmaFrameToScreenInterlaced(void) {
 	}
 	const int check2 = (rvidVRes*2);
 	const u8* src = displaySavedFrameBuffer ? savedFrameBuffer[0] : frameBuffer+(currentFrameInBufferForHBlank*(0x200*rvidVRes));
-	if (scanline > check1+check2) {
+	if (check2 < 192 && scanline > check1+check2) {
 		return;
-	} else if (check2 == 192 && scanline == check2) {
+	} else if (check2 == 192 && scanline >= check2) {
 		dmaCopyWordsAsynch(0, src, BG_PALETTE_SUB, 256*2);
 	} else {
 		scanline++;
@@ -290,9 +290,9 @@ ITCM_CODE void HBlank_dmaDualFrameToScreenInterlaced(void) {
 	const int currentFrameInBufferDoubled = currentFrameInBufferForHBlank*2;
 	const u8* srcTop = displaySavedFrameBuffer ? savedFrameBuffer[0] : frameBuffer+(currentFrameInBufferDoubled*(0x200*rvidVRes));
 	const u8* srcBottom = displaySavedFrameBuffer ? savedFrameBuffer[1] : frameBuffer+((currentFrameInBufferDoubled+1)*(0x200*rvidVRes));
-	if (scanline > check1+check2) {
+	if (check2 < 192 && canline > check1+check2) {
 		return;
-	} else if (check2 == 192 && scanline == check2) {
+	} else if (check2 == 192 && scanline >= check2) {
 		dmaCopyWordsAsynch(0, srcTop, BG_PALETTE_SUB, 256*2);
 		dmaCopyWordsAsynch(1, srcBottom, BG_PALETTE, 256*2);
 	} else {
