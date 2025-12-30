@@ -63,7 +63,7 @@ int bottomBg;
 u16* topBgPtr = NULL;
 u16* bottomBgPtr = NULL;
 bool useBufferHalf = true;
-u16 soundBuffer[2][32032];
+u16* soundBuffer[2] = {NULL};
 u16* soundBufferPos = NULL;
 u16 soundBufferReadLen = 0;
 u16 soundBufferLen = 0;
@@ -399,13 +399,13 @@ ITCM_CODE void renderFrames(void) {
 				}
 			}
 			if ((frameOfRefreshRate % frameOfRefreshRateLimit) == 0) {
-				sharedAddr[0] = (u32)&soundBuffer[useSoundBufferHalf];
+				sharedAddr[0] = (u32)soundBuffer[useSoundBufferHalf];
 				sharedAddr[1] = (soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1)) >> 2;
 				sharedAddr[2] = rvidSampleRate;
 				sharedAddr[3] = rvidAudioIs16bit;
 				IPC_SendSync(3);
 
-				soundBufferPos = (u16*)&soundBuffer[useSoundBufferHalf];
+				soundBufferPos = (u16*)soundBuffer[useSoundBufferHalf];
 				soundBufferLen = rvidSampleRate;
 				updateSoundBuffer = true;
 			}
@@ -838,11 +838,23 @@ int playRvid(const char* filename) {
 
 	if (rvidHasSound) {
 		soundBufferReadLen = rvidSampleRate;
-		if (rvidReduceFpsBy01) {
+		if (rvidNativeRefreshRate) {
+			// Ensure video and audio stay in sync
+			for (int i = 0; i < rvidSampleRate; i += 350) {
+				soundBufferReadLen++;
+			}
+		} else if (rvidReduceFpsBy01) {
 			// Ensure video and audio stay in sync
 			for (int i = 0; i < rvidSampleRate; i += 1000) {
 				soundBufferReadLen++;
 			}
+		}
+		if (rvidAudioIs16bit) {
+			soundBuffer[0] = new u16[soundBufferReadLen];
+			soundBuffer[1] = new u16[soundBufferReadLen];
+		} else {
+			soundBuffer[0] = (u16*)new u8[soundBufferReadLen];
+			soundBuffer[1] = (u16*)new u8[soundBufferReadLen];
 		}
 
 		rvidSound = fopen(filename, "rb");
@@ -938,7 +950,9 @@ int playRvid(const char* filename) {
 		IPC_SendSync(6);
 	} else {
 		frameOfRefreshRateLimit = 60;
-		IPC_SendSync(rvidReduceFpsBy01 ? 1 : 2);
+		if (!rvidNativeRefreshRate) {
+			IPC_SendSync(rvidReduceFpsBy01 ? 1 : 2);
+		}
 	}
 
 	videoPlaying = true;
@@ -1148,6 +1162,10 @@ int playRvid(const char* filename) {
 		}
 	}
 	delete[] frameBuffer;
+	if (rvidHasSound) {
+		delete[] soundBuffer[0];
+		delete[] soundBuffer[1];
+	}
 	bgInitSub(3, BgType_Bmp16, BgSize_B16_256x256, 0, 0);
 
 	showVideoGui = false;

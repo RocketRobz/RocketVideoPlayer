@@ -49,6 +49,7 @@ typedef struct rvidHeaderInfo3 {
 extern int rvidFrames;
 extern int rvidFps;
 extern bool rvidReduceFpsBy01;
+extern bool rvidNativeRefreshRate;
 extern int rvidHRes;
 extern int rvidVRes;
 extern bool rvidInterlaced;

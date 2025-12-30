@@ -7,6 +7,7 @@ rvidHeaderCheckInfo rvidHeaderCheck;
 int rvidFrames = 0;
 int rvidFps = 0;
 bool rvidReduceFpsBy01 = false;
+bool rvidNativeRefreshRate = false;
 int rvidHRes = 0;
 int rvidVRes = 0;
 bool rvidInterlaced = false;
@@ -30,6 +31,7 @@ void readRvidHeader(FILE* rvid) {
 			rvidFrames = rvidHeader1.frames;
 			rvidFps = rvidHeader1.fps;
 			rvidReduceFpsBy01 = false;
+			rvidNativeRefreshRate = false;
 			rvidVRes = rvidHeader1.vRes;
 			rvidInterlaced = false;
 			rvidDualScreen = false;
@@ -48,6 +50,7 @@ void readRvidHeader(FILE* rvid) {
 			rvidFrames = rvidHeader2.frames;
 			rvidFps = rvidHeader2.fps;
 			rvidReduceFpsBy01 = false;
+			rvidNativeRefreshRate = false;
 			rvidVRes = rvidHeader2.vRes;
 			// rvidInterlaced = rvidHeader2.interlaced;
 			rvidInterlaced = false;
@@ -67,11 +70,17 @@ void readRvidHeader(FILE* rvid) {
 			fread(&rvidHeader3, 1, sizeof(rvidHeader3), rvid);
 			rvidFrames = rvidHeader3.frames;
 			rvidFps = rvidHeader3.fps;
-			if (rvidFps >= 0x80) {
+			if (rvidFps == 0) {
+				rvidFps = 60;
+				rvidReduceFpsBy01 = false;
+				rvidNativeRefreshRate = true;
+			} else if (rvidFps >= 0x80) {
 				rvidFps -= 0x80;
 				rvidReduceFpsBy01 = true;
+				rvidNativeRefreshRate = false;
 			} else {
 				rvidReduceFpsBy01 = false;
+				rvidNativeRefreshRate = false;
 			}
 			rvidVRes = rvidHeader3.vRes;
 			rvidInterlaced = rvidHeader3.interlaced;
