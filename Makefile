@@ -56,6 +56,7 @@ endif
 
 ROM			:= $(NAME).nds
 ROM_DSI		:= $(NAME).dsi
+ROM_CIA		:= $(NAME).cia
 
 # Targets
 # -------
@@ -68,7 +69,7 @@ clean:
 	@echo "  CLEAN"
 	$(V)$(MAKE) -f arm9/Makefile clean --no-print-directory
 	$(V)$(MAKE) -f arm7/Makefile clean --no-print-directory
-	$(V)$(RM) $(ROM) build $(SDIMAGE)
+	$(V)$(RM) $(ROM) $(ROM_DSI) $(ROM_CIA) build $(SDIMAGE)
 
 arm9:
 	$(V)+$(MAKE) -f arm9/Makefile --no-print-directory
