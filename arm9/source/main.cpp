@@ -290,7 +290,7 @@ ITCM_CODE void HBlank_dmaDualFrameToScreenInterlaced(void) {
 	const int currentFrameInBufferDoubled = currentFrameInBufferForHBlank*2;
 	const u8* srcTop = displaySavedFrameBuffer ? savedFrameBuffer[0] : frameBuffer+(currentFrameInBufferDoubled*(0x200*rvidVRes));
 	const u8* srcBottom = displaySavedFrameBuffer ? savedFrameBuffer[1] : frameBuffer+((currentFrameInBufferDoubled+1)*(0x200*rvidVRes));
-	if (check2 < 192 && canline > check1+check2) {
+	if (check2 < 192 && scanline > check1+check2) {
 		return;
 	} else if (check2 == 192 && scanline >= check2) {
 		dmaCopyWordsAsynch(0, srcTop, BG_PALETTE_SUB, 256*2);
