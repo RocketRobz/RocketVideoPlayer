@@ -528,7 +528,7 @@ void sndUpdateStream(void) {
 	updateSoundBuffer = false;
 }
 
-static inline void loadFramePal(const int num, const int loadedFrameNum) {
+ITCM_CODE static void loadFramePal(const int num, const int loadedFrameNum) {
 	if (rvidOver256Colors) return;
 
 	static int previousNum[2] = {0};
@@ -565,7 +565,7 @@ static inline void loadFramePal(const int num, const int loadedFrameNum) {
 	}
 } */
 
-void loadFrame(const int num) {
+ITCM_CODE void loadFrame(const int num) {
 	if (loadedFrames >= rvidFrames) {
 		return;
 	}
