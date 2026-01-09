@@ -1147,6 +1147,7 @@ int playRvid(const char* filename) {
 			}
 
 			// Reload video
+			rvidPreviousOffset = 0;
 			rvidCurrentOffset = 0;
 			u32 rvidNextOffset = 0;
 			if (rvidDualScreen) {
