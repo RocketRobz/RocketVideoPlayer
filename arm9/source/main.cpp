@@ -1454,8 +1454,12 @@ int main(int argc, char **argv) {
 				} else {
 					const int err = playRvid(filename.c_str());
 					fclose(rvid);
-					fclose(rvidSound[0]);
-					fclose(rvidSound[1]);
+					if ((err == 0) && rvidHasSound) {
+						fclose(rvidSound[0]);
+						if (rvidSoundRightOffset) {
+							fclose(rvidSound[1]);
+						}
+					}
 					if ((err > 0) && !fadeType) {
 						setupFileBrowserGfx();
 					}
