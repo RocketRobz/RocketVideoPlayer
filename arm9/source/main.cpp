@@ -309,9 +309,6 @@ ITCM_CODE void HBlank_dmaDualFrameToScreenInterlaced(void) {
 	}
 }
 
-ITCM_CODE void HBlankNull(void) {
-}
-
 ITCM_CODE void saveFrameBuffer(void) {
 	if (rvidDualScreen) {
 		const int currentFrameInBufferDoubled = currentFrameInBufferForHBlank*2;
@@ -996,8 +993,8 @@ int playRvid(const char* filename) {
 	if (rvidOver256Colors == 2) {
 		irqSet(IRQ_HBLANK, rvidInterlaced ? (rvidDualScreen ? HBlank_dmaDualFrameToScreenInterlaced : HBlank_dmaFrameToScreenInterlaced) : (rvidDualScreen ? HBlank_dmaDualFrameToScreen : HBlank_dmaFrameToScreen));
 		irqEnable(IRQ_HBLANK);
-	} else if (rvidOver256Colors == 0) {
-		irqSet(IRQ_HBLANK, (rvidVRes == (rvidInterlaced ? 96 : 192)) ? HBlankNull : rvidInterlaced ? fillBordersInterlaced : fillBorders);
+	} else if (rvidOver256Colors == 0 && rvidVRes < (rvidInterlaced ? 96 : 192)) {
+		irqSet(IRQ_HBLANK, rvidInterlaced ? fillBordersInterlaced : fillBorders);
 		irqEnable(IRQ_HBLANK);
 	}
 
@@ -1211,7 +1208,7 @@ int playRvid(const char* filename) {
 	}
 
 	if (rvidOver256Colors != 1) {
-		irqSet(IRQ_HBLANK, HBlankNull);
+		irqDisable(IRQ_HBLANK);
 	}
 	if (rvidCompressed) {
 		if (rvidOver256Colors) {
@@ -1427,7 +1424,7 @@ int main(int argc, char **argv) {
 
 			filename = browseForFile(extensionList);
 
-			irqSet(IRQ_HBLANK, HBlankNull);
+			irqDisable(IRQ_HBLANK);
 			BG_PALETTE[0] = blackColor;
 		}
 
