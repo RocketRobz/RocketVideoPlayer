@@ -86,8 +86,8 @@ u16* colorTable = NULL;
 bool invertedColors = false;
 bool noWhiteFade = false;
 
-u16 blackColor = 0;
-u16 whiteColor = 0xFFFF;
+DTCM_DATA u16 blackColor = 0;
+DTCM_DATA u16 whiteColor = 0xFFFF;
 
 // Ported from PAlib (obsolete)
 void SetBrightness(u8 screen, s8 bright) {
