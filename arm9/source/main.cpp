@@ -1460,42 +1460,41 @@ int main(int argc, char **argv) {
 							fclose(rvidSound[1]);
 						}
 					}
-					if ((err > 0) && !fadeType) {
-						setupFileBrowserGfx();
+					if (err > 0) {
+						if (!fadeType) {
+							setupFileBrowserGfx();
+						}
+						consoleClear();
 					}
 					if (err == 4) {
-						consoleClear();
-						printf("Old compressed Rocket Video\n");
-						printf("files are currently not\n");
-						printf("supported.\n");
+						printf("Old compressed Rocket Video\n"
+								"files are currently not\n"
+								"supported.\n");
 					} else if (err == 3) {
-						consoleClear();
-						printf("This Rocket Video file\n");
-						printf("contains a version higher than\n");
-						printf("the player supports.\n");
-						printf("\n");
-						printf("Please update the player to\n");
-						printf("the latest version.\n");
+						printf("This Rocket Video file\n"
+								"contains a version higher than\n"
+								"the player supports.\n"
+								"\n"
+								"Please update the player to\n"
+								"the latest version.\n");
 					} else if (err == 2) {
-						consoleClear();
-						printf("16 BPP videos are not\n");
-						printf("supported with screen color\n");
-						printf("filters.\n");
-						printf("\n");
-						printf("Please re-convert your video\n");
-						printf("to 8 BPP, or turn off the\n");
-						printf("screen color filter.\n");
+						printf("16 BPP videos are not\n"
+								"supported with screen color\n"
+								"filters.\n"
+								"\n"
+								"Please re-convert your video\n"
+								"to 8 BPP, or turn off the\n"
+								"screen color filter.\n");
 					} else if (err == 1) {
-						consoleClear();
-						printf("Audio sample rate is higher\n");
-						printf("than 32000Hz.\n");
-						printf("\n");
-						printf("Please lower the sample rate\n");
-						printf("to 32000Hz or less.\n");
+						printf("Audio sample rate is higher\n"
+								"than 32000Hz.\n"
+								"\n"
+								"Please lower the sample rate\n"
+								"to 32000Hz or less.\n");
 					}
 					if (err > 0) {
-						printf("\n");
-						printf("A: OK\n");
+						printf("\n"
+								"A: OK\n");
 						while (1) {
 							scanKeys();
 							if (keysDown() & KEY_A) {
