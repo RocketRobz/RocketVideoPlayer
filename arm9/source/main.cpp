@@ -1478,12 +1478,13 @@ int main(int argc, char **argv) {
 						printf("the latest version.\n");
 					} else if (err == 2) {
 						consoleClear();
-						printf("BMP16 videos are not supported\n");
-						printf("with screen filters.\n");
+						printf("16 BPP videos are not\n");
+						printf("supported with screen color\n");
+						printf("filters.\n");
 						printf("\n");
 						printf("Please re-convert your video\n");
-						printf("to BMP8, or turn off the\n");
-						printf("screen filter.\n");
+						printf("to 8 BPP, or turn off the\n");
+						printf("screen color filter.\n");
 					} else if (err == 1) {
 						consoleClear();
 						printf("Audio sample rate is higher\n");
