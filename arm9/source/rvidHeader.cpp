@@ -19,6 +19,7 @@ bool rvidAudioIs16bit = false;
 bool rvidCompressed = false;
 u32 rvidCompressedFrameSizeTableOffset = 0;
 u32 rvidSoundOffset = 0;
+u32 rvidSoundRightOffset = 0;
 
 void readRvidHeader(FILE* rvid) {
 	u32 rvidFramesOffset = 0x200;
@@ -42,6 +43,7 @@ void readRvidHeader(FILE* rvid) {
 			rvidCompressed = false;
 			rvidCompressedFrameSizeTableOffset = 0;
 			rvidSoundOffset = rvidFramesOffset+((0x200*rvidVRes)*rvidFrames);
+			rvidSoundRightOffset = 0;
 			rvidHRes = 0x200;
 			break;
 		case 2:
@@ -63,13 +65,15 @@ void readRvidHeader(FILE* rvid) {
 			rvidCompressed = rvidHeader2.framesCompressed;
 			rvidCompressedFrameSizeTableOffset = rvidCompressed ? rvidFramesOffset : 0;
 			rvidSoundOffset = rvidHeader2.soundOffset;
+			rvidSoundRightOffset = 0;
 			rvidHRes = 0x200;
 			break;
-		case 3: {
-			rvidHeaderInfo3 rvidHeader3;
-			fread(&rvidHeader3, 1, sizeof(rvidHeader3), rvid);
-			rvidFrames = rvidHeader3.frames;
-			rvidFps = rvidHeader3.fps;
+		case 3:
+		case 4: {
+			rvidHeaderInfo4 rvidHeader4;
+			fread(&rvidHeader4, 1, sizeof(rvidHeader4), rvid);
+			rvidFrames = rvidHeader4.frames;
+			rvidFps = rvidHeader4.fps;
 			if (rvidFps == 0) {
 				rvidFps = 60;
 				rvidReduceFpsBy01 = false;
@@ -82,14 +86,17 @@ void readRvidHeader(FILE* rvid) {
 				rvidReduceFpsBy01 = false;
 				rvidNativeRefreshRate = false;
 			}
-			rvidVRes = rvidHeader3.vRes;
-			rvidInterlaced = rvidHeader3.interlaced;
-			rvidDualScreen = rvidHeader3.dualScreen;
-			rvidSampleRate = rvidHeader3.sampleRate;
-			rvidAudioIs16bit = rvidHeader3.audioBitMode;
-			rvidOver256Colors = rvidHeader3.bmpMode;
-			rvidCompressedFrameSizeTableOffset = rvidHeader3.compressedFrameSizeTableOffset;
-			rvidSoundOffset = rvidHeader3.soundOffset;
+			rvidVRes = rvidHeader4.vRes;
+			rvidInterlaced = rvidHeader4.interlaced;
+			rvidDualScreen = rvidHeader4.dualScreen;
+			rvidSampleRate = rvidHeader4.sampleRate;
+			rvidAudioIs16bit = rvidHeader4.audioBitMode;
+			rvidOver256Colors = rvidHeader4.bmpMode;
+			rvidCompressedFrameSizeTableOffset = rvidHeader4.compressedFrameSizeTableOffset;
+			rvidSoundOffset = rvidHeader4.soundLeftOffset;
+			if (rvidHeaderCheck.ver != 3) {
+				rvidSoundRightOffset = rvidHeader4.soundRightOffset;
+			}
 
 			rvidHRes = rvidOver256Colors ? 0x200 : 0x100;
 			rvidCompressed = (rvidCompressedFrameSizeTableOffset > 0);

@@ -63,9 +63,9 @@ int bottomBg;
 u16* topBgPtr = NULL;
 u16* bottomBgPtr = NULL;
 bool useBufferHalf = true;
-u16* soundBuffer[2] = {NULL};
-u16* soundBufferPos = NULL;
-u8* soundBufferPos8 = NULL;
+u16* soundBuffer[2][2] = {{NULL}};
+u16* soundBufferPos[2] = {NULL};
+u8* soundBufferPos8[2] = {NULL};
 u16 soundBufferReadLen = 0;
 u16 soundBufferLen = 0;
 int soundBufferDivide = 6;
@@ -133,7 +133,7 @@ touchPosition touch;
 FILE* rvid;
 u32 rvidPreviousOffset = 0;
 u32 rvidCurrentOffset = 0;
-FILE* rvidSound;
+FILE* rvidSound[2];
 DTCM_DATA bool showVideoGui = false;
 DTCM_DATA bool updateVideoGuiFrame = true;
 DTCM_DATA bool videoPlaying = false;
@@ -309,7 +309,7 @@ ITCM_CODE void HBlank_dmaDualFrameToScreenInterlaced(void) {
 	}
 }
 
-void HBlankNull(void) {
+ITCM_CODE void HBlankNull(void) {
 }
 
 ITCM_CODE void saveFrameBuffer(void) {
@@ -389,32 +389,39 @@ ITCM_CODE void renderFrames(void) {
 	if (videoPlaying && (currentFrame <= loadedFrames) && !displayFrame) {
 		if (rvidHasSound) {
 			if (!updateSoundBuffer && ((frameOfRefreshRate % (frameOfRefreshRateLimit/soundBufferDivide)) == 0)) {
+				const u16 lenUpdate = soundBufferReadLen/soundBufferDivide;
 				if (rvidAudioIs16bit) {
-					soundBufferPos += soundBufferReadLen/soundBufferDivide;
+					soundBufferPos[0] += lenUpdate;
+					soundBufferPos[1] += lenUpdate;
 				} else {
-					soundBufferPos8 += soundBufferReadLen/soundBufferDivide;
+					soundBufferPos8[0] += lenUpdate;
+					soundBufferPos8[1] += lenUpdate;
 				}
-				soundBufferLen -= soundBufferReadLen/soundBufferDivide;
+				soundBufferLen -= lenUpdate;
 				if (videoPausedPrior) {
-					sharedAddr[0] = rvidAudioIs16bit ? (u32)soundBufferPos : (u32)soundBufferPos8;
-					sharedAddr[1] = (soundBufferLen*(rvidAudioIs16bit ? 2 : 1)) >> 2;
-					sharedAddr[2] = rvidSampleRate;
-					sharedAddr[3] = rvidAudioIs16bit;
+					sharedAddr[0] = rvidAudioIs16bit ? (u32)soundBufferPos[0] : (u32)soundBufferPos8[0];
+					sharedAddr[1] = rvidAudioIs16bit ? (u32)soundBufferPos[1] : (u32)soundBufferPos8[1];
+					sharedAddr[2] = (soundBufferLen*(rvidAudioIs16bit ? 2 : 1)) >> 2;
+					sharedAddr[3] = rvidSampleRate;
+					sharedAddr[4] = rvidAudioIs16bit;
 					IPC_SendSync(3);
 					videoPausedPrior = false;
 				}
 			}
 			if ((frameOfRefreshRate % frameOfRefreshRateLimit) == 0) {
-				sharedAddr[0] = (u32)soundBuffer[useSoundBufferHalf];
-				sharedAddr[1] = (soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1)) >> 2;
-				sharedAddr[2] = rvidSampleRate;
-				sharedAddr[3] = rvidAudioIs16bit;
+				sharedAddr[0] = (u32)soundBuffer[0][useSoundBufferHalf];
+				sharedAddr[1] = (u32)soundBuffer[rvidSoundRightOffset ? 1 : 0][useSoundBufferHalf];
+				sharedAddr[2] = (soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1)) >> 2;
+				sharedAddr[3] = rvidSampleRate;
+				sharedAddr[4] = rvidAudioIs16bit;
 				IPC_SendSync(3);
 
 				if (rvidAudioIs16bit) {
-					soundBufferPos = (u16*)sharedAddr[0];
+					soundBufferPos[0] = (u16*)sharedAddr[0];
+					soundBufferPos[1] = (u16*)sharedAddr[1];
 				} else {
-					soundBufferPos8 = (u8*)sharedAddr[0];
+					soundBufferPos8[0] = (u8*)sharedAddr[0];
+					soundBufferPos8[1] = (u8*)sharedAddr[1];
 				}
 				soundBufferLen = rvidSampleRate;
 				updateSoundBuffer = true;
@@ -518,13 +525,19 @@ bool confirmStop = false;
 int videoJump = 0;
 bool doubleJump = false;
 
-void sndUpdateStream(void) {
+ITCM_CODE void sndUpdateStream(void) {
 	if (!updateSoundBuffer) {
 		return;
 	}
 	useSoundBufferHalf = !useSoundBufferHalf;
-	toncset(soundBuffer[useSoundBufferHalf], 0, soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1));
-	fread(soundBuffer[useSoundBufferHalf], rvidAudioIs16bit ? 2 : 1, soundBufferReadLen, rvidSound);
+	toncset(soundBuffer[0][useSoundBufferHalf], 0, soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1));
+	if (rvidSoundRightOffset) {
+		toncset(soundBuffer[1][useSoundBufferHalf], 0, soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1));
+		const int lenMatch = fread(soundBuffer[1][useSoundBufferHalf], rvidAudioIs16bit ? 2 : 1, soundBufferReadLen, rvidSound[1]);
+		fread(soundBuffer[0][useSoundBufferHalf], rvidAudioIs16bit ? 2 : 1, lenMatch, rvidSound[0]);
+	} else {
+		fread(soundBuffer[0][useSoundBufferHalf], rvidAudioIs16bit ? 2 : 1, soundBufferReadLen, rvidSound[0]);
+	}
 	updateSoundBuffer = false;
 }
 
@@ -738,7 +751,7 @@ int playRvid(const char* filename) {
 
 	if (rvidHeaderCheck.ver == 0) {
 		return 0;
-	} else if (rvidHeaderCheck.ver > 3) {
+	} else if (rvidHeaderCheck.ver > latestRvidVer) {
 		return 3;
 	}
 
@@ -881,18 +894,34 @@ int playRvid(const char* filename) {
 			}
 		}
 		if (rvidAudioIs16bit) {
-			soundBuffer[0] = new u16[soundBufferReadLen];
-			soundBuffer[1] = new u16[soundBufferReadLen];
+			soundBuffer[0][0] = new u16[soundBufferReadLen];
+			soundBuffer[0][1] = new u16[soundBufferReadLen];
 		} else {
-			soundBuffer[0] = (u16*)new u8[soundBufferReadLen];
-			soundBuffer[1] = (u16*)new u8[soundBufferReadLen];
+			soundBuffer[0][0] = (u16*)new u8[soundBufferReadLen];
+			soundBuffer[0][1] = (u16*)new u8[soundBufferReadLen];
 		}
 
-		rvidSound = fopen(filename, "rb");
-		fseek(rvidSound, rvidSoundOffset, SEEK_SET);
 		soundBufferDivide = (rvidFps == 25 || rvidFps == 50) ? 5 : 6;
-		toncset(soundBuffer[0], 0, soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1));
-		fread(soundBuffer[0], rvidAudioIs16bit ? 2 : 1, soundBufferReadLen, rvidSound);
+
+		rvidSound[0] = fopen(filename, "rb");
+		fseek(rvidSound[0], rvidSoundOffset, SEEK_SET);
+		toncset(soundBuffer[0][0], 0, soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1));
+		fread(soundBuffer[0][0], rvidAudioIs16bit ? 2 : 1, soundBufferReadLen, rvidSound[0]);
+
+		if (rvidSoundRightOffset) {
+			if (rvidAudioIs16bit) {
+				soundBuffer[1][0] = new u16[soundBufferReadLen];
+				soundBuffer[1][1] = new u16[soundBufferReadLen];
+			} else {
+				soundBuffer[1][0] = (u16*)new u8[soundBufferReadLen];
+				soundBuffer[1][1] = (u16*)new u8[soundBufferReadLen];
+			}
+
+			rvidSound[1] = fopen(filename, "rb");
+			fseek(rvidSound[1], rvidSoundRightOffset, SEEK_SET);
+			toncset(soundBuffer[1][0], 0, soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1));
+			fread(soundBuffer[1][0], rvidAudioIs16bit ? 2 : 1, soundBufferReadLen, rvidSound[1]);
+		}
 	}
 
 	if (fadeType) {
@@ -1138,9 +1167,15 @@ int playRvid(const char* filename) {
 			}
 
 			if (rvidHasSound) {
-				fseek(rvidSound, rvidSoundOffset+((soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1))*(currentFrame/rvidFps)), SEEK_SET);
-				toncset(soundBuffer[0], 0, soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1));
-				fread(soundBuffer[0], rvidAudioIs16bit ? 2 : 1, soundBufferReadLen, rvidSound);
+				fseek(rvidSound[0], rvidSoundOffset+((soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1))*(currentFrame/rvidFps)), SEEK_SET);
+				toncset(soundBuffer[0][0], 0, soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1));
+				fread(soundBuffer[0][0], rvidAudioIs16bit ? 2 : 1, soundBufferReadLen, rvidSound[0]);
+
+				if (rvidSoundRightOffset) {
+					fseek(rvidSound[1], rvidSoundRightOffset+((soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1))*(currentFrame/rvidFps)), SEEK_SET);
+					toncset(soundBuffer[1][0], 0, soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1));
+					fread(soundBuffer[1][0], rvidAudioIs16bit ? 2 : 1, soundBufferReadLen, rvidSound[1]);
+				}
 			}
 
 			if (videoJump != 0) {
@@ -1194,8 +1229,12 @@ int playRvid(const char* filename) {
 	}
 	delete[] frameBuffer;
 	if (rvidHasSound) {
-		delete[] soundBuffer[0];
-		delete[] soundBuffer[1];
+		delete[] soundBuffer[0][0];
+		delete[] soundBuffer[0][1];
+		if (rvidSoundRightOffset) {
+			delete[] soundBuffer[1][0];
+			delete[] soundBuffer[1][1];
+		}
 	}
 	bgInitSub(3, BgType_Bmp16, BgSize_B16_256x256, 0, 0);
 
@@ -1417,7 +1456,8 @@ int main(int argc, char **argv) {
 				} else {
 					const int err = playRvid(filename.c_str());
 					fclose(rvid);
-					fclose(rvidSound);
+					fclose(rvidSound[0]);
+					fclose(rvidSound[1]);
 					if ((err > 0) && !fadeType) {
 						setupFileBrowserGfx();
 					}

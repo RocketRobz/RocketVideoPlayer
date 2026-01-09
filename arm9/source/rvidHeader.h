@@ -1,6 +1,8 @@
 #ifndef RVIDHEADER_H
 #define RVIDHEADER_H
 
+#define latestRvidVer 4
+
 typedef struct rvidHeaderCheckInfo {
 	u32 formatString;	// "RVID" string
 	u32 ver;			// File format version
@@ -31,7 +33,7 @@ typedef struct rvidHeaderInfo2 {
 	u32 soundOffset;		// Offset of sound stream
 } rvidHeaderInfo2;
 
-typedef struct rvidHeaderInfo3 {
+typedef struct rvidHeaderInfo4 {
 	u32 formatString;		// "RVID" string
 	u32 ver;				// File format version
 	u32 frames;				// Number of frames
@@ -43,8 +45,9 @@ typedef struct rvidHeaderInfo3 {
 	u8 audioBitMode;		// 0 = 8-bit, 1 = 16-bit
 	u8 bmpMode;				// 0 = 8 BPP (RGB565), 1 = 16 BPP (RGB555), 2 = 16 BPP (RGB565)
 	u32 compressedFrameSizeTableOffset;		// Offset of compressed frame size table
-	u32 soundOffset;		// Offset of sound stream
-} rvidHeaderInfo3;
+	u32 soundLeftOffset;	// Offset of left-side sound stream
+	u32 soundRightOffset;	// Offset of right-side sound stream
+} rvidHeaderInfo4;
 
 extern int rvidFrames;
 extern int rvidFps;
@@ -61,6 +64,7 @@ extern bool rvidAudioIs16bit;
 extern bool rvidCompressed;
 extern u32 rvidCompressedFrameSizeTableOffset;
 extern u32 rvidSoundOffset;
+extern u32 rvidSoundRightOffset;
 
 void readRvidHeader(FILE* rvid);
 
