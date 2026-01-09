@@ -15,7 +15,6 @@
 #include "graphics/fontHandler.h"
 #include "gui.h"
 #include "tonccpy.h"
-#include "lz77.h"
 
 #include "myDma.h"
 
@@ -604,7 +603,7 @@ ITCM_CODE void loadFrame(const int num) {
 					} else {
 						fread(compressedFrameBuffer, 1, size, rvid);
 						sndUpdateStream();
-						lzssDecompress(compressedFrameBuffer, dst);
+						decompress(compressedFrameBuffer, dst, LZ77);
 					}
 					// applyColorLutToFrame((u16*)dst);
 				}
@@ -661,7 +660,7 @@ ITCM_CODE void loadFrame(const int num) {
 				} else {
 					fread(compressedFrameBuffer, 1, size, rvid);
 					sndUpdateStream();
-					lzssDecompress(compressedFrameBuffer, dst);
+					decompress(compressedFrameBuffer, dst, LZ77);
 				}
 			} else {
 				fread(dst, 1, rvidHRes*rvidVRes, rvid);
