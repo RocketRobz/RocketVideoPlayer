@@ -131,6 +131,7 @@ char filePath[PATH_MAX];
 touchPosition touch;
 
 FILE* rvid;
+u32 rvidPreviousOffset = 0;
 u32 rvidCurrentOffset = 0;
 FILE* rvidSound;
 DTCM_DATA bool showVideoGui = false;
@@ -530,10 +531,12 @@ void sndUpdateStream(void) {
 static inline void loadFramePal(const int num, const int loadedFrameNum) {
 	if (rvidOver256Colors) return;
 
-	static int previousNum = 0;
+	static int previousNum[2] = {0};
 
-	if (rvidCurrentOffset == frameOffsets[loadedFrameNum]) {
-		tonccpy(palBuffer[num], palBuffer[previousNum], 256*2);
+	if (rvidPreviousOffset == frameOffsets[loadedFrameNum]) {
+		tonccpy(palBuffer[num], palBuffer[previousNum[0]], 256*2);
+	} else if (rvidCurrentOffset == frameOffsets[loadedFrameNum]) {
+		tonccpy(palBuffer[num], palBuffer[previousNum[1]], 256*2);
 	} else {
 		fread(palBuffer[num], 2, 256, rvid);
 		if (colorTable) {
@@ -544,7 +547,8 @@ static inline void loadFramePal(const int num, const int loadedFrameNum) {
 	}
 	DC_FlushRange(palBuffer[num], 256*2);
 
-	previousNum = num;
+	previousNum[0] = previousNum[1];
+	previousNum[1] = num;
 }
 
 /* static inline void applyColorLutToFrame(u16* frame) {
@@ -566,8 +570,7 @@ void loadFrame(const int num) {
 		return;
 	}
 
-	static int previousNum = 0;
-	static int previousNumDS = 0;
+	static int previousNum[2] = {0};
 
 	if (rvidDualScreen) {
 		if (rvidCompressed) {
@@ -575,9 +578,13 @@ void loadFrame(const int num) {
 				const int pos = (num*2)+b;
 				loadFramePal(pos, loadedSingleFrames);
 				u8* dst = frameBuffer+(pos*(rvidHRes*rvidVRes));
-				if (rvidCurrentOffset == frameOffsets[loadedSingleFrames]) {
+				if (rvidPreviousOffset == frameOffsets[loadedSingleFrames]) {
+					// Duplicate/Last recent frame found
+					const u8* src = frameBuffer+(previousNum[0]*(rvidHRes*rvidVRes));
+					tonccpy(dst, src, rvidHRes*rvidVRes);
+				} else if (rvidCurrentOffset == frameOffsets[loadedSingleFrames]) {
 					// Duplicate frame found
-					const u8* src = frameBuffer+(previousNumDS*(rvidHRes*rvidVRes));
+					const u8* src = frameBuffer+(previousNum[1]*(rvidHRes*rvidVRes));
 					tonccpy(dst, src, rvidHRes*rvidVRes);
 				} else {
 					const int loadedFramesPos = (loadedFrames*2)+b;
@@ -593,18 +600,24 @@ void loadFrame(const int num) {
 				}
 				DC_FlushRange(dst, rvidHRes*rvidVRes);
 				sndUpdateStream();
+				rvidPreviousOffset = rvidCurrentOffset;
 				rvidCurrentOffset = frameOffsets[loadedSingleFrames];
 				loadedSingleFrames++;
-				previousNumDS = pos;
+				previousNum[0] = previousNum[1];
+				previousNum[1] = pos;
 			}
 		} else {
 			for (int b = 0; b < 2; b++) {
 				const int pos = (num*2)+b;
 				loadFramePal(pos, loadedSingleFrames);
 				u8* dst = frameBuffer+(pos*(rvidHRes*rvidVRes));
-				if (rvidCurrentOffset == frameOffsets[loadedSingleFrames]) {
+				if (rvidPreviousOffset == frameOffsets[loadedSingleFrames]) {
+					// Duplicate/Last recent frame found
+					const u8* src = frameBuffer+(previousNum[0]*(rvidHRes*rvidVRes));
+					tonccpy(dst, src, rvidHRes*rvidVRes);
+				} else if (rvidCurrentOffset == frameOffsets[loadedSingleFrames]) {
 					// Duplicate frame found
-					const u8* src = frameBuffer+(previousNumDS*(rvidHRes*rvidVRes));
+					const u8* src = frameBuffer+(previousNum[1]*(rvidHRes*rvidVRes));
 					tonccpy(dst, src, rvidHRes*rvidVRes);
 				} else {
 					fread(dst, 1, rvidHRes*rvidVRes, rvid);
@@ -612,17 +625,23 @@ void loadFrame(const int num) {
 				}
 				DC_FlushRange(dst, rvidHRes*rvidVRes);
 				sndUpdateStream();
+				rvidPreviousOffset = rvidCurrentOffset;
 				rvidCurrentOffset = frameOffsets[loadedSingleFrames];
 				loadedSingleFrames++;
-				previousNumDS = pos;
+				previousNum[0] = previousNum[1];
+				previousNum[1] = pos;
 			}
 		}
 	} else {
 		loadFramePal(num, loadedFrames);
 		u8* dst = frameBuffer+(num*(rvidHRes*rvidVRes));
-		if (rvidCurrentOffset == frameOffsets[loadedFrames]) {
+		if (rvidPreviousOffset == frameOffsets[loadedFrames]) {
+			// Duplicate/Last recent frame found
+			const u8* src = frameBuffer+(previousNum[0]*(rvidHRes*rvidVRes));
+			tonccpy(dst, src, rvidHRes*rvidVRes);
+		} else if (rvidCurrentOffset == frameOffsets[loadedFrames]) {
 			// Duplicate frame found
-			const u8* src = frameBuffer+(previousNum*(rvidHRes*rvidVRes));
+			const u8* src = frameBuffer+(previousNum[1]*(rvidHRes*rvidVRes));
 			tonccpy(dst, src, rvidHRes*rvidVRes);
 		} else {
 			if (rvidCompressed) {
@@ -641,10 +660,12 @@ void loadFrame(const int num) {
 		}
 		DC_FlushRange(dst, rvidHRes*rvidVRes);
 		sndUpdateStream();
+		rvidPreviousOffset = rvidCurrentOffset;
 		rvidCurrentOffset = frameOffsets[loadedFrames];
+		previousNum[0] = previousNum[1];
+		previousNum[1] = num;
 	}
 	loadedFrames++;
-	previousNum = num;
 }
 
 bool playerControls(void) {
@@ -837,6 +858,7 @@ int playRvid(const char* filename) {
 			fread(compressedFrameSizes16, 2, rvidFrames, rvid);
 		}
 	}
+	rvidPreviousOffset = 0;
 	rvidCurrentOffset = 0;
 	fseek(rvid, frameOffsets[0], SEEK_SET);
 	loadedSingleFrames = 0;
