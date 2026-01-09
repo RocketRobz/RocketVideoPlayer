@@ -96,6 +96,8 @@ void readRvidHeader(FILE* rvid) {
 			rvidSoundOffset = rvidHeader4.soundLeftOffset;
 			if (rvidHeaderCheck.ver != 3) {
 				rvidSoundRightOffset = rvidHeader4.soundRightOffset;
+			} else {
+				rvidSoundRightOffset = 0;
 			}
 
 			rvidHRes = rvidOver256Colors ? 0x200 : 0x100;
