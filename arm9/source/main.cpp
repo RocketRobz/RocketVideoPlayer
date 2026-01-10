@@ -372,6 +372,7 @@ ITCM_CODE void dmaFrameToScreen(void) {
 }
 
 ITCM_CODE void renderFrames(void) {
+	static int currentScreenBrightness = 15;
 	if (fadeType) {
 		screenBrightness--;
 		if (screenBrightness < 0) screenBrightness = 0;
@@ -379,8 +380,11 @@ ITCM_CODE void renderFrames(void) {
 		screenBrightness++;
 		if (screenBrightness > 25) screenBrightness = 25;
 	}
-	SetBrightness(0, screenBrightness);
-	SetBrightness(1, screenBrightness);
+	if (currentScreenBrightness != screenBrightness) {
+		SetBrightness(0, screenBrightness);
+		SetBrightness(1, screenBrightness);
+		currentScreenBrightness = screenBrightness;
+	}
 
 	if (videoPlaying && (currentFrame <= loadedFrames) && !displayFrame) {
 		if (rvidHasSound) {
