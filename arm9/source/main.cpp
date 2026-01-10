@@ -48,7 +48,7 @@ extern rvidHeaderInfo2 rvidHeader2;
 u32* frameOffsets = NULL;
 
 // u8 compressedFrameBuffer[0xC000];
-u8 compressedFrameBuffer[0x18000];
+ALIGN(4096) u8 compressedFrameBuffer[0x18000];
 u8* savedFrameBuffer[2] = {NULL}; // Used for paused video via HBlank
 bool displaySavedFrameBuffer = false;
 u16* compressedFrameSizes16 = NULL;
