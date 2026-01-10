@@ -904,6 +904,7 @@ int playRvid(const char* filename) {
 		soundBufferDivide = (rvidFps == 25 || rvidFps == 50) ? 5 : 6;
 
 		rvidSound[0] = fopen(filename, "rb");
+		fatInitLookupCacheFile(rvidSound[0], 4096);
 		fseek(rvidSound[0], rvidSoundOffset, SEEK_SET);
 		toncset(soundBuffer[0][0], 0, soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1));
 		fread(soundBuffer[0][0], rvidAudioIs16bit ? 2 : 1, soundBufferReadLen, rvidSound[0]);
@@ -918,6 +919,7 @@ int playRvid(const char* filename) {
 			}
 
 			rvidSound[1] = fopen(filename, "rb");
+			fatInitLookupCacheFile(rvidSound[1], 4096);
 			fseek(rvidSound[1], rvidSoundRightOffset, SEEK_SET);
 			toncset(soundBuffer[1][0], 0, soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1));
 			fread(soundBuffer[1][0], rvidAudioIs16bit ? 2 : 1, soundBufferReadLen, rvidSound[1]);
@@ -1444,6 +1446,7 @@ int main(int argc, char **argv) {
 			printf("Loading...");
 			rvid = fopen(filename.c_str(), "rb");
 			if (rvid) {
+				fatInitLookupCacheFile(rvid, 4096);
 				fread(&rvidHeaderCheck, 1, sizeof(rvidHeaderCheck), rvid);
 				if (rvidHeaderCheck.formatString != 0x44495652) {
 					consoleClear();
