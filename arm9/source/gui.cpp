@@ -107,12 +107,15 @@ bool updatePlayBar(void) {
 		}
 	} else if (barAdjust == 224) {
 		for (int i = 142; i <= 145; i++) {
-			toncset16( BG_GFX+(256*i)+16, whiteColor | BIT(15),224);
+			toncset16(BG_GFX+(256*i)+16, whiteColor | BIT(15), 224);
+		}
+	} else if (barAdjust > currentBarAdjust) {
+		for (int i = 142; i <= 145; i++) {
+			toncset16(BG_GFX+(256*i)+16+currentBarAdjust, whiteColor | BIT(15), barAdjust - currentBarAdjust);
 		}
 	} else {
 		for (int i = 142; i <= 145; i++) {
-			toncset16(BG_GFX+(256*i)+16, whiteColor | BIT(15), barAdjust);
-			toncset16(BG_GFX+(256*i)+16+barAdjust, playBarGrayPartColor | BIT(15), 224 - barAdjust);
+			toncset16(BG_GFX+(256*i)+16+barAdjust, playBarGrayPartColor | BIT(15), currentBarAdjust - barAdjust);
 		}
 	}
 
