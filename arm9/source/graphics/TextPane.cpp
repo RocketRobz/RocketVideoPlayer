@@ -169,7 +169,7 @@ bool TextPane::update(bool top)
 		if (alpha > 0)
 		{
 			glPolyFmt(POLY_ALPHA(alpha) | POLY_CULL_NONE | POLY_ID(it->polyID));
-			getFont(it->large).print(it->x / TextEntry::PRECISION, it->y / TextEntry::PRECISION, it->message);
+			getFont().print(it->x / TextEntry::PRECISION, it->y / TextEntry::PRECISION, it->message);
 		}
 	}
 	return shownText.size() == 0;

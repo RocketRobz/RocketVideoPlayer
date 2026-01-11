@@ -4,6 +4,7 @@
 void loadGraphics(void);
 bool updatePlayBar(void);
 void resetPlayBar(void);
+void renderPlayPauseButton(void);
 void renderGuiBg(void);
 void renderGui(void);
 

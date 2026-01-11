@@ -26,6 +26,7 @@ typedef struct
     u32 initial;
     u64 targetCycles; //target cycles in 0.40.24 format
     s64 cycleDelta;
+	u32 linesToSkipMax;
 } fpsa_t;
 
 void fpsa_init(fpsa_t* fpsa);

@@ -1,7 +1,7 @@
 #include <nds.h>
-#include <nds/arm9/dldi.h>
 #include <stdio.h>
 #include <fat.h>
+#include <filesystem.h>
 #include <sys/stat.h>
 #include <limits.h>
 
@@ -513,9 +513,7 @@ ITCM_CODE void renderFrames(void) {
 	}
 
 	if (showVideoGui && updateVideoGuiFrame) {
-		if (!rvidDualScreen) {
-			renderGui();
-		}
+		renderGui();
 		updateVideoGuiFrame = false;
 	}
 }
@@ -694,7 +692,7 @@ bool playerControls(void) {
 			soundKill(0);
 			soundKill(1);
 			videoPlaying = false;
-			updateVideoGuiFrame = true;
+			renderPlayPauseButton();
 			if (rvidOver256Colors == 2) {
 				swiWaitForVBlank();
 				saveFrameBuffer();
@@ -703,7 +701,7 @@ bool playerControls(void) {
 		} else {
 			videoPlaying = true;
 			videoPausedPrior = true;
-			updateVideoGuiFrame = true;
+			renderPlayPauseButton();
 			displaySavedFrameBuffer = false;
 		}
 	}
@@ -824,8 +822,6 @@ int playRvid(const char* filename) {
 	// Full time stamp
 	sprintf(timeStamp, "00:00:00/%02i:%02i:%02i",
 	videoHourMark, videoMinuteMark, videoSecondMark);
-	updateVideoGuiFrame = true;
-	updatePlayBar();
 
 	if (rvidOver256Colors) {
 		const int amount = isDSiMode() ? 32 : 16;
@@ -901,7 +897,7 @@ int playRvid(const char* filename) {
 			soundBuffer[0][1] = (u16*)new u8[soundBufferReadLen];
 		}
 
-		soundBufferDivide = (rvidFps == 25 || rvidFps == 50) ? 5 : 6;
+		soundBufferDivide = ((rvidFps % 25) == 0) ? 5 : 6;
 
 		rvidSound[0] = fopen(filename, "rb");
 		fatInitLookupCacheFile(rvidSound[0], 4096);
@@ -977,10 +973,14 @@ int playRvid(const char* filename) {
 		}
 	} else {
 		renderGuiBg();
+		updatePlayBar();
 	}
 
 	videoSetMode(rvidDualScreen ? (MODE_5_2D | DISPLAY_BG3_ACTIVE) : (MODE_5_3D | DISPLAY_BG3_ACTIVE));
-	showVideoGui = true;
+	if (!rvidDualScreen) {
+		oamEnable(&oamMain);
+	}
+	showVideoGui = !rvidDualScreen;
 	updateVideoGuiFrame = true;
 
 	fadeType = true;
@@ -1004,20 +1004,35 @@ int playRvid(const char* filename) {
 	}
 
 	// Enable frame rate adjustment
-	if (rvidFps == 6 || rvidFps == 12 || rvidFps == 24 || rvidFps == 48) {
-		frameOfRefreshRateLimit = 48;
-		IPC_SendSync(rvidReduceFpsBy01 ? 4 : 5);
-	} else if (rvidFps == 25 || rvidFps == 50) {
-		frameOfRefreshRateLimit = 50;
-		IPC_SendSync(6);
-	} else {
-		frameOfRefreshRateLimit = 60;
-		if (!rvidNativeRefreshRate) {
-			IPC_SendSync(rvidReduceFpsBy01 ? 1 : 2);
+	frameOfRefreshRateLimit = 60;
+	if (!rvidNativeRefreshRate) {
+		const int fpsMultiList[4] = {72, 60, 50, 48};
+		const int iStart = (fifoGetValue32(FIFO_USER_01) != 0xD2) ? 1 : 0; // Start at 1 if using a 3DS/2DS
+		for (int i = iStart; i < 4; i++) {
+			int fpsMulti = rvidFps;
+			while (fpsMulti < fpsMultiList[i]) {
+				fpsMulti += rvidFps;
+			}
+			if (fpsMulti == fpsMultiList[i]) {
+				frameOfRefreshRateLimit = fpsMultiList[i];
+				break;
+			}
 		}
+		if (rvidReduceFpsBy01) {
+			sharedAddr[0] = 0;
+			for (int i = 0; i < frameOfRefreshRateLimit; i++) {
+				sharedAddr[0] += 1000;
+			}
+			sharedAddr[1] = 1001;
+		} else {
+			sharedAddr[0] = frameOfRefreshRateLimit;
+			sharedAddr[1] = 1;
+		}
+		IPC_SendSync(1);
 	}
 
 	videoPlaying = true;
+	renderPlayPauseButton();
 	while (1) {
 		if (currentFrameInBuffer >= 0
 		 && currentFrameInBuffer < frameBufferCount/2)
@@ -1050,6 +1065,7 @@ int playRvid(const char* filename) {
 		}
 		if (confirmStop || videoJump != 0) {
 			videoPlaying = false;
+			renderPlayPauseButton();
 			swiWaitForVBlank();
 			if ((rvidOver256Colors == 2) && !displaySavedFrameBuffer) {
 				saveFrameBuffer();
@@ -1347,6 +1363,8 @@ int main(int argc, char **argv) {
 			blackColor = colorTable[0];
 			whiteColor = colorTable[0xFFFF];
 		}
+	} else {
+		VRAM_D_CR = 0;
 	}
 
 	SetBrightness(0, 31);

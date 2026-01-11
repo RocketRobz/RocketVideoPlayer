@@ -105,7 +105,7 @@ static void vcountIrqHigher()
     while (sActiveFpsa.cycleDelta >= (s64)((u64)FPSA_CYCLES_PER_LINE << 23))
     {
         sActiveFpsa.cycleDelta -= (u64)FPSA_CYCLES_PER_LINE << 24;
-        if (++linesToSkip == 5)
+        if (++linesToSkip == sActiveFpsa.linesToSkipMax)
             break;
     }
     if (linesToSkip == 0)
@@ -173,27 +173,17 @@ void fpsa_setTargetFpsFraction(fpsa_t* fpsa, u32 num, u32 den)
 {
     u64 cycles = (((double)FPSA_SYS_CLOCK * den * (1 << 24)) / num) + 0.5;
     fpsa_setTargetFrameCycles(fpsa, cycles);//((((u64)FPSA_SYS_CLOCK * (u64)den) << 24) + ((num + 1) >> 1)) / num);
+	fpsa->linesToSkipMax = (num / den > 62) ? 55 : 5;
 }
 
 void IPCSyncHandler(void) {
 	bool startFpsa = false;
-	u32 num = 0;
-	u32 den = 0;
 	switch (IPC_GetSync()) {
 		case 0:
 		default:
 			fpsa_stop(&sActiveFpsa);
 			break;
-		case 1: {
-			// 59.94 FPS
-			num = 60000;
-			den = 1001;
-			startFpsa = true;
-		}	break;
-		case 2:
-			// 60 FPS
-			num = 60;
-			den = 1;
+		case 1:
 			startFpsa = true;
 			break;
 		case 3: {
@@ -206,33 +196,19 @@ void IPCSyncHandler(void) {
 				SCHANNEL_CR(channel) = SCHANNEL_ENABLE | SOUND_VOL(127) | SOUND_PAN(channel ? 127 : 0) | (sharedAddr[4] ? SOUND_FORMAT_16BIT : SOUND_FORMAT_8BIT) | SOUND_ONE_SHOT;
 			}
 		} break;
-		case 4: {
-			// 47.95 FPS
-			num = 48000;
-			den = 1001;
-			startFpsa = true;
-		}	break;
-		case 5: {
-			// 48 FPS
-			num = 48;
-			den = 1;
-			startFpsa = true;
-		}	break;
-		case 6: {
-			// 50 FPS
-			num = 50;
-			den = 1;
-			startFpsa = true;
-		}	break;
 	}
 
 	if (startFpsa) {
+		const u32 num = sharedAddr[0];
+		const u32 den = sharedAddr[1];
+		const int max = (num / den > 62) ? 74 : 62;
+
 		int vblankCount = 1;
-		while (num * (vblankCount + 1) / den < 62)
+		while (num * (vblankCount + 1) / den < max)
 			vblankCount++;
 
 		// safety
-		if (num * vblankCount / den < 62)
+		if (num * vblankCount / den < max)
 		{
 			fpsa_init(&sActiveFpsa);
 			fpsa_setTargetFpsFraction(&sActiveFpsa, num * vblankCount, den);
@@ -286,6 +262,17 @@ int main() {
 	irqSet(IRQ_VBLANK, VblankHandler);
 	irqSet(IRQ_IPC_SYNC, IPCSyncHandler);
 	irqEnable(IRQ_VBLANK | IRQ_IPC_SYNC);
+
+	// Check for 3DS in DSi mode, or DSi & 3DS in DS mode
+	if (isDSiMode()) {
+		const u8 byteBak = i2cReadRegister(0x4A, 0x71);
+		i2cWriteRegister(0x4A, 0x71, 0xD2);
+		fifoSendValue32(FIFO_USER_01, i2cReadRegister(0x4A, 0x71));
+		i2cWriteRegister(0x4A, 0x71, byteBak);
+	} else {
+		// There is no (known) way to specifically check for 3DS in DS mode, so DSi will be affected as well
+		fifoSendValue32(FIFO_USER_01, REG_SNDEXTCNT ? 0 : 0xD2);
+	}
 
 	while (!exitflag) {
         const uint16_t key_mask = KEY_SELECT | KEY_START | KEY_L | KEY_R;
