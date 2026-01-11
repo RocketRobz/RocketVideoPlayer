@@ -372,7 +372,7 @@ ITCM_CODE void dmaFrameToScreen(void) {
 }
 
 ITCM_CODE void renderFrames(void) {
-	static int currentScreenBrightness = 15;
+	static int currentScreenBrightness = 31;
 	if (fadeType) {
 		screenBrightness--;
 		if (screenBrightness < 0) screenBrightness = 0;
