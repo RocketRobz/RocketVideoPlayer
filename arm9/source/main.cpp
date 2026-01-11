@@ -692,7 +692,9 @@ bool playerControls(void) {
 			soundKill(0);
 			soundKill(1);
 			videoPlaying = false;
-			renderPlayPauseButton();
+			if (showVideoGui) {
+				renderPlayPauseButton();
+			}
 			if (rvidOver256Colors == 2) {
 				swiWaitForVBlank();
 				saveFrameBuffer();
@@ -701,7 +703,9 @@ bool playerControls(void) {
 		} else {
 			videoPlaying = true;
 			videoPausedPrior = true;
-			renderPlayPauseButton();
+			if (showVideoGui) {
+				renderPlayPauseButton();
+			}
 			displaySavedFrameBuffer = false;
 		}
 	}
@@ -1032,7 +1036,9 @@ int playRvid(const char* filename) {
 	}
 
 	videoPlaying = true;
-	renderPlayPauseButton();
+	if (showVideoGui) {
+		renderPlayPauseButton();
+	}
 	while (1) {
 		if (currentFrameInBuffer >= 0
 		 && currentFrameInBuffer < frameBufferCount/2)
@@ -1065,7 +1071,9 @@ int playRvid(const char* filename) {
 		}
 		if (confirmStop || videoJump != 0) {
 			videoPlaying = false;
-			renderPlayPauseButton();
+			if (showVideoGui) {
+				renderPlayPauseButton();
+			}
 			swiWaitForVBlank();
 			if ((rvidOver256Colors == 2) && !displaySavedFrameBuffer) {
 				saveFrameBuffer();
