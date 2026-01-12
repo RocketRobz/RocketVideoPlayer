@@ -425,6 +425,7 @@ ITCM_CODE void renderFrames(void) {
 		}
 	}
 	if (displayFrame) {
+		displaySavedFrameBuffer = false;
 		if (currentFrame < rvidFrames) {
 			dmaFrameToScreen();
 		}
@@ -680,7 +681,6 @@ bool playerControls(void) {
 			if (showVideoGui) {
 				renderPlayPauseButton();
 			}
-			displaySavedFrameBuffer = false;
 		}
 	}
 	if ((pressed & KEY_B)
