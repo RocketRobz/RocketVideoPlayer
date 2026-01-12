@@ -386,77 +386,65 @@ ITCM_CODE void renderFrames(void) {
 		currentScreenBrightness = screenBrightness;
 	}
 
-	if (videoPlaying && (currentFrame <= loadedFrames) && !displayFrame) {
-		if (rvidHasSound) {
-			if (!updateSoundBuffer && ((frameOfRefreshRate % (frameOfRefreshRateLimit/soundBufferDivide)) == 0)) {
-				const u16 lenUpdate = soundBufferReadLen/soundBufferDivide;
-				if (rvidAudioIs16bit) {
-					soundBufferPos[0] += lenUpdate;
-					soundBufferPos[1] += lenUpdate;
-				} else {
-					soundBufferPos8[0] += lenUpdate;
-					soundBufferPos8[1] += lenUpdate;
-				}
-				soundBufferLen -= lenUpdate;
-				if (videoPausedPrior) {
-					sharedAddr[0] = rvidAudioIs16bit ? (u32)soundBufferPos[0] : (u32)soundBufferPos8[0];
-					sharedAddr[1] = rvidAudioIs16bit ? (u32)soundBufferPos[1] : (u32)soundBufferPos8[1];
-					sharedAddr[2] = (soundBufferLen*(rvidAudioIs16bit ? 2 : 1)) >> 2;
-					sharedAddr[3] = rvidSampleRate;
-					sharedAddr[4] = rvidAudioIs16bit;
-					IPC_SendSync(3);
-					videoPausedPrior = false;
-				}
-			}
-			if ((frameOfRefreshRate % frameOfRefreshRateLimit) == 0) {
-				sharedAddr[0] = (u32)soundBuffer[0][useSoundBufferHalf];
-				sharedAddr[1] = (u32)soundBuffer[rvidSoundRightOffset ? 1 : 0][useSoundBufferHalf];
-				sharedAddr[2] = (soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1)) >> 2;
-				sharedAddr[3] = rvidSampleRate;
-				sharedAddr[4] = rvidAudioIs16bit;
-				IPC_SendSync(3);
+	if (!videoPlaying || (currentFrame > loadedFrames)) goto renderFrames_end;
 
-				if (rvidAudioIs16bit) {
-					soundBufferPos[0] = (u16*)sharedAddr[0];
-					soundBufferPos[1] = (u16*)sharedAddr[1];
-				} else {
-					soundBufferPos8[0] = (u8*)sharedAddr[0];
-					soundBufferPos8[1] = (u8*)sharedAddr[1];
-				}
-				soundBufferLen = rvidSampleRate;
-				updateSoundBuffer = true;
-			}
-		}
-
+	if (!displayFrame) {
 		frameOfRefreshRate++;
-		if (frameOfRefreshRate == frameOfRefreshRateLimit) frameOfRefreshRate = 0;
+		if (frameOfRefreshRate == frameOfRefreshRateLimit) {
+			frameOfRefreshRate = 0;
+		}
 
 		frameDelay++;
 		switch (rvidFps) {
 			default:
 				displayFrame = (frameDelay == frameOfRefreshRateLimit/rvidFps);
 				break;
-			/* case 6:
-				displayFrame = (frameDelay == 4+frameDelayEven);
-				break; */
 			case 11:
 				displayFrame = (frameDelay == 5+frameDelayEven);
 				break;
-			/* case 12:
-				displayFrame = (frameDelay == 3+frameDelayEven);
-				break;
-			case 24:
-			// case 25:
-				displayFrame = (frameDelay == 2+frameDelayEven);
-				break;
-			case 48:
-				displayFrame = (frameDelay == 1+frameDelayEven);
-				break; */
 		}
 	}
-	if (videoPlaying && (currentFrame <= loadedFrames) && displayFrame) {
+	if (rvidHasSound && !updateSoundBuffer && ((frameOfRefreshRate % (frameOfRefreshRateLimit/soundBufferDivide)) == 0)) {
+		const u16 lenUpdate = soundBufferReadLen/soundBufferDivide;
+		if (rvidAudioIs16bit) {
+			soundBufferPos[0] += lenUpdate;
+			soundBufferPos[1] += lenUpdate;
+		} else {
+			soundBufferPos8[0] += lenUpdate;
+			soundBufferPos8[1] += lenUpdate;
+		}
+		soundBufferLen -= lenUpdate;
+		if (videoPausedPrior) {
+			sharedAddr[0] = rvidAudioIs16bit ? (u32)soundBufferPos[0] : (u32)soundBufferPos8[0];
+			sharedAddr[1] = rvidAudioIs16bit ? (u32)soundBufferPos[1] : (u32)soundBufferPos8[1];
+			sharedAddr[2] = (soundBufferLen*(rvidAudioIs16bit ? 2 : 1)) >> 2;
+			sharedAddr[3] = rvidSampleRate;
+			sharedAddr[4] = rvidAudioIs16bit;
+			IPC_SendSync(3);
+			videoPausedPrior = false;
+		}
+	}
+	if (displayFrame) {
 		if (currentFrame < rvidFrames) {
 			dmaFrameToScreen();
+		}
+		if (rvidHasSound && (currentFrame % rvidFps) == 0) {
+			sharedAddr[0] = (u32)soundBuffer[0][useSoundBufferHalf];
+			sharedAddr[1] = (u32)soundBuffer[rvidSoundRightOffset ? 1 : 0][useSoundBufferHalf];
+			sharedAddr[2] = (soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1)) >> 2;
+			sharedAddr[3] = rvidSampleRate;
+			sharedAddr[4] = rvidAudioIs16bit;
+			IPC_SendSync(3);
+
+			if (rvidAudioIs16bit) {
+				soundBufferPos[0] = (u16*)sharedAddr[0];
+				soundBufferPos[1] = (u16*)sharedAddr[1];
+			} else {
+				soundBufferPos8[0] = (u8*)sharedAddr[0];
+				soundBufferPos8[1] = (u8*)sharedAddr[1];
+			}
+			soundBufferLen = rvidSampleRate;
+			updateSoundBuffer = true;
 		}
 		if (!rvidDualScreen && ((currentFrame % rvidFps) == 0)) {
 			secondMark++;
@@ -490,28 +478,14 @@ ITCM_CODE void renderFrames(void) {
 				updateVideoGuiFrame = updatePlayBar();
 			}
 		}
-		switch (rvidFps) {
-			/* case 6:
-			case 12:
-			case 24:
-			case 48:
-				frameDelayEven = !frameDelayEven;
-				break; */
-			case 11:
-				if ((currentFrame % 11) < 10) {
-					frameDelayEven = !frameDelayEven;
-				}
-				break;
-			/* case 25:
-				if ((currentFrame % 24) != 10 && (currentFrame % 24) != 21) {
-					frameDelayEven = !frameDelayEven;
-				}
-				break; */
+		if (rvidFps == 1 && (currentFrame % 11) < 10) {
+			frameDelayEven = !frameDelayEven;
 		}
 		frameDelay = 0;
 		displayFrame = false;
 	}
 
+renderFrames_end:
 	if (showVideoGui && updateVideoGuiFrame) {
 		renderGui();
 		updateVideoGuiFrame = false;
@@ -1034,6 +1008,8 @@ int playRvid(const char* filename) {
 		}
 		IPC_SendSync(1);
 	}
+	frameOfRefreshRate = frameOfRefreshRateLimit-1;
+	frameDelay = (frameOfRefreshRateLimit/rvidFps)-1;
 
 	videoPlaying = true;
 	if (showVideoGui) {
@@ -1084,8 +1060,7 @@ int playRvid(const char* filename) {
 			useSoundBufferHalf = false;
 			updateSoundBuffer = false;
 			videoPausedPrior = false;
-			displayFrame = true;
-			frameOfRefreshRate = 0;
+			frameOfRefreshRate = frameOfRefreshRateLimit-1;
 			const int currentFrameBak = currentFrame;
 			if (videoJump == -1) { // Left
 				currentFrame /= rvidFps;
@@ -1118,7 +1093,7 @@ int playRvid(const char* filename) {
 				currentFrame = currentFrameBak;
 			}
 			currentFrameInBuffer = 0;
-			frameDelay = 0;
+			frameDelay = (frameOfRefreshRateLimit/rvidFps)-1;
 			frameDelayEven = true;
 			bottomField = false;
 
@@ -1271,10 +1246,8 @@ int playRvid(const char* filename) {
 	updateSoundBuffer = false;
 	videoPausedPrior = false;
 	displayFrame = true;
-	frameOfRefreshRate = 0;
 	currentFrame = 0;
 	currentFrameInBuffer = 0;
-	frameDelay = 0;
 	frameDelayEven = true;
 	bottomField = false;
 
