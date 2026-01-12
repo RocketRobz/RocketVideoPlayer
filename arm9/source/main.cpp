@@ -16,7 +16,7 @@
 #include "gui.h"
 #include "tonccpy.h"
 
-#include "myDma.h"
+#include "dmaTwl.h"
 
 #include "rvidHeader.h"
 
@@ -222,13 +222,21 @@ ITCM_CODE void HBlank_dmaFrameToScreen(void) {
 	if (rvidVRes < 192 && scanline > videoYpos+rvidVRes) {
 		return;
 	} else if (rvidVRes == 192 && scanline >= rvidVRes) {
-		dmaCopyWordsAsynch(0, src, BG_PALETTE_SUB, 256*2);
+		if (isDSiMode()) {
+			dma_twlCopy32Async(0, src, BG_PALETTE_SUB, 256*2);
+		} else {
+			dmaCopyWordsAsynch(0, src, BG_PALETTE_SUB, 256*2);
+		}
 	} else {
 		scanline++;
 		if (scanline < videoYpos || scanline >= videoYpos+rvidVRes) {
 			BG_PALETTE_SUB[0] = blackColor;
 		} else {
-			dmaCopyWordsAsynch(0, src+((scanline-videoYpos)*0x200), BG_PALETTE_SUB, 256*2);
+			if (isDSiMode()) {
+				dma_twlCopy32Async(0, src+((scanline-videoYpos)*0x200), BG_PALETTE_SUB, 256*2);
+			} else {
+				dmaCopyWordsAsynch(0, src+((scanline-videoYpos)*0x200), BG_PALETTE_SUB, 256*2);
+			}
 		}
 	}
 }
@@ -241,16 +249,26 @@ ITCM_CODE void HBlank_dmaDualFrameToScreen(void) {
 	if (rvidVRes < 192 && scanline > videoYpos+rvidVRes) {
 		return;
 	} else if (rvidVRes == 192 && scanline >= rvidVRes) {
-		dmaCopyWordsAsynch(0, srcTop, BG_PALETTE_SUB, 256*2);
-		dmaCopyWordsAsynch(1, srcBottom, BG_PALETTE, 256*2);
+		if (isDSiMode()) {
+			dma_twlCopy32Async(0, srcTop, BG_PALETTE_SUB, 256*2);
+			dma_twlCopy32Async(1, srcBottom, BG_PALETTE, 256*2);
+		} else {
+			dmaCopyWordsAsynch(0, srcTop, BG_PALETTE_SUB, 256*2);
+			dmaCopyWordsAsynch(1, srcBottom, BG_PALETTE, 256*2);
+		}
 	} else {
 		scanline++;
 		if (scanline < videoYpos || scanline >= videoYpos+rvidVRes) {
 			BG_PALETTE_SUB[0] = blackColor;
 			BG_PALETTE[0] = blackColor;
 		} else {
-			dmaCopyWordsAsynch(0, srcTop+((scanline-videoYpos)*0x200), BG_PALETTE_SUB, 256*2);
-			dmaCopyWordsAsynch(1, srcBottom+((scanline-videoYpos)*0x200), BG_PALETTE, 256*2);
+			if (isDSiMode()) {
+				dma_twlCopy32Async(0, srcTop+((scanline-videoYpos)*0x200), BG_PALETTE_SUB, 256*2);
+				dma_twlCopy32Async(1, srcBottom+((scanline-videoYpos)*0x200), BG_PALETTE, 256*2);
+			} else {
+				dmaCopyWordsAsynch(0, srcTop+((scanline-videoYpos)*0x200), BG_PALETTE_SUB, 256*2);
+				dmaCopyWordsAsynch(1, srcBottom+((scanline-videoYpos)*0x200), BG_PALETTE, 256*2);
+			}
 		}
 	}
 }
@@ -267,14 +285,22 @@ ITCM_CODE void HBlank_dmaFrameToScreenInterlaced(void) {
 	if (check2 < 192 && scanline > check1+check2) {
 		return;
 	} else if (check2 == 192 && scanline >= check2) {
-		dmaCopyWordsAsynch(0, src, BG_PALETTE_SUB, 256*2);
+		if (isDSiMode()) {
+			dma_twlCopy32Async(0, src, BG_PALETTE_SUB, 256*2);
+		} else {
+			dmaCopyWordsAsynch(0, src, BG_PALETTE_SUB, 256*2);
+		}
 	} else {
 		scanline++;
 		if (scanline < check1 || scanline >= check1+check2) {
 			BG_PALETTE_SUB[0] = blackColor;
 		} else {
 			const int videoScanline = (scanlineVid-check1)/2;
-			dmaCopyWordsAsynch(0, src+(videoScanline*0x200), BG_PALETTE_SUB, 256*2);
+			if (isDSiMode()) {
+				dma_twlCopy32Async(0, src+(videoScanline*0x200), BG_PALETTE_SUB, 256*2);
+			} else {
+				dmaCopyWordsAsynch(0, src+(videoScanline*0x200), BG_PALETTE_SUB, 256*2);
+			}
 		}
 	}
 }
@@ -293,8 +319,13 @@ ITCM_CODE void HBlank_dmaDualFrameToScreenInterlaced(void) {
 	if (check2 < 192 && scanline > check1+check2) {
 		return;
 	} else if (check2 == 192 && scanline >= check2) {
-		dmaCopyWordsAsynch(0, srcTop, BG_PALETTE_SUB, 256*2);
-		dmaCopyWordsAsynch(1, srcBottom, BG_PALETTE, 256*2);
+		if (isDSiMode()) {
+			dma_twlCopy32Async(0, srcTop, BG_PALETTE_SUB, 256*2);
+			dma_twlCopy32Async(1, srcBottom, BG_PALETTE, 256*2);
+		} else {
+			dmaCopyWordsAsynch(0, srcTop, BG_PALETTE_SUB, 256*2);
+			dmaCopyWordsAsynch(1, srcBottom, BG_PALETTE, 256*2);
+		}
 	} else {
 		scanline++;
 		if (scanline < check1 || scanline >= check1+check2) {
@@ -302,8 +333,13 @@ ITCM_CODE void HBlank_dmaDualFrameToScreenInterlaced(void) {
 			BG_PALETTE[0] = blackColor;
 		} else {
 			const int videoScanline = (scanlineVid-check1)/2;
-			dmaCopyWordsAsynch(0, srcTop+(videoScanline*0x200), BG_PALETTE_SUB, 256*2);
-			dmaCopyWordsAsynch(1, srcBottom+(videoScanline*0x200), BG_PALETTE, 256*2);
+			if (isDSiMode()) {
+				dma_twlCopy32Async(0, srcTop+(videoScanline*0x200), BG_PALETTE_SUB, 256*2);
+				dma_twlCopy32Async(1, srcBottom+(videoScanline*0x200), BG_PALETTE, 256*2);
+			} else {
+				dmaCopyWordsAsynch(0, srcTop+(videoScanline*0x200), BG_PALETTE_SUB, 256*2);
+				dmaCopyWordsAsynch(1, srcBottom+(videoScanline*0x200), BG_PALETTE, 256*2);
+			}
 		}
 	}
 }
