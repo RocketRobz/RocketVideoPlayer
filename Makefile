@@ -102,6 +102,7 @@ $(ROM): arm9 arm7
 	$(V)$(BLOCKSDS)/tools/ndstool/ndstool -c $(ROM_DSI) \
 		-7 build/arm7.elf -9 build/arm9.elf \
 		-b $(GAME_ICON) "$(GAME_FULL_TITLE)" \
+		$(NDSTOOL_ARGS) \
 		-g HRVA 00 "ROCKETVIDEO"
 	$(V)$(MAKECIA) --srl=$(ROM_DSI)
 
