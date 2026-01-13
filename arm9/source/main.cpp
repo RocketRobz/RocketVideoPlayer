@@ -27,6 +27,7 @@ u8 *twlCfgAddr     = NULL;
 vu32* sharedAddr = (vu32*)0x02FFFD00;
 // bool dsiWramAvailable = false;
 bool is3DS = false;
+bool isGbMacro = false;
 
 u32 getFileSize(const char *fileName)
 {
@@ -378,19 +379,19 @@ ITCM_CODE void dmaFrameToScreen(void) {
 			bottomFieldForHBlank = bottomField;
 		}
 		const int currentFrameInBufferDoubled = currentFrameInBuffer*2;
-		dmaCopyWordsAsynch(0, frameBuffer+(currentFrameInBufferDoubled*(rvidHRes*rvidVRes)), topBgPtr+((rvidHRes/2)*videoYpos), rvidHRes*rvidVRes);
-		dmaCopyWordsAsynch(1, frameBuffer+((currentFrameInBufferDoubled+1)*(rvidHRes*rvidVRes)), bottomBgPtr+((rvidHRes/2)*videoYpos), rvidHRes*rvidVRes);
 		if (!rvidOver256Colors) {
 			if (rvidVRes == (rvidInterlaced ? 96 : 192)) {
-				dmaCopyHalfWordsAsynch(2, palBuffer[currentFrameInBufferDoubled], BG_PALETTE_SUB, 256*2);
-				dmaCopyHalfWordsAsynch(3, palBuffer[currentFrameInBufferDoubled+1], BG_PALETTE, 256*2);
+				dmaCopyHalfWordsAsynch(0, palBuffer[currentFrameInBufferDoubled], BG_PALETTE_SUB, 256*2);
+				dmaCopyHalfWordsAsynch(1, palBuffer[currentFrameInBufferDoubled+1], BG_PALETTE, 256*2);
 			} else {
-				dmaCopyHalfWordsAsynch(2, palBuffer[currentFrameInBufferDoubled]+1, BG_PALETTE_SUB+1, 255*2);
-				dmaCopyHalfWordsAsynch(3, palBuffer[currentFrameInBufferDoubled+1]+1, BG_PALETTE+1, 255*2);
+				dmaCopyHalfWordsAsynch(0, palBuffer[currentFrameInBufferDoubled]+1, BG_PALETTE_SUB+1, 255*2);
+				dmaCopyHalfWordsAsynch(1, palBuffer[currentFrameInBufferDoubled+1]+1, BG_PALETTE+1, 255*2);
 				SPRITE_PALETTE_SUB[0] = palBuffer[currentFrameInBufferDoubled][0];
 				SPRITE_PALETTE[0] = palBuffer[currentFrameInBufferDoubled+1][0];
 			}
 		}
+		dmaCopyWordsAsynch(2, frameBuffer+(currentFrameInBufferDoubled*(rvidHRes*rvidVRes)), topBgPtr+((rvidHRes/2)*videoYpos), rvidHRes*rvidVRes);
+		dmaCopyWordsAsynch(3, frameBuffer+((currentFrameInBufferDoubled+1)*(rvidHRes*rvidVRes)), bottomBgPtr+((rvidHRes/2)*videoYpos), rvidHRes*rvidVRes);
 	} else {
 		if (rvidInterlaced) {
 			REG_BG3Y_SUB = bottomField ? -1 : 0;
@@ -509,7 +510,7 @@ ITCM_CODE void renderFrames(void) {
 		if (currentFrameInBuffer == frameBufferCount) {
 			currentFrameInBuffer = 0;
 		}
-		if (!rvidDualScreen) {
+		if (showVideoGui) {
 			if (updateVideoGuiFrame) {
 				updatePlayBar();
 			} else {
@@ -699,7 +700,7 @@ bool playerControls(void) {
 	const int pressed = keysDown();
 	const int held = keysHeld();
 	if ((pressed & KEY_A) || ((pressed & KEY_LID) && videoPlaying)
-	|| (!rvidDualScreen && (pressed & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
+	|| (showVideoGui && (pressed & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
 		if (videoPlaying) {
 			soundKill(0);
 			soundKill(1);
@@ -721,7 +722,7 @@ bool playerControls(void) {
 		}
 	}
 	if ((pressed & KEY_B)
-	|| (!rvidDualScreen && (pressed & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
+	|| (showVideoGui && (pressed & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
 		confirmReturn = true;
 		return true;
 	}
@@ -747,11 +748,11 @@ bool playerControls(void) {
 		return true;
 	}
 	if (((pressed & KEY_L)
-	|| (!rvidDualScreen && (pressed & KEY_TOUCH) && touch.px >= 14 && touch.px <= 19 && touch.py >= 140 && touch.py <= 147)) && currentFrame > 0) {
+	|| (showVideoGui && (pressed & KEY_TOUCH) && touch.px >= 14 && touch.px <= 19 && touch.py >= 140 && touch.py <= 147)) && currentFrame > 0) {
 		confirmStop = true;
 		return true;
 	}
-	if (!rvidDualScreen && (pressed & KEY_SELECT)) {
+	if (showVideoGui && (pressed & KEY_SELECT)) {
 		bottomBacklightSwitch();
 	}
 
@@ -770,7 +771,9 @@ int playRvid(const char* filename) {
 
 	readRvidHeader(rvid);
 
-	if (rvidFps > 60 && is3DS) {
+	if (isGbMacro && rvidDualScreen) {
+		return 6;
+	} else if (rvidFps > 60 && is3DS) {
 		return 5;
 	} else if (rvidHeaderCheck.ver < 3 && rvidCompressed) {
 		return 4;
@@ -984,16 +987,18 @@ int playRvid(const char* filename) {
 		} else {
 			dmaCopyWords(3, compressedFrameBuffer, bottomBgPtr, 256*192);
 		}
-	} else {
+	} else if (!isGbMacro) {
 		renderGuiBg();
 		updatePlayBar();
 	}
 
 	videoSetMode(MODE_3_2D | DISPLAY_BG3_ACTIVE);
-	if (!rvidDualScreen) {
+	showVideoGui = !isGbMacro && !rvidDualScreen;
+	if (showVideoGui) {
 		oamEnable(&oamMain);
+	} else if (isGbMacro) {
+		lcdMainOnTop();
 	}
-	showVideoGui = !rvidDualScreen;
 	updateVideoGuiFrame = true;
 
 	fadeType = true;
@@ -1406,6 +1411,7 @@ int main(int argc, char **argv) {
 	}
 
 	is3DS = (fifoGetValue32(FIFO_USER_01) != 0xD2);
+	isGbMacro = fifoGetValue32(FIFO_USER_02);
 
 	irqSet(IRQ_VBLANK, renderFrames);
 	irqEnable(IRQ_VBLANK);
@@ -1498,7 +1504,10 @@ int main(int argc, char **argv) {
 						}
 						consoleClear();
 					}
-					if (err == 5) {
+					if (err == 6) {
+						printf("Cannot play dual-screen\n"
+								"videos on a single screen.\n");
+					} else if (err == 5) {
 						printf("Cannot play videos\n"
 								"higher than 60FPS.\n");
 						if (!isDSiMode()) {

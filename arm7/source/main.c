@@ -278,6 +278,13 @@ int main() {
 		// There is no (known) way to specifically check for 3DS in DS mode, so DSi will be affected as well
 		fifoSendValue32(FIFO_USER_01, REG_SNDEXTCNT ? 0 : 0xD2);
 	}
+	{
+		// Check if only bottom screen is turned on
+		const u8 reg = readPowerManagement(PM_CONTROL_REG);
+		if (!(reg & PM_BACKLIGHT_TOP) && (reg & PM_BACKLIGHT_BOTTOM)) {
+			fifoSendValue32(FIFO_USER_02, 1);
+		}
+	}
 
 	while (!exitflag) {
         const uint16_t key_mask = KEY_SELECT | KEY_START | KEY_L | KEY_R;
