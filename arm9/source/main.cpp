@@ -613,6 +613,7 @@ ITCM_CODE void loadFrame(const int num) {
 				} else {
 					const int loadedFramesPos = (loadedFrames*2)+b;
 					const u32 size = rvidOver256Colors ? compressedFrameSizes32[loadedFramesPos] : compressedFrameSizes16[loadedFramesPos];
+					fseek(rvid, frameOffsets[loadedSingleFrames], SEEK_SET);
 					if (size == (unsigned)rvidHRes*rvidVRes) {
 						fread(dst, 1, rvidHRes*rvidVRes, rvid);
 					} else {
@@ -644,6 +645,7 @@ ITCM_CODE void loadFrame(const int num) {
 					const u8* src = frameBuffer+(previousNum[1]*(rvidHRes*rvidVRes));
 					tonccpy(dst, src, rvidHRes*rvidVRes);
 				} else {
+					fseek(rvid, frameOffsets[loadedSingleFrames], SEEK_SET);
 					fread(dst, 1, rvidHRes*rvidVRes, rvid);
 					// applyColorLutToFrame((u16*)dst);
 				}
@@ -668,6 +670,7 @@ ITCM_CODE void loadFrame(const int num) {
 			const u8* src = frameBuffer+(previousNum[1]*(rvidHRes*rvidVRes));
 			tonccpy(dst, src, rvidHRes*rvidVRes);
 		} else {
+			fseek(rvid, frameOffsets[loadedFrames], SEEK_SET);
 			if (rvidCompressed) {
 				const u32 size = rvidOver256Colors ? compressedFrameSizes32[loadedFrames] : compressedFrameSizes16[loadedFrames];
 				if (size == (unsigned)rvidHRes*rvidVRes) {
