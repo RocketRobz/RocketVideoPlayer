@@ -8,7 +8,6 @@
  *******************************************************************************
  ******************************************************************************/
 #pragma once
-#include "gl2d.h"
 #define FONT_SX 8
 #define FONT_SY 10
 #define UTF16_SIGNAL_BYTE  0x0F
@@ -16,39 +15,14 @@
 class FontGraphic
 {
 private:
-	glImage *fontSprite;
-	const unsigned short int *mapping;
-	unsigned int imageCount;
-	char buffer[256];
-	char buffer2[256];
-	bool fontCharCacheEnabled = false;
-	u16 fontCharCache[256] = {0xFFFF};
-	bool fontCharCached = false;
-	int centeredXCache;
-	bool centeredXCached = false;
 	unsigned int getSpriteIndex(const u16 letter);
 
 public:
 
 	FontGraphic() { };
-	int load(int textureID, glImage *_font_sprite,
-			const unsigned int numframes,
-			const u16 *texcoords,
-			GL_TEXTURE_TYPE_ENUM type,
-			int sizeX,
-			int sizeY,
-			int param,
-			int pallette_width,
-			const u16 *palette,
-			const uint8 *texture,
-			const unsigned short int *_mapping,
-			const bool enableFontCharCache
-			);
-	void clearFontCharCache();
+	void printFontChar(int x, int y, unsigned short int fontChar);
 	void print(int x, int y, const char *text);
 	int calcWidth(const char *text);
-	void print(int x, int y, int value);
 	int getCenteredX(const char *text);
 	void printCentered(int y, const char *text);
-	void printCentered(int y, int value);
 };

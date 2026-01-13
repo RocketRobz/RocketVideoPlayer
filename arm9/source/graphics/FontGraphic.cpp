@@ -10,56 +10,18 @@
 
 #include <nds.h>
 #include <stdio.h>
-#include "gl2d.h"
+#include "large_font.h"
+#include "uvcoord_large_font.h"
 #include "FontGraphic.h"
 
-int fontTextureID[2];
-
-
-int FontGraphic::load(int textureID, glImage *_font_sprite,
-				  const unsigned int numframes,
-				  const u16 *texcoords,
-				  GL_TEXTURE_TYPE_ENUM type,
-				  int sizeX,
-				  int sizeY,
-				  int param,
-				  int pallette_width,
-				  const u16 *palette,
-				  const uint8 *texture,
-				  const unsigned short int *_mapping,
-				  const bool enableFontCharCache
-				  )
-
-{
-	fontSprite = _font_sprite;
-	imageCount = numframes;
-	mapping = _mapping;
-	fontCharCacheEnabled = enableFontCharCache;
-	if (fontTextureID[textureID]) glDeleteTextures(1, &fontTextureID[textureID]);
-	fontTextureID[textureID] =
-			glLoadSpriteSet(fontSprite,
-							numframes,
-							texcoords,
-							type,
-							sizeX,
-							sizeY,
-							param,
-							pallette_width,
-							palette,
-							texture
-							);
-
-	return fontTextureID[textureID];
-
-}
 
 /**
  * Get the index in the UV coordinate array where the letter appears
  */
 unsigned int FontGraphic::getSpriteIndex(const u16 letter) {
 	unsigned int spriteIndex = 0;
-	for (unsigned int i = 0; i < imageCount; i++) {
-		if (mapping[i] == letter) {
+	for (unsigned int i = 0; i < LARGE_FONT_NUM_IMAGES; i++) {
+		if (large_utf16_lookup_table[i] == letter) {
 			spriteIndex = i;
 			break;
 		}
@@ -67,15 +29,37 @@ unsigned int FontGraphic::getSpriteIndex(const u16 letter) {
 	return spriteIndex;
 }
 
-void FontGraphic::clearFontCharCache() {
-	if (!fontCharCacheEnabled) {
-		return;
+void FontGraphic::printFontChar(int x, int y, unsigned short int fontChar)
+{
+	const u8* font = (u8*)large_fontBitmap;
+	const int width = large_font_texcoords[2 + (fontChar * 4)];
+	const int height = large_font_texcoords[3 + (fontChar * 4)];
+
+	for (int h = 0; h < height; h++) {
+		if ((y + h) >= 192) break;
+		for (int w = 0; w < width; w += 2) {
+			int c = 0;
+			u8 fontPixel = font[((large_font_texcoords[1 + (fontChar * 4)] + h) * 256) + (large_font_texcoords[fontChar * 4] / 2) + (w / 2)];
+			while (fontPixel >= 0x10) {
+				fontPixel -= 0x10;
+				c++;
+			}
+
+			if ((x + w + 1) < 256 && (w + 1) <= width) {
+				if (c != 0) BG_GFX[((y + h) * 256) + (x + w + 1)] = large_fontPal[c] | BIT(15);
+			}
+
+			c = 0;
+			while (fontPixel != 0) {
+				fontPixel--;
+				c++;
+			}
+
+			if ((x + w) < 256) {
+				if (c != 0) BG_GFX[((y + h) * 256) + (x + w)] = large_fontPal[c] | BIT(15);
+			}
+		}
 	}
-	for (int i = 0; i < 256; i++) {
-		fontCharCache[i] = 0xFFFF;
-	}
-	fontCharCached = false;
-	centeredXCached = false;
 }
 
 void FontGraphic::print(int x, int y, const char *text)
@@ -83,15 +67,6 @@ void FontGraphic::print(int x, int y, const char *text)
 	unsigned short int fontChar;
 	unsigned char lowBits;
 	unsigned char highBits;
-	if (fontCharCached) {
-		for (int i = 0; i < 256; i++) {
-			if (fontCharCache[i] == 0xFFFF) break;
-			glSprite(x, y, GL_FLIP_NONE, &fontSprite[fontCharCache[i]]);
-			x += fontSprite[fontCharCache[i]].width;
-		}
-		return;
-	}
-	int i = 0;
 	while (*text)
 	{
 		lowBits = *(unsigned char*) text++;
@@ -102,15 +77,10 @@ void FontGraphic::print(int x, int y, const char *text)
 			highBits = *(unsigned char*) text++; // HSB
 			fontChar = getSpriteIndex((u16)(lowBits | highBits << 8));
 		}
-		if (fontCharCacheEnabled) {
-			fontCharCache[i] = fontChar;
-			i++;
-		}
 		
-		glSprite(x, y, GL_FLIP_NONE, &fontSprite[fontChar]);
-		x += fontSprite[fontChar].width;
+		printFontChar(x, y, fontChar);
+		x += large_font_texcoords[2 + (fontChar * 4)];
 	}
-	fontCharCached = fontCharCacheEnabled;
 }
 
 int FontGraphic::calcWidth(const char *text)
@@ -131,22 +101,13 @@ int FontGraphic::calcWidth(const char *text)
 			fontChar = getSpriteIndex((u16)(lowBits | highBits << 8));
 		}
 
-		x += fontSprite[fontChar].width;
+		x += large_font_texcoords[2 + (fontChar * 4)];
 	}
 	return x;
 }
 
-void FontGraphic::print(int x, int y, int value)
-{
-	sprintf(buffer, "%i", value);
-	print(x, y, buffer);
-}
-
 int FontGraphic::getCenteredX(const char *text)
 {
-	if (centeredXCached) {
-		return centeredXCache;
-	}
 	unsigned short int fontChar;
 	unsigned char lowBits;
 	unsigned char highBits;
@@ -162,13 +123,9 @@ int FontGraphic::getCenteredX(const char *text)
 			fontChar = getSpriteIndex((u16)(lowBits | highBits << 8));
 		}
 
-		total_width += fontSprite[fontChar].width;
+		total_width += large_font_texcoords[2 + (fontChar * 4)];
 	}
 	const int result = (SCREEN_WIDTH - total_width) / 2;
-	if (fontCharCacheEnabled) {
-		centeredXCache = result;
-		centeredXCached = true;
-	}
 	return result;
 }
 
@@ -179,15 +136,6 @@ void FontGraphic::printCentered(int y, const char *text)
 	unsigned char highBits;	
 
 	int x = getCenteredX(text);
-	if (fontCharCached) {
-		for (int i = 0; i < 256; i++) {
-			if (fontCharCache[i] == 0xFFFF) break;
-			glSprite(x, y, GL_FLIP_NONE, &fontSprite[fontCharCache[i]]);
-			x += fontSprite[fontCharCache[i]].width;
-		}
-		return;
-	}
-	int i = 0;
 	while (*text)
 	{
 		lowBits = *(unsigned char*) text++;
@@ -198,19 +146,8 @@ void FontGraphic::printCentered(int y, const char *text)
 			highBits = *(unsigned char*) text++;
 			fontChar = getSpriteIndex((u16)(lowBits | highBits << 8));
 		}
-		if (fontCharCacheEnabled) {
-			fontCharCache[i] = fontChar;
-			i++;
-		}
 
-		glSprite(x, y, GL_FLIP_NONE, &fontSprite[fontChar]);
-		x += fontSprite[fontChar].width;
+		printFontChar(x, y, fontChar);
+		x += large_font_texcoords[2 + (fontChar * 4)];
 	}
-	fontCharCached = fontCharCacheEnabled;
-}
-
-void FontGraphic::printCentered(int y, int value)
-{
-	sprintf(buffer, "%i", value);
-	printCentered(y, buffer);
 }

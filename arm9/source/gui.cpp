@@ -141,11 +141,9 @@ void renderPlayPauseButton(void) {
 			y++;
 		}
 	}
-
 }
 
 void renderGuiBg(void) {
-	vramSetBankG(VRAM_G_MAIN_SPRITE);
 	oamInit(&oamMain, SpriteMapping_1D_32, false);
 
 	for (int i = 0; i < 3+timeStampCharCount; i++) {
@@ -206,16 +204,14 @@ void renderGuiBg(void) {
 	toncset16(BG_GFX+(256*146)+15, playBarEdgeColor | BIT(15), 226);
 	toncset16(BG_GFX+(256*147)+16, playBarEdgeColor | BIT(15), 224);
 
-	largeFont_clearFontCharCache();
+	if (filenameDisplayCentered) {
+		printLargeCentered(20, filenameToDisplay);
+	} else {
+		printLarge(4, 20, filenameToDisplay);
+	}
 }
 
 void renderGui(void) {
-	clearText(false);
-	if (filenameDisplayCentered) {
-		printLargeCentered(false, 20, filenameToDisplay);
-	} else {
-		printLarge(false, 4, 20, filenameToDisplay);
-	}
 	// printSmallCentered(false, 120, timeStamp);
 	// printSmall(false, 68, 120, timeStamp);
 	for (int i = 0; i < timeStampCharCount; i++) {
@@ -227,12 +223,4 @@ void renderGui(void) {
 	oamSetXY(&oamMain, 1, 12+barAdjust, 134+8);
 	oamSetXY(&oamMain, 2, 12+barAdjust, 134+16);
 	oamUpdate(&oamMain);
-
-	glBegin2D();
-	{
-		updateText(false);
-		glColor(RGB15(31, 31, 31));
-	}
-	glEnd2D();
-	GFX_FLUSH = 0;
 }

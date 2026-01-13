@@ -990,7 +990,7 @@ int playRvid(const char* filename) {
 		updatePlayBar();
 	}
 
-	videoSetMode(rvidDualScreen ? (MODE_5_2D | DISPLAY_BG3_ACTIVE) : (MODE_5_3D | DISPLAY_BG3_ACTIVE));
+	videoSetMode(MODE_3_2D | DISPLAY_BG3_ACTIVE);
 	if (!rvidDualScreen) {
 		oamEnable(&oamMain);
 	}
@@ -1302,7 +1302,6 @@ void setupFileBrowserGfx(void) {
 	reinitFileBrowserGfx = false;
 
 	videoSetMode(MODE_0_2D);
-	vramSetBankG(VRAM_G_MAIN_BG);
 	consoleInit(NULL, 0, BgType_Text4bpp, BgSize_T_256x256, 15, 0, true, true);
 	if (colorTable) {
 		for (int i = 0; i < 256; i++) {
@@ -1410,23 +1409,14 @@ int main(int argc, char **argv) {
 	irqSet(IRQ_VBLANK, renderFrames);
 	irqEnable(IRQ_VBLANK);
 
-	videoSetMode(MODE_5_2D | DISPLAY_BG3_ACTIVE);
+	videoSetMode(MODE_3_2D | DISPLAY_BG3_ACTIVE);
 	videoSetModeSub(MODE_3_2D | DISPLAY_BG3_ACTIVE);
-
-	// Initialize gl2d
-	glScreen2D();
-	// Make gl2d render on transparent stage.
-	glClearColor(31,31,31,0);
-	glDisable(GL_CLEAR_BMP);
-
-	// Clear the GL texture state
-	glResetTextures();
 
 	// sprites
 	vramSetBankA(VRAM_A_MAIN_BG);
-	vramSetBankB(VRAM_B_TEXTURE);
+	VRAM_B_CR = 0;
 	vramSetBankC(VRAM_C_SUB_BG);
-	vramSetBankE(VRAM_E_TEX_PALETTE);
+	vramSetBankG(VRAM_G_MAIN_SPRITE);
 
 	bgInit(3, BgType_Bmp16, BgSize_B16_256x256, 0, 0);
 	bgInitSub(3, BgType_Bmp16, BgSize_B16_256x256, 0, 0);

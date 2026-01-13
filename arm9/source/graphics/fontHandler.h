@@ -18,25 +18,11 @@
 
 ------------------------------------------------------------------*/
 
-#include "TextEntry.h"
-#include "TextPane.h"
 #include "FontGraphic.h"
 
 #pragma once
 
 void fontInit(const int favoriteColor);
-void updateText(bool top);
-void clearText(bool top);
-void clearText();
-void largeFont_clearFontCharCache();
-void printLarge(bool top, int x, int y, const char *message);
-void printLargeCentered(bool top, int y, const char *message);
+void printLarge(int x, int y, const char *message);
+void printLargeCentered(int y, const char *message);
 int calcLargeFontWidth(const char *text);
-void animateTextIn(bool top);
-void scrollTextVert(bool top, bool up, TextEntry &newEntry);
-TextEntry *getPreviousTextEntry(bool top);
-TextPane &createTextPane(int startX, int startY, int shownElements);
-FontGraphic &getFont();
-void waitForPanesToClear();
-void reloadFontPalettes();
-void reloadFontTextures();
