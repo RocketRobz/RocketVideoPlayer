@@ -770,15 +770,13 @@ int playRvid(const char* filename) {
 
 	readRvidHeader(rvid);
 
-	if (rvidHeaderCheck.ver < 3 && rvidCompressed) {
+	if (rvidFps > 60 && is3DS) {
+		return 5;
+	} else if (rvidHeaderCheck.ver < 3 && rvidCompressed) {
 		return 4;
-	}
-
-	if (rvidHasSound && (rvidSampleRate > 32000)) {
+	} else if (rvidHasSound && (rvidSampleRate > 32000)) {
 		return 1;
-	}
-
-	if (rvidOver256Colors && colorTable) {
+	} else if (rvidOver256Colors && colorTable) {
 		return 2;
 	}
 
@@ -1500,7 +1498,15 @@ int main(int argc, char **argv) {
 						}
 						consoleClear();
 					}
-					if (err == 4) {
+					if (err == 5) {
+						printf("Cannot play videos\n"
+								"higher than 60FPS.\n");
+						if (!isDSiMode()) {
+							printf("\n"
+									"If you are using a DSi,\n"
+									"try running in DSi mode.\n");
+						}
+					} else if (err == 4) {
 						printf("Old compressed Rocket Video\n"
 								"files are currently not\n"
 								"supported.\n");
