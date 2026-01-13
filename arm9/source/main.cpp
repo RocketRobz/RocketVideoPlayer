@@ -26,6 +26,7 @@ u8 *twlCfgAddr     = NULL;
 
 vu32* sharedAddr = (vu32*)0x02FFFD00;
 // bool dsiWramAvailable = false;
+bool is3DS = false;
 
 u32 getFileSize(const char *fileName)
 {
@@ -1021,7 +1022,7 @@ int playRvid(const char* filename) {
 	frameOfRefreshRateLimit = 60;
 	if (!rvidNativeRefreshRate) {
 		const int fpsMultiList[4] = {72, 60, 50, 48};
-		const int iStart = (fifoGetValue32(FIFO_USER_01) != 0xD2) ? 1 : 0; // Start at 1 if using a 3DS/2DS
+		const int iStart = is3DS ? 1 : 0; // Start at 1 if using a 3DS/2DS
 		for (int i = iStart; i < 4; i++) {
 			int fpsMulti = rvidFps;
 			while (fpsMulti < fpsMultiList[i]) {
@@ -1405,6 +1406,8 @@ int main(int argc, char **argv) {
 		// *(vu32*)0x03708000 = headerTidLowercase;
 		// dsiWramAvailable = ((*(vu32*)0x03700000 == headerTidUppercase) && (*(vu32*)0x03708000 == headerTidLowercase));
 	}
+
+	is3DS = (fifoGetValue32(FIFO_USER_01) != 0xD2);
 
 	irqSet(IRQ_VBLANK, renderFrames);
 	irqEnable(IRQ_VBLANK);
