@@ -265,10 +265,15 @@ int main() {
 
 	// Check for 3DS in DSi mode, or DSi & 3DS in DS mode
 	if (isDSiMode()) {
-		const u8 byteBak = i2cReadRegister(0x4A, 0x71);
-		i2cWriteRegister(0x4A, 0x71, 0xD2);
-		fifoSendValue32(FIFO_USER_01, i2cReadRegister(0x4A, 0x71));
-		i2cWriteRegister(0x4A, 0x71, byteBak);
+		const u8 i2cVer = i2cReadRegister(0x4A, 0);
+		if (i2cVer == 0 || i2cVer == 0xFF) {
+			fifoSendValue32(FIFO_USER_01, 0xD2); // If I2C is bricked, this is a DSi
+		} else {
+			const u8 byteBak = i2cReadRegister(0x4A, 0x71);
+			i2cWriteRegister(0x4A, 0x71, 0xD2);
+			fifoSendValue32(FIFO_USER_01, i2cReadRegister(0x4A, 0x71)); // If I2C write is successful, this is a DSi
+			i2cWriteRegister(0x4A, 0x71, byteBak);
+		}
 	} else {
 		// There is no (known) way to specifically check for 3DS in DS mode, so DSi will be affected as well
 		fifoSendValue32(FIFO_USER_01, REG_SNDEXTCNT ? 0 : 0xD2);
