@@ -8,7 +8,7 @@
 To play videos, you'll need to convert them to the Rocket Video (`.rvid`) format using [Vid2RVID](https://github.com/RocketRobz/Vid2RVID/releases).
 
 # Features
-- Support for videos up to 60FPS (compatible with even the DS & DS Lite systems)!
+- Support for videos up to 72FPS!
 - Both 8 BPP (256 colors) and 16 BPP (RGB555/RGB565) videos are supported.
     - Screen color filters are not supported for 16 BPP videos.
 - Support for dual-screen videos!
