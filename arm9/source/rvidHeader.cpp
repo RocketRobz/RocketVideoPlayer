@@ -102,7 +102,11 @@ void readRvidHeader(FILE* rvid) {
 
 			rvidHRes = rvidOver256Colors ? 0x200 : 0x100;
 			rvidCompressed = (rvidCompressedFrameSizeTableOffset > 0);
-			rvidHasSound = (rvidSampleRate && rvidSoundOffset);
+			if (rvidHeaderCheck.ver != 3) {
+				rvidHasSound = rvidSampleRate;
+			} else {
+				rvidHasSound = (rvidSampleRate && rvidSoundOffset);
+			}
 		}	break;
 	}
 

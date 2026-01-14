@@ -131,7 +131,7 @@ char filePath[PATH_MAX];
 
 touchPosition touch;
 
-FILE* rvid;
+FILE* rvid[4];
 u32 rvidPreviousOffset = 0;
 u32 rvidCurrentOffset = 0;
 FILE* rvidSound[2];
@@ -552,7 +552,7 @@ ITCM_CODE void sndUpdateStream(void) {
 	updateSoundBuffer = false;
 }
 
-ITCM_CODE static void loadFramePal(const int num, const int loadedFrameNum) {
+ITCM_CODE static void loadFramePal(const int num, const int loadedFrameNum, const int rvidPart) {
 	if (rvidOver256Colors) return;
 
 	static int previousNum[2] = {0};
@@ -562,7 +562,7 @@ ITCM_CODE static void loadFramePal(const int num, const int loadedFrameNum) {
 	} else if (rvidCurrentOffset == frameOffsets[loadedFrameNum]) {
 		tonccpy(palBuffer[num], palBuffer[previousNum[1]], 256*2);
 	} else {
-		fread(palBuffer[num], 2, 256, rvid);
+		fread(palBuffer[num], 2, 256, rvid[rvidPart]);
 		if (colorTable) {
 			for (int i = 0; i < 256; i++) {
 				palBuffer[num][i] = colorTable[palBuffer[num][i]];
@@ -600,8 +600,11 @@ ITCM_CODE void loadFrame(const int num) {
 		if (rvidCompressed) {
 			for (int b = 0; b < 2; b++) {
 				const int pos = (num*2)+b;
-				fseek(rvid, frameOffsets[loadedSingleFrames], SEEK_SET);
-				loadFramePal(pos, loadedSingleFrames);
+				const int rvidPart = (rvidHeaderCheck.ver >= 4) ? (frameOffsets[loadedSingleFrames] % 4) : 0;
+				const u32 frameOffsetSeek = frameOffsets[loadedSingleFrames] - rvidPart;
+				fseek(rvid[rvidPart], frameOffsetSeek, SEEK_SET);
+
+				loadFramePal(pos, loadedSingleFrames, rvidPart);
 				u8* dst = frameBuffer+(pos*(rvidHRes*rvidVRes));
 				if (rvidPreviousOffset == frameOffsets[loadedSingleFrames]) {
 					// Duplicate/Last recent frame found
@@ -615,9 +618,9 @@ ITCM_CODE void loadFrame(const int num) {
 					const int loadedFramesPos = (loadedFrames*2)+b;
 					const u32 size = rvidOver256Colors ? compressedFrameSizes32[loadedFramesPos] : compressedFrameSizes16[loadedFramesPos];
 					if (size == (unsigned)rvidHRes*rvidVRes) {
-						fread(dst, 1, rvidHRes*rvidVRes, rvid);
+						fread(dst, 1, rvidHRes*rvidVRes, rvid[rvidPart]);
 					} else {
-						fread(compressedFrameBuffer, 1, size, rvid);
+						fread(compressedFrameBuffer, 1, size, rvid[rvidPart]);
 						sndUpdateStream();
 						decompress(compressedFrameBuffer, dst, LZ77);
 					}
@@ -634,8 +637,11 @@ ITCM_CODE void loadFrame(const int num) {
 		} else {
 			for (int b = 0; b < 2; b++) {
 				const int pos = (num*2)+b;
-				fseek(rvid, frameOffsets[loadedSingleFrames], SEEK_SET);
-				loadFramePal(pos, loadedSingleFrames);
+				const int rvidPart = (rvidHeaderCheck.ver >= 4) ? (frameOffsets[loadedSingleFrames] % 4) : 0;
+				const u32 frameOffsetSeek = frameOffsets[loadedSingleFrames] - rvidPart;
+				fseek(rvid[rvidPart], frameOffsetSeek, SEEK_SET);
+
+				loadFramePal(pos, loadedSingleFrames, rvidPart);
 				u8* dst = frameBuffer+(pos*(rvidHRes*rvidVRes));
 				if (rvidPreviousOffset == frameOffsets[loadedSingleFrames]) {
 					// Duplicate/Last recent frame found
@@ -646,7 +652,7 @@ ITCM_CODE void loadFrame(const int num) {
 					const u8* src = frameBuffer+(previousNum[1]*(rvidHRes*rvidVRes));
 					tonccpy(dst, src, rvidHRes*rvidVRes);
 				} else {
-					fread(dst, 1, rvidHRes*rvidVRes, rvid);
+					fread(dst, 1, rvidHRes*rvidVRes, rvid[rvidPart]);
 					// applyColorLutToFrame((u16*)dst);
 				}
 				DC_FlushRange(dst, rvidHRes*rvidVRes);
@@ -659,8 +665,11 @@ ITCM_CODE void loadFrame(const int num) {
 			}
 		}
 	} else {
-		fseek(rvid, frameOffsets[loadedFrames], SEEK_SET);
-		loadFramePal(num, loadedFrames);
+		const int rvidPart = (rvidHeaderCheck.ver >= 4) ? (frameOffsets[loadedFrames] % 4) : 0;
+		const u32 frameOffsetSeek = frameOffsets[loadedFrames] - rvidPart;
+		fseek(rvid[rvidPart], frameOffsetSeek, SEEK_SET);
+
+		loadFramePal(num, loadedFrames, rvidPart);
 		u8* dst = frameBuffer+(num*(rvidHRes*rvidVRes));
 		if (rvidPreviousOffset == frameOffsets[loadedFrames]) {
 			// Duplicate/Last recent frame found
@@ -674,14 +683,14 @@ ITCM_CODE void loadFrame(const int num) {
 			if (rvidCompressed) {
 				const u32 size = rvidOver256Colors ? compressedFrameSizes32[loadedFrames] : compressedFrameSizes16[loadedFrames];
 				if (size == (unsigned)rvidHRes*rvidVRes) {
-					fread(dst, 1, rvidHRes*rvidVRes, rvid);
+					fread(dst, 1, rvidHRes*rvidVRes, rvid[rvidPart]);
 				} else {
-					fread(compressedFrameBuffer, 1, size, rvid);
+					fread(compressedFrameBuffer, 1, size, rvid[rvidPart]);
 					sndUpdateStream();
 					decompress(compressedFrameBuffer, dst, LZ77);
 				}
 			} else {
-				fread(dst, 1, rvidHRes*rvidVRes, rvid);
+				fread(dst, 1, rvidHRes*rvidVRes, rvid[rvidPart]);
 			}
 			// applyColorLutToFrame((u16*)dst);
 		}
@@ -772,7 +781,7 @@ int playRvid(const char* filename) {
 		return 3;
 	}
 
-	readRvidHeader(rvid);
+	readRvidHeader(rvid[0]);
 
 	if (isGbMacro && rvidDualScreen) {
 		return 6;
@@ -784,6 +793,19 @@ int playRvid(const char* filename) {
 		return 1;
 	} else if (rvidOver256Colors && colorTable) {
 		return 2;
+	}
+
+	for (int i = 1; i < 4; i++) {
+		char partFilename[128];
+		sprintf(partFilename, "%s.%i", filename, i);
+		if (access(partFilename, F_OK) == 0) {
+			rvid[i] = fopen(partFilename, "rb");
+			if (rvid[i]) {
+				fatInitLookupCacheFile(rvid[i], 4096);
+			}
+		} else {
+			break;
+		}
 	}
 
 	videoYpos = 0;
@@ -857,16 +879,16 @@ int playRvid(const char* filename) {
 
 	if (rvidDualScreen) {
 		frameOffsets = new u32[rvidFrames*2];
-		fread(frameOffsets, 4, rvidFrames*2, rvid);
+		fread(frameOffsets, 4, rvidFrames*2, rvid[0]);
 	} else {
 		frameOffsets = new u32[rvidFrames];
 		if (rvidHeaderCheck.ver >= 3) {
-			fread(frameOffsets, 4, rvidFrames, rvid);
+			fread(frameOffsets, 4, rvidFrames, rvid[0]);
 		} else {
 			/* if (rvidCompressed) {
-				fseek(rvid, rvidCompressedFrameSizeTableOffset, SEEK_SET);
+				fseek(rvid[0], rvidCompressedFrameSizeTableOffset, SEEK_SET);
 				compressedFrameSizes32 = new u32[rvidFrames];
-				fread(compressedFrameSizes32, 4, rvidFrames, rvid);
+				fread(compressedFrameSizes32, 4, rvidFrames, rvid[0]);
 			} else { */
 				frameOffsets[0] = 0x200;
 				for (int i = 1; i < rvidFrames; i++) {
@@ -877,18 +899,18 @@ int playRvid(const char* filename) {
 	}
 
 	if (rvidCompressed) {
-		fseek(rvid, rvidCompressedFrameSizeTableOffset, SEEK_SET);
+		fseek(rvid[0], rvidCompressedFrameSizeTableOffset, SEEK_SET);
 		if (rvidOver256Colors) {
 			compressedFrameSizes32 = new u32[rvidFrames];
-			fread(compressedFrameSizes32, 4, rvidFrames, rvid);
+			fread(compressedFrameSizes32, 4, rvidFrames, rvid[0]);
 		} else {
 			compressedFrameSizes16 = new u16[rvidFrames];
-			fread(compressedFrameSizes16, 2, rvidFrames, rvid);
+			fread(compressedFrameSizes16, 2, rvidFrames, rvid[0]);
 		}
 	}
 	rvidPreviousOffset = 0;
 	rvidCurrentOffset = 0;
-	fseek(rvid, frameOffsets[0], SEEK_SET);
+	// fseek(rvid[0], frameOffsets[0], SEEK_SET);
 	loadedSingleFrames = 0;
 	loadedFrames = 0;
 	for (int i = 0; i < frameBufferCount/2; i++) {
@@ -908,36 +930,47 @@ int playRvid(const char* filename) {
 				soundBufferReadLen++;
 			}
 		}
-		if (rvidAudioIs16bit) {
-			soundBuffer[0][0] = new u16[soundBufferReadLen];
-			soundBuffer[0][1] = new u16[soundBufferReadLen];
-		} else {
-			soundBuffer[0][0] = (u16*)new u8[soundBufferReadLen];
-			soundBuffer[0][1] = (u16*)new u8[soundBufferReadLen];
-		}
-
 		soundBufferDivide = ((rvidFps % 25) == 0) ? 5 : 6;
 
-		rvidSound[0] = fopen(filename, "rb");
-		fatInitLookupCacheFile(rvidSound[0], 4096);
-		fseek(rvidSound[0], rvidSoundOffset, SEEK_SET);
-		toncset(soundBuffer[0][0], 0, soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1));
-		fread(soundBuffer[0][0], rvidAudioIs16bit ? 2 : 1, soundBufferReadLen, rvidSound[0]);
+		char sndFilename[128];
+		if (rvidSoundOffset) {
+			sprintf(sndFilename, filename);
+		} else {
+			sprintf(sndFilename, "%ssnd", filename);
+		}
 
-		if (rvidSoundRightOffset) {
+		rvidSound[0] = fopen(sndFilename, "rb");
+		if (rvidSound[0]) {
 			if (rvidAudioIs16bit) {
-				soundBuffer[1][0] = new u16[soundBufferReadLen];
-				soundBuffer[1][1] = new u16[soundBufferReadLen];
+				soundBuffer[0][0] = new u16[soundBufferReadLen];
+				soundBuffer[0][1] = new u16[soundBufferReadLen];
 			} else {
-				soundBuffer[1][0] = (u16*)new u8[soundBufferReadLen];
-				soundBuffer[1][1] = (u16*)new u8[soundBufferReadLen];
+				soundBuffer[0][0] = (u16*)new u8[soundBufferReadLen];
+				soundBuffer[0][1] = (u16*)new u8[soundBufferReadLen];
 			}
 
-			rvidSound[1] = fopen(filename, "rb");
-			fatInitLookupCacheFile(rvidSound[1], 4096);
-			fseek(rvidSound[1], rvidSoundRightOffset, SEEK_SET);
-			toncset(soundBuffer[1][0], 0, soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1));
-			fread(soundBuffer[1][0], rvidAudioIs16bit ? 2 : 1, soundBufferReadLen, rvidSound[1]);
+			fatInitLookupCacheFile(rvidSound[0], 4096);
+			fseek(rvidSound[0], rvidSoundOffset, SEEK_SET);
+			toncset(soundBuffer[0][0], 0, soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1));
+			fread(soundBuffer[0][0], rvidAudioIs16bit ? 2 : 1, soundBufferReadLen, rvidSound[0]);
+
+			if (rvidSoundRightOffset) {
+				if (rvidAudioIs16bit) {
+					soundBuffer[1][0] = new u16[soundBufferReadLen];
+					soundBuffer[1][1] = new u16[soundBufferReadLen];
+				} else {
+					soundBuffer[1][0] = (u16*)new u8[soundBufferReadLen];
+					soundBuffer[1][1] = (u16*)new u8[soundBufferReadLen];
+				}
+
+				rvidSound[1] = fopen(sndFilename, "rb");
+				fatInitLookupCacheFile(rvidSound[1], 4096);
+				fseek(rvidSound[1], rvidSoundRightOffset, SEEK_SET);
+				toncset(soundBuffer[1][0], 0, soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1));
+				fread(soundBuffer[1][0], rvidAudioIs16bit ? 2 : 1, soundBufferReadLen, rvidSound[1]);
+			}
+		} else {
+			rvidHasSound = false;
 		}
 	}
 
@@ -1196,13 +1229,13 @@ int playRvid(const char* filename) {
 			// Reload video
 			rvidPreviousOffset = 0;
 			rvidCurrentOffset = 0;
-			u32 rvidNextOffset = 0;
+			/* u32 rvidNextOffset = 0;
 			if (rvidDualScreen) {
 				rvidNextOffset = frameOffsets[currentFrame*2];
 			} else {
 				rvidNextOffset = frameOffsets[currentFrame];
 			}
-			fseek(rvid, rvidNextOffset, SEEK_SET);
+			fseek(rvid[0], rvidNextOffset, SEEK_SET); */
 			loadedSingleFrames = loadedFrames = currentFrame;
 			if (rvidDualScreen) {
 				loadedSingleFrames *= 2;
@@ -1479,14 +1512,14 @@ int main(int argc, char **argv) {
 			}
 		} else {
 			printf("Loading...");
-			rvid = fopen(filename.c_str(), "rb");
-			if (rvid) {
-				fatInitLookupCacheFile(rvid, 4096);
-				fread(&rvidHeaderCheck, 1, sizeof(rvidHeaderCheck), rvid);
+			rvid[0] = fopen(filename.c_str(), "rb");
+			if (rvid[0]) {
+				fatInitLookupCacheFile(rvid[0], 4096);
+				fread(&rvidHeaderCheck, 1, sizeof(rvidHeaderCheck), rvid[0]);
 				if (rvidHeaderCheck.formatString != 0x44495652) {
 					consoleClear();
 					printf("Not a Rocket Video file!");
-					fclose(rvid);
+					fclose(rvid[0]);
 					if (argc < 2) {
 						for (int i = 0; i < 60*2; i++) {
 							swiWaitForVBlank();
@@ -1494,7 +1527,13 @@ int main(int argc, char **argv) {
 					}
 				} else {
 					const int err = playRvid(filename.c_str());
-					fclose(rvid);
+					for (int i = 0; i < 4; i++) {
+						if (rvid[i]) {
+							fclose(rvid[i]);
+						} else {
+							break;
+						}
+					}
 					if ((err == 0) && rvidHasSound) {
 						fclose(rvidSound[0]);
 						if (rvidSoundRightOffset) {
