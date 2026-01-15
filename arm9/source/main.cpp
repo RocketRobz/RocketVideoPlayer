@@ -552,14 +552,36 @@ ITCM_CODE void sndUpdateStream(void) {
 	updateSoundBuffer = false;
 }
 
-ITCM_CODE static void loadFramePal(const int num, const int loadedFrameNum, const int rvidPart) {
+ITCM_CODE static u32 getFrameOffset(const int num) {
+	static int previousNum = 0;
+	static u32 offset = 0;
+
+	if (isDSiMode()) {
+		return frameOffsets[num];
+	}
+
+	if (rvidHeaderCheck.ver < 3) {
+		return 0x200 + ((0x200*rvidVRes) * num);
+	}
+
+	if (offset > 0 && previousNum == num) {
+		return offset;
+	}
+
+	previousNum = num;
+	fseek(rvid[0], 0x200 + (4 * num), SEEK_SET);
+	fread(&offset, 4, 1, rvid[0]);
+	return offset;
+}
+
+ITCM_CODE static void loadFramePal(const int num, const u32 frameOffset, const int rvidPart) {
 	if (rvidOver256Colors) return;
 
 	static int previousNum[2] = {0};
 
-	if (rvidPreviousOffset == frameOffsets[loadedFrameNum]) {
+	if (rvidPreviousOffset == frameOffset) {
 		tonccpy(palBuffer[num], palBuffer[previousNum[0]], 256*2);
-	} else if (rvidCurrentOffset == frameOffsets[loadedFrameNum]) {
+	} else if (rvidCurrentOffset == frameOffset) {
 		tonccpy(palBuffer[num], palBuffer[previousNum[1]], 256*2);
 	} else {
 		fread(palBuffer[num], 2, 256, rvid[rvidPart]);
@@ -600,17 +622,18 @@ ITCM_CODE void loadFrame(const int num) {
 		if (rvidCompressed) {
 			for (int b = 0; b < 2; b++) {
 				const int pos = (num*2)+b;
-				const int rvidPart = (rvidHeaderCheck.ver >= 4) ? (frameOffsets[loadedSingleFrames] % 4) : 0;
-				const u32 frameOffsetSeek = frameOffsets[loadedSingleFrames] - rvidPart;
+				const u32 frameOffset = getFrameOffset(loadedSingleFrames);
+				const int rvidPart = (rvidHeaderCheck.ver >= 4) ? (frameOffset % 4) : 0;
+				const u32 frameOffsetSeek = frameOffset - rvidPart;
 				fseek(rvid[rvidPart], frameOffsetSeek, SEEK_SET);
 
-				loadFramePal(pos, loadedSingleFrames, rvidPart);
+				loadFramePal(pos, frameOffset, rvidPart);
 				u8* dst = frameBuffer+(pos*(rvidHRes*rvidVRes));
-				if (rvidPreviousOffset == frameOffsets[loadedSingleFrames]) {
+				if (rvidPreviousOffset == frameOffset) {
 					// Duplicate/Last recent frame found
 					const u8* src = frameBuffer+(previousNum[0]*(rvidHRes*rvidVRes));
 					tonccpy(dst, src, rvidHRes*rvidVRes);
-				} else if (rvidCurrentOffset == frameOffsets[loadedSingleFrames]) {
+				} else if (rvidCurrentOffset == frameOffset) {
 					// Duplicate frame found
 					const u8* src = frameBuffer+(previousNum[1]*(rvidHRes*rvidVRes));
 					tonccpy(dst, src, rvidHRes*rvidVRes);
@@ -629,7 +652,7 @@ ITCM_CODE void loadFrame(const int num) {
 				DC_FlushRange(dst, rvidHRes*rvidVRes);
 				sndUpdateStream();
 				rvidPreviousOffset = rvidCurrentOffset;
-				rvidCurrentOffset = frameOffsets[loadedSingleFrames];
+				rvidCurrentOffset = frameOffset;
 				loadedSingleFrames++;
 				previousNum[0] = previousNum[1];
 				previousNum[1] = pos;
@@ -637,17 +660,18 @@ ITCM_CODE void loadFrame(const int num) {
 		} else {
 			for (int b = 0; b < 2; b++) {
 				const int pos = (num*2)+b;
-				const int rvidPart = (rvidHeaderCheck.ver >= 4) ? (frameOffsets[loadedSingleFrames] % 4) : 0;
-				const u32 frameOffsetSeek = frameOffsets[loadedSingleFrames] - rvidPart;
+				const u32 frameOffset = getFrameOffset(loadedSingleFrames);
+				const int rvidPart = (rvidHeaderCheck.ver >= 4) ? (frameOffset % 4) : 0;
+				const u32 frameOffsetSeek = frameOffset - rvidPart;
 				fseek(rvid[rvidPart], frameOffsetSeek, SEEK_SET);
 
-				loadFramePal(pos, loadedSingleFrames, rvidPart);
+				loadFramePal(pos, frameOffset, rvidPart);
 				u8* dst = frameBuffer+(pos*(rvidHRes*rvidVRes));
-				if (rvidPreviousOffset == frameOffsets[loadedSingleFrames]) {
+				if (rvidPreviousOffset == frameOffset) {
 					// Duplicate/Last recent frame found
 					const u8* src = frameBuffer+(previousNum[0]*(rvidHRes*rvidVRes));
 					tonccpy(dst, src, rvidHRes*rvidVRes);
-				} else if (rvidCurrentOffset == frameOffsets[loadedSingleFrames]) {
+				} else if (rvidCurrentOffset == frameOffset) {
 					// Duplicate frame found
 					const u8* src = frameBuffer+(previousNum[1]*(rvidHRes*rvidVRes));
 					tonccpy(dst, src, rvidHRes*rvidVRes);
@@ -658,24 +682,25 @@ ITCM_CODE void loadFrame(const int num) {
 				DC_FlushRange(dst, rvidHRes*rvidVRes);
 				sndUpdateStream();
 				rvidPreviousOffset = rvidCurrentOffset;
-				rvidCurrentOffset = frameOffsets[loadedSingleFrames];
+				rvidCurrentOffset = frameOffset;
 				loadedSingleFrames++;
 				previousNum[0] = previousNum[1];
 				previousNum[1] = pos;
 			}
 		}
 	} else {
-		const int rvidPart = (rvidHeaderCheck.ver >= 4) ? (frameOffsets[loadedFrames] % 4) : 0;
-		const u32 frameOffsetSeek = frameOffsets[loadedFrames] - rvidPart;
+		const u32 frameOffset = getFrameOffset(loadedFrames);
+		const int rvidPart = (rvidHeaderCheck.ver >= 4) ? (frameOffset % 4) : 0;
+		const u32 frameOffsetSeek = frameOffset - rvidPart;
 		fseek(rvid[rvidPart], frameOffsetSeek, SEEK_SET);
 
-		loadFramePal(num, loadedFrames, rvidPart);
+		loadFramePal(num, frameOffset, rvidPart);
 		u8* dst = frameBuffer+(num*(rvidHRes*rvidVRes));
-		if (rvidPreviousOffset == frameOffsets[loadedFrames]) {
+		if (rvidPreviousOffset == frameOffset) {
 			// Duplicate/Last recent frame found
 			const u8* src = frameBuffer+(previousNum[0]*(rvidHRes*rvidVRes));
 			tonccpy(dst, src, rvidHRes*rvidVRes);
-		} else if (rvidCurrentOffset == frameOffsets[loadedFrames]) {
+		} else if (rvidCurrentOffset == frameOffset) {
 			// Duplicate frame found
 			const u8* src = frameBuffer+(previousNum[1]*(rvidHRes*rvidVRes));
 			tonccpy(dst, src, rvidHRes*rvidVRes);
@@ -697,7 +722,7 @@ ITCM_CODE void loadFrame(const int num) {
 		DC_FlushRange(dst, rvidHRes*rvidVRes);
 		sndUpdateStream();
 		rvidPreviousOffset = rvidCurrentOffset;
-		rvidCurrentOffset = frameOffsets[loadedFrames];
+		rvidCurrentOffset = frameOffset;
 		previousNum[0] = previousNum[1];
 		previousNum[1] = num;
 	}
@@ -877,24 +902,25 @@ int playRvid(const char* filename) {
 		frameBuffer = new u8[0xC000*32];
 	}
 
-	if (rvidDualScreen) {
-		frameOffsets = new u32[rvidFrames*2];
-		fread(frameOffsets, 4, rvidFrames*2, rvid[0]);
-	} else {
-		frameOffsets = new u32[rvidFrames];
-		if (rvidHeaderCheck.ver >= 3) {
-			fread(frameOffsets, 4, rvidFrames, rvid[0]);
+	if (isDSiMode()) {
+		if (rvidDualScreen) {
+			frameOffsets = new u32[rvidFrames*2];
+			fread(frameOffsets, 4, rvidFrames*2, rvid[0]);
 		} else {
-			/* if (rvidCompressed) {
-				fseek(rvid[0], rvidCompressedFrameSizeTableOffset, SEEK_SET);
-				compressedFrameSizes32 = new u32[rvidFrames];
-				fread(compressedFrameSizes32, 4, rvidFrames, rvid[0]);
-			} else { */
-				frameOffsets[0] = 0x200;
-				for (int i = 1; i < rvidFrames; i++) {
-					frameOffsets[i] = frameOffsets[i-1] + 0x200*rvidVRes;
-				}
-			// }
+			frameOffsets = new u32[rvidFrames];
+			if (rvidHeaderCheck.ver >= 3) {
+				fread(frameOffsets, 4, rvidFrames, rvid[0]);
+			} else {
+				/* if (rvidCompressed) {
+					fseek(rvid[0], rvidCompressedFrameSizeTableOffset, SEEK_SET);
+					compressedFrameSizes32 = new u32[rvidFrames];
+					fread(compressedFrameSizes32, 4, rvidFrames, rvid[0]);
+				} else { */
+					for (int i = 0; i < rvidFrames; i++) {
+						frameOffsets[i] = 0x200 + ((0x200*rvidVRes) * i);
+					}
+				// }
+			}
 		}
 	}
 
@@ -1229,13 +1255,6 @@ int playRvid(const char* filename) {
 			// Reload video
 			rvidPreviousOffset = 0;
 			rvidCurrentOffset = 0;
-			/* u32 rvidNextOffset = 0;
-			if (rvidDualScreen) {
-				rvidNextOffset = frameOffsets[currentFrame*2];
-			} else {
-				rvidNextOffset = frameOffsets[currentFrame];
-			}
-			fseek(rvid[0], rvidNextOffset, SEEK_SET); */
 			loadedSingleFrames = loadedFrames = currentFrame;
 			if (rvidDualScreen) {
 				loadedSingleFrames *= 2;
@@ -1298,7 +1317,9 @@ int playRvid(const char* filename) {
 			delete[] compressedFrameSizes16;
 		}
 	}
-	delete[] frameOffsets;
+	if (isDSiMode()) {
+		delete[] frameOffsets;
+	}
 	if (rvidOver256Colors == 2) {
 		delete[] savedFrameBuffer[0];
 		if (rvidDualScreen) {
