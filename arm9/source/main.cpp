@@ -56,7 +56,7 @@ bool displaySavedFrameBuffer = false;
 u16* compressedFrameSizes16 = NULL;
 u32* compressedFrameSizes32 = NULL;
 
-u16 palBuffer[60][256];
+u16 palBuffer[64][256];
 u8* frameBuffer = NULL;					// 32 frames in buffer (64 halved frames for interlaced videos)
 int frameBufferCount = 32;
 int topBg;
