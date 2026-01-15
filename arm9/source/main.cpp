@@ -553,12 +553,12 @@ ITCM_CODE void sndUpdateStream(void) {
 }
 
 ITCM_CODE static u32 getFrameOffset(const int num) {
-	static int previousNum = 0;
-	static u32 offset = 0;
-
 	if (isDSiMode()) {
 		return frameOffsets[num];
 	}
+
+	static int previousNum = 0;
+	static u32 offset = 0;
 
 	if (rvidHeaderCheck.ver < 3) {
 		return 0x200 + ((0x200*rvidVRes) * num);
@@ -572,6 +572,25 @@ ITCM_CODE static u32 getFrameOffset(const int num) {
 	fseek(rvid[0], 0x200 + (4 * num), SEEK_SET);
 	fread(&offset, 4, 1, rvid[0]);
 	return offset;
+}
+
+ITCM_CODE static u32 getCompressedFrameSize(const int num) {
+	if (isDSiMode()) {
+		return rvidOver256Colors ? compressedFrameSizes32[num] : compressedFrameSizes16[num];
+	}
+
+	static int previousNum = 0;
+	static u32 size = 0;
+
+	if (size > 0 && previousNum == num) {
+		return size;
+	}
+
+	previousNum = num;
+	const int byteCount = rvidOver256Colors ? 4 : 2;
+	fseek(rvid[0], rvidCompressedFrameSizeTableOffset + (byteCount * num), SEEK_SET);
+	fread(&size, byteCount, 1, rvid[0]);
+	return size;
 }
 
 ITCM_CODE static void loadFramePal(const int num, const u32 frameOffset, const int rvidPart) {
@@ -623,6 +642,7 @@ ITCM_CODE void loadFrame(const int num) {
 			for (int b = 0; b < 2; b++) {
 				const int pos = (num*2)+b;
 				const u32 frameOffset = getFrameOffset(loadedSingleFrames);
+				const u32 size = rvidCompressed ? getCompressedFrameSize(loadedSingleFrames) : 0;
 				const int rvidPart = (rvidHeaderCheck.ver >= 4) ? (frameOffset % 4) : 0;
 				const u32 frameOffsetSeek = frameOffset - rvidPart;
 				fseek(rvid[rvidPart], frameOffsetSeek, SEEK_SET);
@@ -638,8 +658,6 @@ ITCM_CODE void loadFrame(const int num) {
 					const u8* src = frameBuffer+(previousNum[1]*(rvidHRes*rvidVRes));
 					tonccpy(dst, src, rvidHRes*rvidVRes);
 				} else {
-					const int loadedFramesPos = (loadedFrames*2)+b;
-					const u32 size = rvidOver256Colors ? compressedFrameSizes32[loadedFramesPos] : compressedFrameSizes16[loadedFramesPos];
 					if (size == (unsigned)rvidHRes*rvidVRes) {
 						fread(dst, 1, rvidHRes*rvidVRes, rvid[rvidPart]);
 					} else {
@@ -690,6 +708,7 @@ ITCM_CODE void loadFrame(const int num) {
 		}
 	} else {
 		const u32 frameOffset = getFrameOffset(loadedFrames);
+		const u32 size = rvidCompressed ? getCompressedFrameSize(loadedFrames) : 0;
 		const int rvidPart = (rvidHeaderCheck.ver >= 4) ? (frameOffset % 4) : 0;
 		const u32 frameOffsetSeek = frameOffset - rvidPart;
 		fseek(rvid[rvidPart], frameOffsetSeek, SEEK_SET);
@@ -706,7 +725,6 @@ ITCM_CODE void loadFrame(const int num) {
 			tonccpy(dst, src, rvidHRes*rvidVRes);
 		} else {
 			if (rvidCompressed) {
-				const u32 size = rvidOver256Colors ? compressedFrameSizes32[loadedFrames] : compressedFrameSizes16[loadedFrames];
 				if (size == (unsigned)rvidHRes*rvidVRes) {
 					fread(dst, 1, rvidHRes*rvidVRes, rvid[rvidPart]);
 				} else {
@@ -922,18 +940,19 @@ int playRvid(const char* filename) {
 				// }
 			}
 		}
-	}
 
-	if (rvidCompressed) {
-		fseek(rvid[0], rvidCompressedFrameSizeTableOffset, SEEK_SET);
-		if (rvidOver256Colors) {
-			compressedFrameSizes32 = new u32[rvidFrames];
-			fread(compressedFrameSizes32, 4, rvidFrames, rvid[0]);
-		} else {
-			compressedFrameSizes16 = new u16[rvidFrames];
-			fread(compressedFrameSizes16, 2, rvidFrames, rvid[0]);
+		if (rvidCompressed) {
+			fseek(rvid[0], rvidCompressedFrameSizeTableOffset, SEEK_SET);
+			if (rvidOver256Colors) {
+				compressedFrameSizes32 = new u32[rvidFrames];
+				fread(compressedFrameSizes32, 4, rvidFrames, rvid[0]);
+			} else {
+				compressedFrameSizes16 = new u16[rvidFrames];
+				fread(compressedFrameSizes16, 2, rvidFrames, rvid[0]);
+			}
 		}
 	}
+
 	rvidPreviousOffset = 0;
 	rvidCurrentOffset = 0;
 	// fseek(rvid[0], frameOffsets[0], SEEK_SET);
