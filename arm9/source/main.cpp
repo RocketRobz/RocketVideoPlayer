@@ -870,9 +870,6 @@ int playRvid(const char* filename) {
 			}
 		}
 	}
-	if (rvidOver256Colors && !isDSiMode()) {
-		frameBufferCount /= 2;
-	}
 	if (rvidDualScreen) {
 		frameBufferCount /= 2;
 	}
@@ -908,8 +905,7 @@ int playRvid(const char* filename) {
 	videoHourMark, videoMinuteMark, videoSecondMark);
 
 	if (rvidOver256Colors) {
-		const int amount = isDSiMode() ? 32 : 16;
-		frameBuffer = new u8[0x18000*amount];
+		frameBuffer = new u8[0x18000*32];
 		if (rvidOver256Colors == 2) {
 			savedFrameBuffer[0] = new u8[0x18000];
 			if (rvidDualScreen) {
