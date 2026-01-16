@@ -557,21 +557,21 @@ ITCM_CODE static u32 getFrameOffset(const int num) {
 		return frameOffsets[num];
 	}
 
-	static int previousNum = 0;
-	static u32 offset = 0;
-
 	if (rvidHeaderCheck.ver < 3) {
 		return 0x200 + ((0x200*rvidVRes) * num);
 	}
 
-	if (offset > 0 && previousNum == num) {
-		return offset;
+	static int previousSector = 0;
+	const int sector = num/128;
+
+	if (previousSector == sector) {
+		return frameOffsets[num % 128];
 	}
 
-	previousNum = num;
-	fseek(rvid[0], 0x200 + (4 * num), SEEK_SET);
-	fread(&offset, 4, 1, rvid[0]);
-	return offset;
+	previousSector = sector;
+	fseek(rvid[0], 0x200 + (512 * sector), SEEK_SET);
+	fread(frameOffsets, 4, 128, rvid[0]);
+	return frameOffsets[num % 128];
 }
 
 ITCM_CODE static u32 getCompressedFrameSize(const int num) {
@@ -579,18 +579,19 @@ ITCM_CODE static u32 getCompressedFrameSize(const int num) {
 		return rvidOver256Colors ? compressedFrameSizes32[num] : compressedFrameSizes16[num];
 	}
 
-	static int previousNum = 0;
-	static u32 size = 0;
+	static int previousSector = 0;
+	const int byteCount = rvidOver256Colors ? 4 : 2;
+	const int amount = rvidOver256Colors ? 128 : 256;
+	const int sector = num/amount;
 
-	if (size > 0 && previousNum == num) {
-		return size;
+	if (previousSector == sector) {
+		return rvidOver256Colors ? compressedFrameSizes32[num % 128] : compressedFrameSizes16[num % 256];
 	}
 
-	previousNum = num;
-	const int byteCount = rvidOver256Colors ? 4 : 2;
-	fseek(rvid[0], rvidCompressedFrameSizeTableOffset + (byteCount * num), SEEK_SET);
-	fread(&size, byteCount, 1, rvid[0]);
-	return size;
+	previousSector = sector;
+	fseek(rvid[0], rvidCompressedFrameSizeTableOffset + (512 * sector), SEEK_SET);
+	fread(rvidOver256Colors ? compressedFrameSizes32 : (u32*)compressedFrameSizes16, byteCount, amount, rvid[0]);
+	return rvidOver256Colors ? compressedFrameSizes32[num % 128] : compressedFrameSizes16[num % 256];
 }
 
 ITCM_CODE static void loadFramePal(const int num, const u32 frameOffset, const int rvidPart) {
@@ -945,6 +946,22 @@ int playRvid(const char* filename) {
 			} else {
 				compressedFrameSizes16 = new u16[rvidFrames];
 				fread(compressedFrameSizes16, 2, rvidFrames, rvid[0]);
+			}
+		}
+	} else {
+		frameOffsets = new u32[128];
+		if (rvidHeaderCheck.ver >= 3) {
+			fread(frameOffsets, 4, 128, rvid[0]);
+		}
+
+		if (rvidCompressed) {
+			fseek(rvid[0], rvidCompressedFrameSizeTableOffset, SEEK_SET);
+			if (rvidOver256Colors) {
+				compressedFrameSizes32 = new u32[128];
+				fread(compressedFrameSizes32, 4, 128, rvid[0]);
+			} else {
+				compressedFrameSizes16 = new u16[256];
+				fread(compressedFrameSizes16, 2, 256, rvid[0]);
 			}
 		}
 	}
@@ -1332,9 +1349,7 @@ int playRvid(const char* filename) {
 			delete[] compressedFrameSizes16;
 		}
 	}
-	if (isDSiMode()) {
-		delete[] frameOffsets;
-	}
+	delete[] frameOffsets;
 	if (rvidOver256Colors == 2) {
 		delete[] savedFrameBuffer[0];
 		if (rvidDualScreen) {
