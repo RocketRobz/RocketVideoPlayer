@@ -208,6 +208,8 @@ void IPCSyncHandler(void) {
 }
 
 void playRvidAudio(u32 value, void* userdata) {
+	(void)userdata;
+
 	const u16 freq = sharedAddr[3];
 	for (int channel = 0; channel < 2; channel++) {
 		SCHANNEL_CR(channel) &= ~SCHANNEL_ENABLE;
