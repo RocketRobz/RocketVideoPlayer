@@ -458,7 +458,7 @@ ITCM_CODE void renderFrames(void) {
 			sharedAddr[2] = (soundBufferLen*(rvidAudioIs16bit ? 2 : 1)) >> 2;
 			sharedAddr[3] = rvidSampleRate;
 			sharedAddr[4] = rvidAudioIs16bit;
-			IPC_SendSync(3);
+			fifoSendValue32(FIFO_USER_03, 1);
 			videoPausedPrior = false;
 		}
 	}
@@ -473,7 +473,7 @@ ITCM_CODE void renderFrames(void) {
 			sharedAddr[2] = (soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1)) >> 2;
 			sharedAddr[3] = rvidSampleRate;
 			sharedAddr[4] = rvidAudioIs16bit;
-			IPC_SendSync(3);
+			fifoSendValue32(FIFO_USER_03, 1);
 
 			if (rvidAudioIs16bit) {
 				soundBufferPos[0] = (u16*)sharedAddr[0];

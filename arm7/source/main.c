@@ -186,16 +186,6 @@ void IPCSyncHandler(void) {
 		case 1:
 			startFpsa = true;
 			break;
-		case 3: {
-			const u16 freq = sharedAddr[3];
-			for (int channel = 0; channel < 2; channel++) {
-				SCHANNEL_CR(channel) &= ~SCHANNEL_ENABLE;
-				SCHANNEL_SOURCE(channel) = sharedAddr[channel];
-				SCHANNEL_LENGTH(channel) = sharedAddr[2];
-				SCHANNEL_TIMER(channel) = SOUND_FREQ(freq);
-				SCHANNEL_CR(channel) = SCHANNEL_ENABLE | SOUND_VOL(127) | SOUND_PAN(channel ? 127 : 0) | (sharedAddr[4] ? SOUND_FORMAT_16BIT : SOUND_FORMAT_8BIT) | SOUND_ONE_SHOT;
-			}
-		} break;
 	}
 
 	if (startFpsa) {
@@ -214,6 +204,17 @@ void IPCSyncHandler(void) {
 			fpsa_setTargetFpsFraction(&sActiveFpsa, num * vblankCount, den);
 			fpsa_start(&sActiveFpsa);
 		}
+	}
+}
+
+void playRvidAudio(u32 value, void* userdata) {
+	const u16 freq = sharedAddr[3];
+	for (int channel = 0; channel < 2; channel++) {
+		SCHANNEL_CR(channel) &= ~SCHANNEL_ENABLE;
+		SCHANNEL_SOURCE(channel) = sharedAddr[channel];
+		SCHANNEL_LENGTH(channel) = sharedAddr[2];
+		SCHANNEL_TIMER(channel) = SOUND_FREQ(freq);
+		SCHANNEL_CR(channel) = SCHANNEL_ENABLE | SOUND_VOL(127) | SOUND_PAN(channel ? 127 : 0) | (sharedAddr[4] ? SOUND_FORMAT_16BIT : SOUND_FORMAT_8BIT) | SOUND_ONE_SHOT;
 	}
 }
 
@@ -285,6 +286,8 @@ int main() {
 			fifoSendValue32(FIFO_USER_02, 1);
 		}
 	}
+
+	fifoSetValue32Handler(FIFO_USER_03, playRvidAudio, NULL);
 
 	while (!exitflag) {
         const uint16_t key_mask = KEY_SELECT | KEY_START | KEY_L | KEY_R;
