@@ -52,6 +52,10 @@ void readRvidHeader(
 	#ifdef __GBA__
 	rvidPos = (void*)rvid;
 	tonccpy(&rvidHeaderCheck, rvid, sizeof(rvidHeaderCheck));
+
+	if (rvidHeaderCheck.formatString != 0x44495652) {
+		return;
+	}
 	#else
 	u32
 	#endif

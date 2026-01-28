@@ -63,13 +63,13 @@ void HBlank_dmaFrameToScreen(void) {
 	const u8* src = (u8*)rvidPos + rvidFrameOffset;
 	if (rvidVRes < 160 && scanline > videoYpos+rvidVRes) {
 		return;
-	} else if (rvidVRes == 160 && scanline >= rvidVRes) {
+	} else if (rvidVRes == 160 && scanline == 227) {
 		dmaCopy(src, BG_PALETTE, 240*2);
 	} else {
 		if (scanline < videoYpos || scanline >= videoYpos+rvidVRes) {
 			BG_PALETTE[0] = 0;
 		} else {
-			dmaCopy(src+((scanline-videoYpos)*0x200), BG_PALETTE, 240*2);
+			dmaCopy(src+((scanline-videoYpos)*rvidHRes), BG_PALETTE, 240*2);
 		}
 	}
 }
@@ -86,14 +86,14 @@ void HBlank_dmaFrameToScreenInterlaced(void) {
 	const u8* src = (u8*)rvidPos + rvidFrameOffset;
 	if (check2 < 160 && scanline > check1+check2) {
 		return;
-	} else if (check2 == 160 && scanline >= check2) {
+	} else if (check2 == 160 && scanline == 227) {
 		dmaCopy(src, BG_PALETTE, 240*2);
 	} else {
 		if (scanline < check1 || scanline >= check1+check2) {
 			BG_PALETTE[0] = 0;
 		} else {
 			const int videoScanline = (scanlineVid-check1)/2;
-			dmaCopy(src+(videoScanline*0x200), BG_PALETTE, 240*2);
+			dmaCopy(src+(videoScanline*rvidHRes), BG_PALETTE, 240*2);
 		}
 	}
 }
@@ -308,28 +308,20 @@ int main(void)
 	// Set up the interrupt handlers
 	irqInit();
 
+	irqSet(IRQ_VBLANK, VblankInterrupt);
+	irqEnable(IRQ_VBLANK);
+
 	readRvidHeader((const void*)0x08002000);
 
-	int lastUsedScanline = 0;
-
-	if (rvidDualScreen || rvidCompressedFrameSizeTableOffset) { // Dual-screen and/or compressed videos not supported
+	if (rvidHeaderCheck.formatString != 0x44495652 || rvidDualScreen || rvidCompressedFrameSizeTableOffset) { // Dual-screen and/or compressed videos not supported
 		SetMode( MODE_4 | BG2_ON );
 
-		rgb565Setup[0] = 0x001F; // Red screen
+		*(vu16*)BG_PALETTE = 0x001F; // Red screen
 
 		while (1) {
-			const int scanline = REG_VCOUNT;
-			if (lastUsedScanline != 161 && scanline > 160) {
-				lastUsedScanline = 161;
-				dmaCopy(rgb565Setup, BG_PALETTE, 2);
-			} else if (lastUsedScanline != scanline && scanline <= 160) {
-				lastUsedScanline = scanline;
-			}
-			// VBlankIntrWait();
+			VBlankIntrWait();
 		}
 	}
-
-	videoYpos = 0;
 
 	if (rvidInterlaced) {
 		if (rvidVRes <= 158/2) {
@@ -375,9 +367,6 @@ int main(void)
 		irqSet(IRQ_HBLANK, rvidInterlaced ? fillBordersInterlaced : fillBorders);
 		irqEnable(IRQ_HBLANK);
 	}
-
-	irqSet(IRQ_VBLANK, VblankInterrupt);
-	irqEnable(IRQ_VBLANK);
 
 	frameOfRefreshRateLimit = 60;
 	frameOfRefreshRate = frameOfRefreshRateLimit-1;

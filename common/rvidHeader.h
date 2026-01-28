@@ -50,6 +50,8 @@ typedef struct rvidHeaderInfo4 {
 } rvidHeaderInfo4;
 
 #ifdef __GBA__
+extern rvidHeaderCheckInfo rvidHeaderCheck;
+
 extern u32* frameOffsets;
 
 extern void* rvidPos;
