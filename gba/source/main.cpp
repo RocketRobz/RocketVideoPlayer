@@ -9,12 +9,7 @@
 #include "rvidHeader.h"
 #include "tonccpy.h"
 
-//---------------------------------------------------------------------------------
-// storage space for palette data
-//---------------------------------------------------------------------------------
-ALIGN(4) u8 PaletteBuffer[240];
-
-// unsigned int frame;
+ALIGN(4) u8 rgb565Setup[240];
 
 u32 rvidFrameOffset = 0;
 bool videoPlaying = false;
@@ -29,10 +24,45 @@ bool frameDelayEven = true;
 bool bottomField = false;
 bool bottomFieldForHBlank = false;
 
+void fillBorders(void) {
+	int scanline = REG_VCOUNT;
+	if (scanline == 227) scanline = 0;
+	if (scanline > videoYpos+rvidVRes) {
+		return;
+	} else {
+		scanline++;
+		if (scanline < videoYpos || scanline >= videoYpos+rvidVRes) {
+			BG_PALETTE[0] = 0;
+		} else {
+			BG_PALETTE[0] = SPRITE_PALETTE[0];
+		}
+	}
+}
+
+void fillBordersInterlaced(void) {
+	int scanline = REG_VCOUNT;
+	if (scanline == 227) scanline = 0;
+	int check1 = (videoYpos*2);
+	if (bottomFieldForHBlank) {
+		check1++;
+	}
+	const int check2 = (rvidVRes*2);
+	if (scanline > check1+check2) {
+		return;
+	} else {
+		scanline++;
+		if (scanline < check1 || scanline >= check1+check2) {
+			BG_PALETTE[0] = 0;
+		} else {
+			BG_PALETTE[0] = SPRITE_PALETTE[0];
+		}
+	}
+}
+
 void HBlank_dmaFrameToScreen(void) {
 	int scanline = REG_VCOUNT;
 	if (scanline == 227) scanline = 0;
-	u8* src = (u8*)rvidPos + rvidFrameOffset;
+	const u8* src = (u8*)rvidPos + rvidFrameOffset;
 	if (rvidVRes < 160 && scanline > videoYpos+rvidVRes) {
 		return;
 	} else if (rvidVRes == 160 && scanline >= rvidVRes) {
@@ -43,6 +73,31 @@ void HBlank_dmaFrameToScreen(void) {
 			BG_PALETTE[0] = 0;
 		} else {
 			dmaCopy(src+((scanline-videoYpos)*0x200), BG_PALETTE, 240*2);
+		}
+	}
+}
+
+void HBlank_dmaFrameToScreenInterlaced(void) {
+	int scanline = REG_VCOUNT;
+	if (scanline == 227) scanline = 0;
+	const int scanlineVid = scanline+1;
+	int check1 = (videoYpos*2);
+	if (bottomFieldForHBlank) {
+		check1++;
+	}
+	const int check2 = (rvidVRes*2);
+	const u8* src = (u8*)rvidPos + rvidFrameOffset;
+	if (check2 < 160 && scanline > check1+check2) {
+		return;
+	} else if (check2 == 160 && scanline >= check2) {
+		dmaCopy(src, BG_PALETTE, 240*2);
+	} else {
+		scanline++;
+		if (scanline < check1 || scanline >= check1+check2) {
+			BG_PALETTE[0] = 0;
+		} else {
+			const int videoScanline = (scanlineVid-check1)/2;
+			dmaCopy(src+(videoScanline*0x200), BG_PALETTE, 240*2);
 		}
 	}
 }
@@ -59,19 +114,19 @@ void dmaFrameToScreen(void) {
 	if (rvidOver256Colors == 2) {
 		if (rvidInterlaced) {
 			REG_BG2Y = bottomField ? -1 : 0;
-			// bottomFieldForHBlank = bottomField;
+			bottomFieldForHBlank = bottomField;
 		}
-		// dmaCopy((u8*)rvidPos + rvidFrameOffset, (u8*)EWRAM, rvidHRes*rvidVRes);
 		return;
 	}
 
 	if (rvidInterlaced) {
 		REG_BG2Y = bottomField ? -1 : 0;
-		// bottomFieldForHBlank = bottomField;
+		bottomFieldForHBlank = bottomField;
 	}
 	if (rvidOver256Colors == 1) {
 		dmaCopy((u8*)rvidPos + rvidFrameOffset, (u8*)VRAM+(rvidHRes*videoYpos), rvidHRes*rvidVRes);
 	} else {
+		tonccpy((u8*)SPRITE_PALETTE, (u8*)rvidPos + rvidFrameOffset, 2);
 		tonccpy((u8*)BG_PALETTE, (u8*)rvidPos + rvidFrameOffset, 256*2);
 		dmaCopy((u8*)rvidPos + rvidFrameOffset + 0x200, (u8*)VRAM+(rvidHRes*videoYpos), rvidHRes*rvidVRes);
 	}
@@ -81,8 +136,6 @@ void dmaFrameToScreen(void) {
 void VblankInterrupt()
 //---------------------------------------------------------------------------------
 {
-	// frame += 1;
-
 	if (!videoPlaying) goto renderFrames_end;
 
 	if (!displayFrame) {
@@ -226,13 +279,13 @@ int main(void)
 	if (rvidDualScreen || rvidCompressedFrameSizeTableOffset) { // Dual-screen and/or compressed videos not supported
 		SetMode( MODE_4 | BG2_ON );
 
-		PaletteBuffer[0] = 0x001F; // Red screen
+		rgb565Setup[0] = 0x001F; // Red screen
 
 		while (1) {
 			const int scanline = REG_VCOUNT;
 			if (lastUsedScanline != 161 && scanline > 160) {
 				lastUsedScanline = 161;
-				dmaCopy(PaletteBuffer, BG_PALETTE, 2);
+				dmaCopy(rgb565Setup, BG_PALETTE, 2);
 			} else if (lastUsedScanline != scanline && scanline <= 160) {
 				lastUsedScanline = scanline;
 			}
@@ -264,11 +317,11 @@ int main(void)
 
 		if (rvidOver256Colors == 2) {
 			for (int i = 0; i < 240; i++) {
-				PaletteBuffer[i] = i;
+				rgb565Setup[i] = i;
 			}
 
 			for (int i = 0; i < 160; i++) {
-				tonccpy((u8*)VRAM+(240*i), PaletteBuffer, 240);
+				tonccpy((u8*)VRAM+(240*i), rgb565Setup, 240);
 			}
 
 			// irqSet(IRQ_HBLANK, HBlank_dmaFrameToScreen);
@@ -276,6 +329,10 @@ int main(void)
 		}
 	} else {
 		SetMode( MODE_3 | BG2_ON );
+	}
+
+	if (rvidInterlaced) {
+		REG_BG2PD = 0x80;
 	}
 
 	frameOfRefreshRateLimit = 60;
@@ -309,7 +366,9 @@ int main(void)
 		} else if (lastUsedScanline != scanline && (scanline <= 160 || scanline == 227)) {
 			lastUsedScanline = scanline;
 			if (rvidOver256Colors == 2) {
-				HBlank_dmaFrameToScreen();
+				rvidInterlaced ? HBlank_dmaFrameToScreenInterlaced() : HBlank_dmaFrameToScreen();
+			} else if (rvidOver256Colors == 0 && rvidVRes < (rvidInterlaced ? 160/2 : 160)) {
+				rvidInterlaced ? fillBordersInterlaced() : fillBorders();
 			}
 		}
 		// VBlankIntrWait();
