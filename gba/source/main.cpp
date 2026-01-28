@@ -96,9 +96,6 @@ void VblankInterrupt()
 			default:
 				displayFrame = (frameDelay == frameOfRefreshRateLimit/rvidFps);
 				break;
-			case 6:
-				displayFrame = (frameDelay == 4+frameDelayEven);
-				break;
 			case 11:
 				displayFrame = (frameDelay == 5+frameDelayEven);
 				break;
@@ -110,7 +107,30 @@ void VblankInterrupt()
 				displayFrame = (frameDelay == 2+frameDelayEven);
 				break;
 			case 48:
-				displayFrame = (frameDelay == 1+frameDelayEven);
+				displayFrame = (frameOfRefreshRate != 3
+							 && frameOfRefreshRate != 8
+							 && frameOfRefreshRate != 13
+							 && frameOfRefreshRate != 18
+							 && frameOfRefreshRate != 23
+							 && frameOfRefreshRate != 28
+							 && frameOfRefreshRate != 33
+							 && frameOfRefreshRate != 38
+							 && frameOfRefreshRate != 43
+							 && frameOfRefreshRate != 48
+							 && frameOfRefreshRate != 53
+							 && frameOfRefreshRate != 58);
+				break;
+			case 50:
+				displayFrame = (frameOfRefreshRate != 3
+							 && frameOfRefreshRate != 9
+							 && frameOfRefreshRate != 16
+							 && frameOfRefreshRate != 22
+							 && frameOfRefreshRate != 28
+							 && frameOfRefreshRate != 34
+							 && frameOfRefreshRate != 40
+							 && frameOfRefreshRate != 46
+							 && frameOfRefreshRate != 51
+							 && frameOfRefreshRate != 58);
 				break;
 		}
 	}
@@ -163,10 +183,8 @@ void VblankInterrupt()
 		}
 		currentFrame++;
 		switch (rvidFps) {
-			case 6:
 			case 12:
 			case 24:
-			case 48:
 				frameDelayEven = !frameDelayEven;
 				break;
 			case 11:
