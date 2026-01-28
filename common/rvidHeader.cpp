@@ -165,7 +165,12 @@ void readRvidHeader(
 	}
 
 	#ifdef __GBA__
-	rvidSoundOffset += (u32)rvid;
+	if (rvidHasSound) {
+		rvidSoundOffset += (u32)rvid;
+		if (rvidSoundRightOffset) {
+			rvidSoundRightOffset += (u32)rvid;
+		}
+	}
 	#else
 	fseek(rvid, rvidFramesOffset, SEEK_SET);
 	#endif
