@@ -49,6 +49,12 @@ typedef struct rvidHeaderInfo4 {
 	u32 soundRightOffset;	// Offset of right-side sound stream
 } rvidHeaderInfo4;
 
+#ifdef __GBA__
+extern u32* frameOffsets;
+
+extern void* rvidPos;
+extern u32 rvidFramesOffset;
+#endif
 extern int rvidFrames;
 extern int rvidFps;
 extern bool rvidReduceFpsBy01;
@@ -66,6 +72,12 @@ extern u32 rvidCompressedFrameSizeTableOffset;
 extern u32 rvidSoundOffset;
 extern u32 rvidSoundRightOffset;
 
-void readRvidHeader(FILE* rvid);
+void readRvidHeader(
+	#ifdef __GBA__
+	const void* rvid
+	#else
+	FILE* rvid
+	#endif
+);
 
 #endif //RVIDHEADER_H

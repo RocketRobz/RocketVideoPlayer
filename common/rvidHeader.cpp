@@ -1,9 +1,22 @@
+#ifdef __GBA__
+#include <gba_types.h>
+#else
 #include <nds.h>
+#endif
 #include <stdio.h>
 #include "rvidHeader.h"
+#ifdef __GBA__
+#include "tonccpy.h"
+#endif
 
 rvidHeaderCheckInfo rvidHeaderCheck;
 
+#ifdef __GBA__
+u32* frameOffsets = NULL;
+
+void* rvidPos = NULL;
+u32 rvidFramesOffset = 0x200;
+#endif
 int rvidFrames = 0;
 int rvidFps = 0;
 bool rvidReduceFpsBy01 = false;
@@ -21,14 +34,30 @@ u32 rvidCompressedFrameSizeTableOffset = 0;
 u32 rvidSoundOffset = 0;
 u32 rvidSoundRightOffset = 0;
 
-void readRvidHeader(FILE* rvid) {
-	u32 rvidFramesOffset = 0x200;
+void readRvidHeader(
+	#ifdef __GBA__
+	const void* rvid
+	#else
+	FILE* rvid
+	#endif
+) {
+	#ifdef __GBA__
+	rvidPos = (void*)rvid;
+	tonccpy(&rvidHeaderCheck, rvid, sizeof(rvidHeaderCheck));
+	#else
+	u32
+	#endif
 
-	fseek(rvid, 0, SEEK_SET);
+	rvidFramesOffset = 0x200;
+
 	switch (rvidHeaderCheck.ver) {
 		case 1:
 			rvidHeaderInfo1 rvidHeader1;
+			#ifdef __GBA__
+			tonccpy(&rvidHeader1, rvid, sizeof(rvidHeader1));
+			#else
 			fread(&rvidHeader1, 1, sizeof(rvidHeader1), rvid);
+			#endif
 			rvidFrames = rvidHeader1.frames;
 			rvidFps = rvidHeader1.fps;
 			rvidReduceFpsBy01 = false;
@@ -48,7 +77,11 @@ void readRvidHeader(FILE* rvid) {
 			break;
 		case 2:
 			rvidHeaderInfo2 rvidHeader2;
+			#ifdef __GBA__
+			tonccpy(&rvidHeader2, rvid, sizeof(rvidHeader2));
+			#else
 			fread(&rvidHeader2, 1, sizeof(rvidHeader2), rvid);
+			#endif
 			rvidFrames = rvidHeader2.frames;
 			rvidFps = rvidHeader2.fps;
 			rvidReduceFpsBy01 = false;
@@ -71,7 +104,11 @@ void readRvidHeader(FILE* rvid) {
 		case 3:
 		case 4: {
 			rvidHeaderInfo4 rvidHeader4;
+			#ifdef __GBA__
+			tonccpy(&rvidHeader4, rvid, sizeof(rvidHeader4));
+			#else
 			fread(&rvidHeader4, 1, sizeof(rvidHeader4), rvid);
+			#endif
 			rvidFrames = rvidHeader4.frames;
 			rvidFps = rvidHeader4.fps;
 			if (rvidFps == 0) {
@@ -92,6 +129,11 @@ void readRvidHeader(FILE* rvid) {
 			rvidSampleRate = rvidHeader4.sampleRate;
 			rvidAudioIs16bit = rvidHeader4.audioBitMode;
 			rvidOver256Colors = rvidHeader4.bmpMode;
+			#ifdef __GBA__
+			rvidFramesOffset = ((u32)rvid) + rvidFramesOffset;
+			frameOffsets = (u32*)frameOffsets;
+			rvidFramesOffset = *(u32*)rvidFramesOffset;
+			#endif
 			rvidCompressedFrameSizeTableOffset = rvidHeader4.compressedFrameSizeTableOffset;
 			rvidSoundOffset = rvidHeader4.soundLeftOffset;
 			if (rvidHeaderCheck.ver != 3) {
@@ -102,13 +144,21 @@ void readRvidHeader(FILE* rvid) {
 
 			rvidHRes = rvidOver256Colors ? 0x200 : 0x100;
 			rvidCompressed = (rvidCompressedFrameSizeTableOffset > 0);
+			#ifdef __GBA__
+			rvidHasSound = rvidSampleRate;
+			#else
 			if (rvidHeaderCheck.ver != 3) {
 				rvidHasSound = rvidSampleRate;
 			} else {
 				rvidHasSound = (rvidSampleRate && rvidSoundOffset);
 			}
+			#endif
 		}	break;
 	}
 
+	#ifdef __GBA__
+	rvidSoundOffset += (u32)rvid;
+	#else
 	fseek(rvid, rvidFramesOffset, SEEK_SET);
+	#endif
 }

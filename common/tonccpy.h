@@ -8,7 +8,11 @@
 extern "C" {
 #endif
 
-#include <nds.h>
+#ifdef __GBA__
+#include <gba_types.h>
+#else
+#include <nds/ndstypes.h>
+#endif
 
 typedef unsigned int uint;
 #define BIT_MASK(len)       ( (1<<(len))-1 )

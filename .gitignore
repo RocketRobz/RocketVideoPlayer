@@ -1,8 +1,10 @@
-*.exe
 *.cia
-*.nds
 *.dsi
+*.exe
+*.gba
+*.nds
 *.o
+*.sav
 *.arm7
 Thumbs.db
 *.arm9
