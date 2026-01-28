@@ -9,8 +9,6 @@
 #include "rvidHeader.h"
 #include "tonccpy.h"
 
-ALIGN(4) u8 rgb565Setup[240];
-
 u32 rvidFrameOffset = 0;
 bool videoPlaying = false;
 bool videoPausedPrior = false;
@@ -344,13 +342,14 @@ int main(void)
 		REG_BG2CNT |= BG_256_COLOR;
 
 		if (rvidOver256Colors == 2) {
-			for (int i = 0; i < 240; i++) {
-				rgb565Setup[i] = i;
-			}
-
+			vu8* buffer = (vu8*)EWRAM;
+			int i2 = 0;
 			for (int i = 240*videoYpos; i < 240*(videoYpos+rvidVRes); i++) {
-				tonccpy((u8*)VRAM+(240*i), rgb565Setup, 240);
+				buffer[i] = i2;
+				i2++;
+				if (i2 == 240) i2 = 0;
 			}
+			tonccpy((u8*)VRAM, (u8*)EWRAM, 240*160);
 		}
 	} else {
 		SetMode( MODE_3 | BG2_ON );
