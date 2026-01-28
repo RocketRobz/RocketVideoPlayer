@@ -136,7 +136,7 @@ void dmaFrameToScreen(void) {
 void VblankInterrupt()
 //---------------------------------------------------------------------------------
 {
-	if (!videoPlaying) goto renderFrames_end;
+	if (!videoPlaying) return;
 
 	if (!displayFrame) {
 		frameOfRefreshRate++;
@@ -254,9 +254,49 @@ void VblankInterrupt()
 		frameDelay = 0;
 		displayFrame = false;
 	}
+}
 
-renderFrames_end:
+bool confirmReturn = false;
+bool confirmStop = false;
+int videoJump = 0;
+bool doubleJump = false;
+
+void playerControls(void) {
 	scanKeys();
+	const u16 pressed = keysDown();
+	const u16 held = keysHeld();
+	if (pressed & KEY_A) {
+		if (videoPlaying) {
+			videoPlaying = false;
+		} else {
+			videoPlaying = true;
+			videoPausedPrior = true;
+		}
+	}
+	doubleJump = (held & KEY_R);
+	if ((held & KEY_LEFT) && (held & KEY_DOWN)) {
+		videoJump = -3;
+		return;
+	} else if ((held & KEY_UP) && (held & KEY_RIGHT)) {
+		videoJump = 3;
+		return;
+	}
+	if (held & KEY_LEFT) {
+		videoJump = -1;
+		return;
+	} else if (held & KEY_RIGHT) {
+		videoJump = 1;
+		return;
+	} else if (held & KEY_DOWN) {
+		videoJump = -2;
+		return;
+	} else if (held & KEY_UP) {
+		videoJump = 2;
+		return;
+	}
+	if (((pressed & KEY_L) || (pressed & KEY_B)) && currentFrame > 0) {
+		confirmStop = true;
+	}
 }
 
 //---------------------------------------------------------------------------------
@@ -344,20 +384,59 @@ int main(void)
 	while (1) {
 		const int scanline = REG_VCOUNT;
 		if (scanline > 160 && scanline != 227) {
-			const u16 pressed = keysDown();
-			if ((pressed & KEY_B) || (currentFrame > (int)rvidFrames)) {
+			playerControls();
+			if (currentFrame > (int)rvidFrames) {
+				confirmStop = true;
+			}
+			if (confirmStop || videoJump != 0) {
 				videoPlaying = false;
 
 				frameOfRefreshRate = frameOfRefreshRateLimit-1;
+				const int currentFrameBak = currentFrame;
+				if (videoJump == -1) { // Left
+					currentFrame /= rvidFps;
+					currentFrame -= doubleJump ? 30 : 5;
+					currentFrame *= rvidFps;
+				} else if (videoJump == 1) { // Right
+					currentFrame /= rvidFps;
+					currentFrame += doubleJump ? 30 : 5;
+					currentFrame *= rvidFps;
+				} else if (videoJump == -2) { // Down
+					currentFrame /= rvidFps;
+					currentFrame -= doubleJump ? 60 : 10;
+					currentFrame *= rvidFps;
+				} else if (videoJump == 2) { // Up
+					currentFrame /= rvidFps;
+					currentFrame += doubleJump ? 60 : 10;
+					currentFrame *= rvidFps;
+				} else if (videoJump == -3) { // Left+Down
+					currentFrame /= rvidFps;
+					currentFrame -= doubleJump ? 120 : 15;
+					currentFrame *= rvidFps;
+				} else if (videoJump == 3) { // Up+Right
+					currentFrame /= rvidFps;
+					currentFrame += doubleJump ? 120 : 15;
+					currentFrame *= rvidFps;
+				}
+				if (confirmStop || currentFrame < 0) {
+					currentFrame = 0;
+				} else if (currentFrame >= (int)rvidFrames) {
+					currentFrame = currentFrameBak;
+				}
 				frameDelay = (frameOfRefreshRateLimit/rvidFps)-1;
 				frameDelayEven = true;
 				bottomField = false;
 
-				currentFrame = 0;
-				if (pressed & KEY_B) dmaFrameToScreen();
-			}
-			if (pressed & KEY_A) {
-				videoPlaying = !videoPlaying;
+				if (videoJump != 0) {
+					dmaFrameToScreen();
+					for (int i = 0; i < 15; i++) {
+						while (REG_VCOUNT != 160);
+						while (REG_VCOUNT == 160);
+					}
+				}
+
+				confirmStop = false;
+				videoJump = 0;
 			}
 			if (lastUsedScanline != 161) {
 				lastUsedScanline = 161;
