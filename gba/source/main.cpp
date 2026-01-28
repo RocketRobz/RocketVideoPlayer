@@ -26,11 +26,10 @@ bool bottomFieldForHBlank = false;
 
 void fillBorders(void) {
 	int scanline = REG_VCOUNT;
-	if (scanline == 227) scanline = 0;
+	scanline++;
 	if (scanline > videoYpos+rvidVRes) {
 		return;
 	} else {
-		scanline++;
 		if (scanline < videoYpos || scanline >= videoYpos+rvidVRes) {
 			BG_PALETTE[0] = 0;
 		} else {
@@ -41,7 +40,7 @@ void fillBorders(void) {
 
 void fillBordersInterlaced(void) {
 	int scanline = REG_VCOUNT;
-	if (scanline == 227) scanline = 0;
+	scanline++;
 	int check1 = (videoYpos*2);
 	if (bottomFieldForHBlank) {
 		check1++;
@@ -50,7 +49,6 @@ void fillBordersInterlaced(void) {
 	if (scanline > check1+check2) {
 		return;
 	} else {
-		scanline++;
 		if (scanline < check1 || scanline >= check1+check2) {
 			BG_PALETTE[0] = 0;
 		} else {
@@ -61,14 +59,13 @@ void fillBordersInterlaced(void) {
 
 void HBlank_dmaFrameToScreen(void) {
 	int scanline = REG_VCOUNT;
-	if (scanline == 227) scanline = 0;
+	scanline++;
 	const u8* src = (u8*)rvidPos + rvidFrameOffset;
 	if (rvidVRes < 160 && scanline > videoYpos+rvidVRes) {
 		return;
 	} else if (rvidVRes == 160 && scanline >= rvidVRes) {
 		dmaCopy(src, BG_PALETTE, 240*2);
 	} else {
-		scanline++;
 		if (scanline < videoYpos || scanline >= videoYpos+rvidVRes) {
 			BG_PALETTE[0] = 0;
 		} else {
@@ -79,7 +76,7 @@ void HBlank_dmaFrameToScreen(void) {
 
 void HBlank_dmaFrameToScreenInterlaced(void) {
 	int scanline = REG_VCOUNT;
-	if (scanline == 227) scanline = 0;
+	scanline++;
 	const int scanlineVid = scanline+1;
 	int check1 = (videoYpos*2);
 	if (bottomFieldForHBlank) {
@@ -92,7 +89,6 @@ void HBlank_dmaFrameToScreenInterlaced(void) {
 	} else if (check2 == 160 && scanline >= check2) {
 		dmaCopy(src, BG_PALETTE, 240*2);
 	} else {
-		scanline++;
 		if (scanline < check1 || scanline >= check1+check2) {
 			BG_PALETTE[0] = 0;
 		} else {
@@ -126,8 +122,12 @@ void dmaFrameToScreen(void) {
 	if (rvidOver256Colors == 1) {
 		dmaCopy((u8*)rvidPos + rvidFrameOffset, (u8*)VRAM+(rvidHRes*videoYpos), rvidHRes*rvidVRes);
 	} else {
-		tonccpy((u8*)SPRITE_PALETTE, (u8*)rvidPos + rvidFrameOffset, 2);
-		tonccpy((u8*)BG_PALETTE, (u8*)rvidPos + rvidFrameOffset, 256*2);
+		if (rvidVRes == (rvidInterlaced ? 160/2 : 160)) {
+			tonccpy(BG_PALETTE, (u8*)rvidPos + rvidFrameOffset, 256*2);
+		} else {
+			tonccpy(SPRITE_PALETTE, (u8*)rvidPos + rvidFrameOffset, 2);
+			tonccpy(BG_PALETTE + 1, (u8*)rvidPos + rvidFrameOffset + 2, 255*2);
+		}
 		dmaCopy((u8*)rvidPos + rvidFrameOffset + 0x200, (u8*)VRAM+(rvidHRes*videoYpos), rvidHRes*rvidVRes);
 	}
 }
@@ -306,11 +306,7 @@ int main(void)
 //---------------------------------------------------------------------------------
 {
 	// Set up the interrupt handlers
-	// irqInit();
-
-	// VBlank doesn't run for some reason
-	// irqSet(IRQ_VBLANK, VblankInterrupt);
-	// irqEnable(IRQ_VBLANK);
+	irqInit();
 
 	readRvidHeader((const void*)0x08002000);
 
@@ -363,17 +359,25 @@ int main(void)
 			for (int i = 0; i < 160; i++) {
 				tonccpy((u8*)VRAM+(240*i), rgb565Setup, 240);
 			}
-
-			// irqSet(IRQ_HBLANK, HBlank_dmaFrameToScreen);
-			// irqEnable(IRQ_HBLANK);
 		}
 	} else {
 		SetMode( MODE_3 | BG2_ON );
 	}
 
+	if (rvidOver256Colors == 2) {
+		irqSet(IRQ_HBLANK, rvidInterlaced ? HBlank_dmaFrameToScreenInterlaced : HBlank_dmaFrameToScreen);
+		irqEnable(IRQ_HBLANK);
+	} else if (rvidOver256Colors == 0 && rvidVRes < (rvidInterlaced ? 160/2 : 160)) {
+		irqSet(IRQ_HBLANK, rvidInterlaced ? fillBordersInterlaced : fillBorders);
+		irqEnable(IRQ_HBLANK);
+	}
+
 	if (rvidInterlaced) {
 		REG_BG2PD = 0x80;
 	}
+
+	irqSet(IRQ_VBLANK, VblankInterrupt);
+	irqEnable(IRQ_VBLANK);
 
 	frameOfRefreshRateLimit = 60;
 	frameOfRefreshRate = frameOfRefreshRateLimit-1;
@@ -382,75 +386,60 @@ int main(void)
 	videoPlaying = true;
 
 	while (1) {
-		const int scanline = REG_VCOUNT;
-		if (scanline > 160 && scanline != 227) {
-			playerControls();
-			if (currentFrame > (int)rvidFrames) {
-				confirmStop = true;
-			}
-			if (confirmStop || videoJump != 0) {
-				videoPlaying = false;
-
-				frameOfRefreshRate = frameOfRefreshRateLimit-1;
-				const int currentFrameBak = currentFrame;
-				if (videoJump == -1) { // Left
-					currentFrame /= rvidFps;
-					currentFrame -= doubleJump ? 30 : 5;
-					currentFrame *= rvidFps;
-				} else if (videoJump == 1) { // Right
-					currentFrame /= rvidFps;
-					currentFrame += doubleJump ? 30 : 5;
-					currentFrame *= rvidFps;
-				} else if (videoJump == -2) { // Down
-					currentFrame /= rvidFps;
-					currentFrame -= doubleJump ? 60 : 10;
-					currentFrame *= rvidFps;
-				} else if (videoJump == 2) { // Up
-					currentFrame /= rvidFps;
-					currentFrame += doubleJump ? 60 : 10;
-					currentFrame *= rvidFps;
-				} else if (videoJump == -3) { // Left+Down
-					currentFrame /= rvidFps;
-					currentFrame -= doubleJump ? 120 : 15;
-					currentFrame *= rvidFps;
-				} else if (videoJump == 3) { // Up+Right
-					currentFrame /= rvidFps;
-					currentFrame += doubleJump ? 120 : 15;
-					currentFrame *= rvidFps;
-				}
-				if (confirmStop || currentFrame < 0) {
-					currentFrame = 0;
-				} else if (currentFrame >= (int)rvidFrames) {
-					currentFrame = currentFrameBak;
-				}
-				frameDelay = (frameOfRefreshRateLimit/rvidFps)-1;
-				frameDelayEven = true;
-				bottomField = false;
-
-				if (videoJump != 0) {
-					dmaFrameToScreen();
-					for (int i = 0; i < 15; i++) {
-						while (REG_VCOUNT != 160);
-						while (REG_VCOUNT == 160);
-					}
-				}
-
-				confirmStop = false;
-				videoJump = 0;
-			}
-			if (lastUsedScanline != 161) {
-				lastUsedScanline = 161;
-				VblankInterrupt();
-			}
-		} else if (lastUsedScanline != scanline && (scanline <= 160 || scanline == 227)) {
-			lastUsedScanline = scanline;
-			if (rvidOver256Colors == 2) {
-				rvidInterlaced ? HBlank_dmaFrameToScreenInterlaced() : HBlank_dmaFrameToScreen();
-			} else if (rvidOver256Colors == 0 && rvidVRes < (rvidInterlaced ? 160/2 : 160)) {
-				rvidInterlaced ? fillBordersInterlaced() : fillBorders();
-			}
+		playerControls();
+		if (currentFrame > (int)rvidFrames) {
+			confirmStop = true;
 		}
-		// VBlankIntrWait();
+		if (confirmStop || videoJump != 0) {
+			videoPlaying = false;
+
+			frameOfRefreshRate = frameOfRefreshRateLimit-1;
+			const int currentFrameBak = currentFrame;
+			if (videoJump == -1) { // Left
+				currentFrame /= rvidFps;
+				currentFrame -= doubleJump ? 30 : 5;
+				currentFrame *= rvidFps;
+			} else if (videoJump == 1) { // Right
+				currentFrame /= rvidFps;
+				currentFrame += doubleJump ? 30 : 5;
+				currentFrame *= rvidFps;
+			} else if (videoJump == -2) { // Down
+				currentFrame /= rvidFps;
+				currentFrame -= doubleJump ? 60 : 10;
+				currentFrame *= rvidFps;
+			} else if (videoJump == 2) { // Up
+				currentFrame /= rvidFps;
+				currentFrame += doubleJump ? 60 : 10;
+				currentFrame *= rvidFps;
+			} else if (videoJump == -3) { // Left+Down
+				currentFrame /= rvidFps;
+				currentFrame -= doubleJump ? 120 : 15;
+				currentFrame *= rvidFps;
+			} else if (videoJump == 3) { // Up+Right
+				currentFrame /= rvidFps;
+				currentFrame += doubleJump ? 120 : 15;
+				currentFrame *= rvidFps;
+			}
+			if (confirmStop || currentFrame < 0) {
+				currentFrame = 0;
+			} else if (currentFrame >= (int)rvidFrames) {
+				currentFrame = currentFrameBak;
+			}
+			frameDelay = (frameOfRefreshRateLimit/rvidFps)-1;
+			frameDelayEven = true;
+			bottomField = false;
+
+			if (videoJump != 0) {
+				dmaFrameToScreen();
+				for (int i = 0; i < 15; i++) {
+					VBlankIntrWait();
+				}
+			}
+
+			confirmStop = false;
+			videoJump = 0;
+		}
+		VBlankIntrWait();
 	}
 }
 
