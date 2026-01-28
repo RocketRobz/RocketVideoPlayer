@@ -356,12 +356,16 @@ int main(void)
 				rgb565Setup[i] = i;
 			}
 
-			for (int i = 0; i < 160; i++) {
+			for (int i = 240*videoYpos; i < 240*(videoYpos+rvidVRes); i++) {
 				tonccpy((u8*)VRAM+(240*i), rgb565Setup, 240);
 			}
 		}
 	} else {
 		SetMode( MODE_3 | BG2_ON );
+	}
+
+	if (rvidInterlaced) {
+		REG_BG2PD = 0x80;
 	}
 
 	if (rvidOver256Colors == 2) {
@@ -370,10 +374,6 @@ int main(void)
 	} else if (rvidOver256Colors == 0 && rvidVRes < (rvidInterlaced ? 160/2 : 160)) {
 		irqSet(IRQ_HBLANK, rvidInterlaced ? fillBordersInterlaced : fillBorders);
 		irqEnable(IRQ_HBLANK);
-	}
-
-	if (rvidInterlaced) {
-		REG_BG2PD = 0x80;
 	}
 
 	irqSet(IRQ_VBLANK, VblankInterrupt);
