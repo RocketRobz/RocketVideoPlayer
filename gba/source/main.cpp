@@ -269,7 +269,8 @@ int main(void)
 	while (1) {
 		const int scanline = REG_VCOUNT;
 		if (scanline > 160 && scanline != 227) {
-			if (currentFrame > (int)rvidFrames) {
+			const u16 pressed = keysDown();
+			if ((pressed & KEY_B) || (currentFrame > (int)rvidFrames)) {
 				videoPlaying = false;
 
 				frameOfRefreshRate = frameOfRefreshRateLimit-1;
@@ -278,8 +279,9 @@ int main(void)
 				bottomField = false;
 
 				currentFrame = 0;
+				if (pressed & KEY_B) dmaFrameToScreen();
 			}
-			if (keysDown() & KEY_A) {
+			if (pressed & KEY_A) {
 				videoPlaying = !videoPlaying;
 			}
 			if (lastUsedScanline != 161) {
