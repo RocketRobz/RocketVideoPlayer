@@ -9,6 +9,14 @@
 #include "tonccpy.h"
 #endif
 
+#ifdef __GBA__
+#define width8 240
+#define width16 240*2
+#else
+#define width8 256
+#define width16 256*2
+#endif
+
 rvidHeaderCheckInfo rvidHeaderCheck;
 
 #ifdef __GBA__
@@ -73,7 +81,7 @@ void readRvidHeader(
 			rvidCompressedFrameSizeTableOffset = 0;
 			rvidSoundOffset = rvidFramesOffset+((0x200*rvidVRes)*rvidFrames);
 			rvidSoundRightOffset = 0;
-			rvidHRes = 0x200;
+			rvidHRes = width16;
 			break;
 		case 2:
 			rvidHeaderInfo2 rvidHeader2;
@@ -99,7 +107,7 @@ void readRvidHeader(
 			rvidCompressedFrameSizeTableOffset = rvidCompressed ? rvidFramesOffset : 0;
 			rvidSoundOffset = rvidHeader2.soundOffset;
 			rvidSoundRightOffset = 0;
-			rvidHRes = 0x200;
+			rvidHRes = width16;
 			break;
 		case 3:
 		case 4: {
@@ -142,7 +150,7 @@ void readRvidHeader(
 				rvidSoundRightOffset = 0;
 			}
 
-			rvidHRes = rvidOver256Colors ? 0x200 : 0x100;
+			rvidHRes = rvidOver256Colors ? width16 : width8;
 			rvidCompressed = (rvidCompressedFrameSizeTableOffset > 0);
 			#ifdef __GBA__
 			rvidHasSound = rvidSampleRate;
