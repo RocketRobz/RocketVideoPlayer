@@ -20,7 +20,7 @@ include $(DEVKITARM)/gba_rules
 # the makefile is found
 #
 #---------------------------------------------------------------------------------
-TARGET		:= rvidGba
+TARGET		:= rvid
 BUILD		:= build
 SOURCES		:= source ../common
 INCLUDES	:= include ../common
