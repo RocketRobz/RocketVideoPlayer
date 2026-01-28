@@ -756,7 +756,7 @@ bool playerControls(void) {
 	const int pressed = keysDown();
 	const int held = keysHeld();
 	if ((pressed & KEY_A) || ((pressed & KEY_LID) && videoPlaying)
-	|| (showVideoGui && (pressed & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
+	|| (showVideoGui && bottomBacklight && (pressed & KEY_TOUCH) && touch.px >= 73 && touch.px <= 184 && touch.py >= 76 && touch.py <= 113)) {
 		if (videoPlaying) {
 			soundKill(0);
 			soundKill(1);
@@ -778,7 +778,7 @@ bool playerControls(void) {
 		}
 	}
 	if ((pressed & KEY_B)
-	|| (showVideoGui && (pressed & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
+	|| (showVideoGui && bottomBacklight && (pressed & KEY_TOUCH) && touch.px >= 2 && touch.px <= 159 && touch.py >= 162 && touch.py <= 191)) {
 		confirmReturn = true;
 		return true;
 	}
@@ -804,11 +804,11 @@ bool playerControls(void) {
 		return true;
 	}
 	if (((pressed & KEY_L)
-	|| (showVideoGui && (pressed & KEY_TOUCH) && touch.px >= 14 && touch.px <= 19 && touch.py >= 140 && touch.py <= 147)) && currentFrame > 0) {
+	|| (showVideoGui && bottomBacklight && (pressed & KEY_TOUCH) && touch.px >= 14 && touch.px <= 19 && touch.py >= 140 && touch.py <= 147)) && currentFrame > 0) {
 		confirmStop = true;
 		return true;
 	}
-	if (showVideoGui && (pressed & KEY_SELECT)) {
+	if (showVideoGui && ((pressed & KEY_SELECT) || (!bottomBacklight && (pressed & KEY_TOUCH)))) {
 		bottomBacklightSwitch();
 	}
 
