@@ -70,11 +70,15 @@ extern bool rvidDualScreen;
 extern int rvidOver256Colors;
 extern bool rvidHasSound;
 extern u16 rvidSampleRate;
+#ifndef __GBA__
 extern bool rvidAudioIs16bit;
+#endif
 extern bool rvidCompressed;
 extern u32 rvidCompressedFrameSizeTableOffset;
 extern u32 rvidSoundOffset;
+#ifndef __GBA__
 extern u32 rvidSoundRightOffset;
+#endif
 
 void readRvidHeader(
 	#ifdef __GBA__

@@ -38,11 +38,15 @@ bool rvidDualScreen = false;
 int rvidOver256Colors = 0;
 bool rvidHasSound = false;
 u16 rvidSampleRate = 0;
+#ifndef __GBA__
 bool rvidAudioIs16bit = false;
+#endif
 bool rvidCompressed = false;
 u32 rvidCompressedFrameSizeTableOffset = 0;
 u32 rvidSoundOffset = 0;
+#ifndef __GBA__
 u32 rvidSoundRightOffset = 0;
+#endif
 
 void readRvidHeader(
 	#ifdef __GBA__
@@ -135,7 +139,9 @@ void readRvidHeader(
 			rvidInterlaced = rvidHeader4.interlaced;
 			rvidDualScreen = rvidHeader4.dualScreen;
 			rvidSampleRate = rvidHeader4.sampleRate;
+			#ifndef __GBA__
 			rvidAudioIs16bit = rvidHeader4.audioBitMode;
+			#endif
 			rvidOver256Colors = rvidHeader4.bmpMode;
 			#ifdef __GBA__
 			rvidFramesOffset = ((u32)rvid) + rvidFramesOffset;
@@ -153,11 +159,13 @@ void readRvidHeader(
 			}
 			#endif
 			rvidSoundOffset = rvidHeader4.soundLeftOffset;
+			#ifndef __GBA__
 			if (rvidHeaderCheck.ver != 3) {
 				rvidSoundRightOffset = rvidHeader4.soundRightOffset;
 			} else {
 				rvidSoundRightOffset = 0;
 			}
+			#endif
 
 			rvidHRes = rvidOver256Colors ? width16 : width8;
 			rvidCompressed = (rvidCompressedFrameSizeTableOffset > 0);
@@ -176,9 +184,6 @@ void readRvidHeader(
 	#ifdef __GBA__
 	if (rvidHasSound) {
 		rvidSoundOffset += (u32)rvid;
-		if (rvidSoundRightOffset) {
-			rvidSoundRightOffset += (u32)rvid;
-		}
 	}
 	#else
 	fseek(rvid, rvidFramesOffset, SEEK_SET);
