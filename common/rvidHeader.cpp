@@ -143,11 +143,13 @@ void readRvidHeader(
 			#endif
 			rvidCompressedFrameSizeTableOffset = rvidHeader4.compressedFrameSizeTableOffset;
 			#ifdef __GBA__
-			rvidCompressedFrameSizeTableOffset = ((u32)rvid) + rvidCompressedFrameSizeTableOffset;
-			if (rvidOver256Colors) {
-				compressedFrameSizes32 = (u32*)rvidCompressedFrameSizeTableOffset;
-			} else {
-				compressedFrameSizes16 = (u16*)rvidCompressedFrameSizeTableOffset;
+			if (rvidCompressedFrameSizeTableOffset) {
+				rvidCompressedFrameSizeTableOffset = ((u32)rvid) + rvidCompressedFrameSizeTableOffset;
+				if (rvidOver256Colors) {
+					compressedFrameSizes32 = (u32*)rvidCompressedFrameSizeTableOffset;
+				} else {
+					compressedFrameSizes16 = (u16*)rvidCompressedFrameSizeTableOffset;
+				}
 			}
 			#endif
 			rvidSoundOffset = rvidHeader4.soundLeftOffset;
