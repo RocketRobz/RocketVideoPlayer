@@ -48,6 +48,9 @@ u32 rvidSoundOffset = 0;
 u32 rvidSoundRightOffset = 0;
 #endif
 
+#ifdef __GBA__
+__attribute__((section(".iwram")))
+#endif
 void readRvidHeader(
 	#ifdef __GBA__
 	const void* rvid
