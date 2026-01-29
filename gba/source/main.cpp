@@ -251,13 +251,13 @@ void VblankInterrupt()
 		forceUncompressedFrame = false;
 		frameDisplayed = true;
 		switch (rvidFps) {
-			case 24:
-				frameDelayEven = !frameDelayEven;
-				break;
 			case 11:
 				if ((currentFrame % 11) < 10) {
 					frameDelayEven = !frameDelayEven;
 				}
+				break;
+			case 24:
+				frameDelayEven = !frameDelayEven;
 				break;
 			case 25:
 				if ((currentFrame % 24) != 10 && (currentFrame % 24) != 21) {
