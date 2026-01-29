@@ -236,7 +236,6 @@ void VblankInterrupt()
 		}
 	}
 	if (displayFrame) {
-		// displaySavedFrameBuffer = false;
 		if (currentFrame < rvidFrames) {
 			dmaFrameToScreen();
 		}
