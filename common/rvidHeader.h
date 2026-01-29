@@ -53,6 +53,8 @@ typedef struct rvidHeaderInfo4 {
 extern rvidHeaderCheckInfo rvidHeaderCheck;
 
 extern u32* frameOffsets;
+extern u16* compressedFrameSizes16;
+extern u32* compressedFrameSizes32;
 
 extern void* rvidPos;
 extern u32 rvidFramesOffset;

@@ -1,5 +1,6 @@
 #include <gba_video.h>
 #include <gba_systemcalls.h>
+#include <gba_compression.h>
 #include <gba_dma.h>
 #include <gba_input.h>
 #include <gba_interrupt.h>
@@ -9,10 +10,13 @@
 #include "rvidHeader.h"
 #include "tonccpy.h"
 
+u8* decompressedFrameBuffer = NULL;
+
 u32 rvidFrameOffset = 0;
 bool videoPlaying = false;
 bool videoPausedPrior = false;
 bool displayFrame = true;
+bool frameDisplayed = true;
 int videoYpos = 0;
 int frameOfRefreshRate = 0;
 int frameOfRefreshRateLimit = 60;
@@ -58,7 +62,7 @@ void fillBordersInterlaced(void) {
 void HBlank_dmaFrameToScreen(void) {
 	int scanline = REG_VCOUNT;
 	scanline++;
-	const u8* src = (u8*)rvidPos + rvidFrameOffset;
+	const u8* src = rvidCompressed ? (u8*)EWRAM : (u8*)rvidPos + rvidFrameOffset;
 	if (rvidVRes < 160 && scanline > videoYpos+rvidVRes) {
 		return;
 	} else if (rvidVRes == 160 && scanline == 227) {
@@ -81,7 +85,7 @@ void HBlank_dmaFrameToScreenInterlaced(void) {
 		check1++;
 	}
 	const int check2 = (rvidVRes*2);
-	const u8* src = (u8*)rvidPos + rvidFrameOffset;
+	const u8* src = rvidCompressed ? (u8*)EWRAM : (u8*)rvidPos + rvidFrameOffset;
 	if (check2 < 160 && scanline > check1+check2) {
 		return;
 	} else if (check2 == 160 && scanline == 227) {
@@ -118,7 +122,8 @@ void dmaFrameToScreen(void) {
 		bottomFieldForHBlank = bottomField;
 	}
 	if (rvidOver256Colors == 1) {
-		dmaCopy((u8*)rvidPos + rvidFrameOffset, (u8*)VRAM+(rvidHRes*videoYpos), rvidHRes*rvidVRes);
+		const u8* src = rvidCompressed ? decompressedFrameBuffer : (u8*)rvidPos + rvidFrameOffset;
+		dmaCopy(src, (u8*)VRAM+(rvidHRes*videoYpos), rvidHRes*rvidVRes);
 	} else {
 		if (rvidVRes == (rvidInterlaced ? 160/2 : 160)) {
 			tonccpy(BG_PALETTE, (u8*)rvidPos + rvidFrameOffset, 256*2);
@@ -126,7 +131,8 @@ void dmaFrameToScreen(void) {
 			tonccpy(SPRITE_PALETTE, (u8*)rvidPos + rvidFrameOffset, 2);
 			tonccpy(BG_PALETTE + 1, (u8*)rvidPos + rvidFrameOffset + 2, 255*2);
 		}
-		dmaCopy((u8*)rvidPos + rvidFrameOffset + 0x200, (u8*)VRAM+(rvidHRes*videoYpos), rvidHRes*rvidVRes);
+		const u8* src = rvidCompressed ? decompressedFrameBuffer : (u8*)rvidPos + rvidFrameOffset + 0x200;
+		dmaCopy(src, (u8*)VRAM+(rvidHRes*videoYpos), rvidHRes*rvidVRes);
 	}
 }
 
@@ -230,6 +236,8 @@ void VblankInterrupt()
 			bottomField = !bottomField;
 		}
 		currentFrame++;
+		decompressedFrameBuffer = (u8*)EWRAM+0x12C00 ? (u8*)EWRAM : (u8*)EWRAM+0x12C00;
+		frameDisplayed = true;
 		switch (rvidFps) {
 			case 24:
 				frameDelayEven = !frameDelayEven;
@@ -254,6 +262,16 @@ bool confirmReturn = false;
 bool confirmStop = false;
 int videoJump = 0;
 bool doubleJump = false;
+
+void loadFrame(void) {
+	const u32 size = rvidOver256Colors ? compressedFrameSizes32[currentFrame] : compressedFrameSizes16[currentFrame];
+	const void* src = rvidPos + frameOffsets[currentFrame] + (rvidOver256Colors ? 0 : 0x200);
+	if (size == (unsigned)rvidHRes*rvidVRes) {
+		tonccpy(decompressedFrameBuffer, src, size);
+	} else {
+		LZ77UnCompWram(src, decompressedFrameBuffer);
+	}
+}
 
 void playerControls(void) {
 	scanKeys();
@@ -367,9 +385,20 @@ int main(void)
 	frameOfRefreshRate = frameOfRefreshRateLimit-1;
 	frameDelay = (frameOfRefreshRateLimit/rvidFps)-1;
 
+	if (rvidCompressed) {
+		decompressedFrameBuffer = (u8*)EWRAM;
+
+		loadFrame();
+	}
 	videoPlaying = true;
 
 	while (1) {
+		if (frameDisplayed) {
+			if (rvidCompressed && currentFrame < (int)rvidFrames) {
+				loadFrame();
+			}
+			frameDisplayed = false;
+		}
 		playerControls();
 		if (currentFrame > (int)rvidFrames) {
 			confirmStop = true;
@@ -412,6 +441,11 @@ int main(void)
 			frameDelay = (frameOfRefreshRateLimit/rvidFps)-1;
 			frameDelayEven = true;
 			bottomField = false;
+			decompressedFrameBuffer = (u8*)EWRAM;
+
+			if (rvidCompressed) {
+				loadFrame();
+			}
 
 			if (videoJump != 0) {
 				dmaFrameToScreen();

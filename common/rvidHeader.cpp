@@ -21,6 +21,8 @@ rvidHeaderCheckInfo rvidHeaderCheck;
 
 #ifdef __GBA__
 u32* frameOffsets = NULL;
+u16* compressedFrameSizes16 = NULL;
+u32* compressedFrameSizes32 = NULL;
 
 void* rvidPos = NULL;
 u32 rvidFramesOffset = 0x200;
@@ -138,9 +140,16 @@ void readRvidHeader(
 			#ifdef __GBA__
 			rvidFramesOffset = ((u32)rvid) + rvidFramesOffset;
 			frameOffsets = (u32*)rvidFramesOffset;
-			rvidFramesOffset = *(u32*)rvidFramesOffset;
 			#endif
 			rvidCompressedFrameSizeTableOffset = rvidHeader4.compressedFrameSizeTableOffset;
+			#ifdef __GBA__
+			rvidCompressedFrameSizeTableOffset = ((u32)rvid) + rvidCompressedFrameSizeTableOffset;
+			if (rvidOver256Colors) {
+				compressedFrameSizes32 = (u32*)rvidCompressedFrameSizeTableOffset;
+			} else {
+				compressedFrameSizes16 = (u16*)rvidCompressedFrameSizeTableOffset;
+			}
+			#endif
 			rvidSoundOffset = rvidHeader4.soundLeftOffset;
 			if (rvidHeaderCheck.ver != 3) {
 				rvidSoundRightOffset = rvidHeader4.soundRightOffset;
