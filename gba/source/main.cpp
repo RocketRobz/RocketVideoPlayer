@@ -437,7 +437,7 @@ int main(void)
 			}
 			frameDelay = (frameOfRefreshRateLimit/rvidFps)-1;
 			frameDelayEven = true;
-			bottomField = false;
+			bottomField = (currentFrame % 2) == 1;
 
 			if (rvidCompressed) {
 				loadFrame();

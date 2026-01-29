@@ -1229,7 +1229,7 @@ int playRvid(const char* filename) {
 			currentFrameInBuffer = 0;
 			frameDelay = (frameOfRefreshRateLimit/rvidFps)-1;
 			frameDelayEven = true;
-			bottomField = false;
+			bottomField = (currentFrame % 2) == 1;
 
 			if (rvidHasSound) {
 				soundKill(0);
