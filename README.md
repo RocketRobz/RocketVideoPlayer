@@ -26,10 +26,14 @@ To play videos, you'll need to convert them to the Rocket Video (`.rvid`) format
 - `B` or touch `Return`: Exit video
 
 # Credits
+
+## DS(i) version
 - [AntonioND](https://github.com/AntonioND): [BlocksDS](https://github.com/blocksds/sdk)
 - [devkitPro](https://github.com/devkitPro): nds-hb-menu's file browsing code
 - [Gericom](https://github.com/Gericom):
-    - LZ77 decompressor code from [EFE/EveryFileExplorer](https://github.com/Gericom/EveryFileExplorer)
 	- Frame rate + play bar adjustment code from [FastVideoDSPlayer](https://github.com/Gericom/FastVideoDSPlayer)
 	- NDMA code from [libtwl](https://github.com/Gericom/libtwl)
-- [pinobatch](https://github.com/pinobatch) Sound sample playback code from [gsmplayer-gba](https://github.com/pinobatch/gsmplayer-gba) used in the GBA version
+
+## GBA version
+- [devkitPro](https://github.com/devkitPro): libgba and sound frequency code from libnds
+- [pinobatch](https://github.com/pinobatch) Sound sample playback code from [gsmplayer-gba](https://github.com/pinobatch/gsmplayer-gba)
