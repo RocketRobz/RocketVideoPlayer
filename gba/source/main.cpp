@@ -150,9 +150,6 @@ void VblankInterrupt()
 			case 11:
 				displayFrame = (frameDelay == 5+frameDelayEven);
 				break;
-			case 12:
-				displayFrame = (frameDelay == 3+frameDelayEven);
-				break;
 			case 24:
 			case 25:
 				displayFrame = (frameDelay == 2+frameDelayEven);
@@ -234,7 +231,6 @@ void VblankInterrupt()
 		}
 		currentFrame++;
 		switch (rvidFps) {
-			case 12:
 			case 24:
 				frameDelayEven = !frameDelayEven;
 				break;
