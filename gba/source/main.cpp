@@ -97,13 +97,13 @@ void HBlank_dmaFrameToScreenInterlaced(void) {
 }
 
 void dmaFrameToScreen(void) {
-	if (frameOffsets) {
+	// if (frameOffsets) {
 		rvidFrameOffset = (u32)frameOffsets[currentFrame];
-	} else if (rvidOver256Colors != 0) {
+	/* } else if (rvidOver256Colors != 0) {
 		rvidFrameOffset = rvidFramesOffset + (currentFrame * (rvidHRes*rvidVRes));
 	} else {
 		rvidFrameOffset = rvidFramesOffset + (currentFrame * (0x200 + rvidHRes*rvidVRes));
-	}
+	} */
 
 	if (rvidOver256Colors == 2) {
 		if (rvidInterlaced) {
@@ -311,7 +311,7 @@ int main(void)
 
 	readRvidHeader((const void*)0x08002000);
 
-	if (rvidHeaderCheck.formatString != 0x44495652 || rvidDualScreen || rvidCompressedFrameSizeTableOffset) { // Dual-screen and/or compressed videos not supported
+	if (rvidHeaderCheck.formatString != 0x44495652 || rvidHeaderCheck.ver < 4 || rvidDualScreen || rvidCompressed) { // Old versions, dual-screen videos, and compressed videos are not supported
 		SetMode( MODE_4 | BG2_ON );
 
 		*(vu16*)BG_PALETTE = 0x001F; // Red screen

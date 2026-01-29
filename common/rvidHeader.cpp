@@ -63,13 +63,10 @@ void readRvidHeader(
 	rvidFramesOffset = 0x200;
 
 	switch (rvidHeaderCheck.ver) {
+		#ifndef __GBA__
 		case 1:
 			rvidHeaderInfo1 rvidHeader1;
-			#ifdef __GBA__
-			tonccpy(&rvidHeader1, rvid, sizeof(rvidHeader1));
-			#else
 			fread(&rvidHeader1, 1, sizeof(rvidHeader1), rvid);
-			#endif
 			rvidFrames = rvidHeader1.frames;
 			rvidFps = rvidHeader1.fps;
 			rvidReduceFpsBy01 = false;
@@ -89,11 +86,7 @@ void readRvidHeader(
 			break;
 		case 2:
 			rvidHeaderInfo2 rvidHeader2;
-			#ifdef __GBA__
-			tonccpy(&rvidHeader2, rvid, sizeof(rvidHeader2));
-			#else
 			fread(&rvidHeader2, 1, sizeof(rvidHeader2), rvid);
-			#endif
 			rvidFrames = rvidHeader2.frames;
 			rvidFps = rvidHeader2.fps;
 			rvidReduceFpsBy01 = false;
@@ -114,6 +107,7 @@ void readRvidHeader(
 			rvidHRes = width16;
 			break;
 		case 3:
+		#endif
 		case 4: {
 			rvidHeaderInfo4 rvidHeader4;
 			#ifdef __GBA__
