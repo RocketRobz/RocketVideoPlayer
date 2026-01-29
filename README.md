@@ -24,6 +24,7 @@ To play videos, you'll need to convert them to the Rocket Video (`.rvid`) format
 - D-Pad `Left`+`Down`/`Up`+`Right`: Jump 15 seconds (2 minutes with `R` shoulder held)
 - `SELECT`: Turn off/on bottom screen backlight (only applies to single-screen videos)
 - `B` or touch `Return`: Exit video
+    - GBA version: Stop video
 
 # Credits
 
