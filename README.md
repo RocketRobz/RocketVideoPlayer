@@ -32,7 +32,7 @@ Touch controls not available in the GBA version
 - D-Pad `Left`/`Right`: Jump 5 seconds (30 seconds with `R` shoulder held)
 - D-Pad `Down`/`Up`: Jump 10 seconds (1 minute with `R` shoulder held)
 - D-Pad `Left`+`Down`/`Up`+`Right`: Jump 15 seconds (2 minutes with `R` shoulder held)
-- `SELECT`: Turn off/on bottom screen backlight (only applies to single-screen videos)
+- `SELECT` (DS(i) version): Turn off/on bottom screen backlight (only applies to single-screen videos)
 - `B` or touch `Return`: Exit video
     - GBA version: Stop video
 
