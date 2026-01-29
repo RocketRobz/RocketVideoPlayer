@@ -19,6 +19,7 @@ int videoYpos = 0;
 int frameOfRefreshRate = 0;
 int frameOfRefreshRateLimit = 60;
 int currentFrame = 0;
+bool forceUncompressedFrame = false;
 int frameDelay = 0;
 bool frameDelayEven = true;
 bool bottomField = false;
@@ -120,7 +121,7 @@ void dmaFrameToScreen(void) {
 		bottomFieldForHBlank = bottomField;
 	}
 	if (rvidOver256Colors == 1) {
-		const u8* src = rvidCompressed ? (u8*)EWRAM : (u8*)rvidPos + rvidFrameOffset;
+		const u8* src = (rvidCompressed && !forceUncompressedFrame) ? (u8*)EWRAM : (u8*)rvidPos + rvidFrameOffset;
 		dmaCopy(src, (u8*)VRAM+(rvidHRes*videoYpos), rvidHRes*rvidVRes);
 	} else {
 		if (rvidVRes == (rvidInterlaced ? 160/2 : 160)) {
@@ -129,7 +130,7 @@ void dmaFrameToScreen(void) {
 			tonccpy(SPRITE_PALETTE, (u8*)rvidPos + rvidFrameOffset, 2);
 			tonccpy(BG_PALETTE + 1, (u8*)rvidPos + rvidFrameOffset + 2, 255*2);
 		}
-		const u8* src = rvidCompressed ? (u8*)EWRAM : (u8*)rvidPos + rvidFrameOffset + 0x200;
+		const u8* src = (rvidCompressed && !forceUncompressedFrame) ? (u8*)EWRAM : (u8*)rvidPos + rvidFrameOffset + 0x200;
 		dmaCopy(src, (u8*)VRAM+(rvidHRes*videoYpos), rvidHRes*rvidVRes);
 	}
 }
@@ -234,6 +235,7 @@ void VblankInterrupt()
 			bottomField = !bottomField;
 		}
 		currentFrame++;
+		forceUncompressedFrame = false;
 		frameDisplayed = true;
 		switch (rvidFps) {
 			case 24:
@@ -264,7 +266,7 @@ void loadFrame(void) {
 	const u32 size = rvidOver256Colors ? compressedFrameSizes32[currentFrame] : compressedFrameSizes16[currentFrame];
 	const void* src = rvidPos + frameOffsets[currentFrame] + (rvidOver256Colors ? 0 : 0x200);
 	if (size == (unsigned)rvidHRes*rvidVRes) {
-		tonccpy((u8*)EWRAM, src, size);
+		forceUncompressedFrame = true;
 	} else {
 		LZ77UnCompWram(src, (u8*)EWRAM);
 	}
