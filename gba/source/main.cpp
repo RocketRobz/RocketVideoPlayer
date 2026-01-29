@@ -25,6 +25,7 @@ bool frameDelayEven = true;
 bool bottomField = false;
 bool bottomFieldForHBlank = false;
 
+__attribute__((section(".iwram")))
 void fillBorders(void) {
 	int scanline = REG_VCOUNT;
 	scanline++;
@@ -39,6 +40,7 @@ void fillBorders(void) {
 	}
 }
 
+__attribute__((section(".iwram")))
 void fillBordersInterlaced(void) {
 	int scanline = REG_VCOUNT;
 	scanline++;
@@ -58,6 +60,7 @@ void fillBordersInterlaced(void) {
 	}
 }
 
+__attribute__((section(".iwram")))
 void HBlank_dmaFrameToScreen(void) {
 	int scanline = REG_VCOUNT;
 	scanline++;
@@ -75,6 +78,7 @@ void HBlank_dmaFrameToScreen(void) {
 	}
 }
 
+__attribute__((section(".iwram")))
 void HBlank_dmaFrameToScreenInterlaced(void) {
 	int scanline = REG_VCOUNT;
 	scanline++;
@@ -99,6 +103,7 @@ void HBlank_dmaFrameToScreenInterlaced(void) {
 	}
 }
 
+__attribute__((section(".iwram")))
 void dmaFrameToScreen(void) {
 	// if (frameOffsets) {
 		rvidFrameOffset = (u32)frameOffsets[currentFrame];
@@ -136,6 +141,7 @@ void dmaFrameToScreen(void) {
 }
 
 //---------------------------------------------------------------------------------
+__attribute__((section(".iwram")))
 void VblankInterrupt()
 //---------------------------------------------------------------------------------
 {

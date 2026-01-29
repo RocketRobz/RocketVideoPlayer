@@ -12,7 +12,9 @@
     \param size Fill-length in bytes.
     \note   The pointers and size need not be word-aligned.
 */
-#ifdef __NDS__
+#ifdef __GBA__
+__attribute__((section(".iwram")))
+#else
 ITCM_CODE
 #endif
 void tonccpy(void *dst, const void *src, uint size)
@@ -91,7 +93,9 @@ void tonccpy(void *dst, const void *src, uint size)
         word-aligned. In the case of unaligned fills, \a fill 
         will be masked off to match the situation.
 */
-#ifdef __NDS__
+#ifdef __GBA__
+__attribute__((section(".iwram")))
+#else
 ITCM_CODE
 #endif
 void __toncset(void *dst, u32 fill, uint size)
