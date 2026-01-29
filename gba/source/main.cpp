@@ -1,14 +1,14 @@
-#include <gba_video.h>
-#include <gba_systemcalls.h>
-#include <gba_compression.h>
-#include <gba_dma.h>
-#include <gba_input.h>
-#include <gba_interrupt.h>
+#include <gba.h>
 // #include <fade.h>
 #include <stdlib.h>
 
 #include "rvidHeader.h"
 #include "tonccpy.h"
+
+u32 soundBufferPos = 0;
+u16 soundBufferReadLen = 0;
+u16 soundBufferLen = 0;
+int soundBufferDivide = 6;
 
 u32 rvidFrameOffset = 0;
 bool videoPlaying = false;
@@ -140,6 +140,40 @@ void dmaFrameToScreen(void) {
 	}
 }
 
+static inline void soundKill(void) {
+  REG_DMA1CNT = 0;
+
+  /* no-op to let DMA registers catch up */
+  asm volatile ("eor r0, r0; eor r0, r0" ::: "r0");
+
+  REG_TM0CNT_H = 0;
+}
+
+static void playSoundSamples(const void *src) {
+	REG_TM0CNT_H |= TIMER_START;
+	REG_DMA1CNT = 0;
+	
+	/* no-op to let DMA registers catch up */
+	asm volatile ("eor r0, r0; eor r0, r0" ::: "r0");
+	
+	REG_DMA1SAD = (intptr_t)src;
+	REG_DMA1DAD = (intptr_t)0x040000a0; /* write to FIFO A address */
+	REG_DMA1CNT = DMA_DST_FIXED | DMA_SRC_INC | DMA_REPEAT | DMA32 |
+				  DMA_SPECIAL | DMA_ENABLE | 1;
+}
+
+#define SOUND_FREQ(n)	((-0x1000000 / (n))) // From libnds
+
+void init_sound(void) {
+	// TM0CNT_L is count; TM0CNT_H is control
+	REG_TM0CNT_H = 0;
+	//turn on sound circuit
+	SETSNDRES(1);
+	SNDSTAT = SNDSTAT_ENABLE;
+	DSOUNDCTRL = 0x0b0e;
+	REG_TM0CNT_L = SOUND_FREQ(rvidSampleRate);
+}
+
 //---------------------------------------------------------------------------------
 __attribute__((section(".iwram")))
 void VblankInterrupt()
@@ -193,49 +227,23 @@ void VblankInterrupt()
 				break;
 		}
 	}
-	/* if (rvidHasSound && !updateSoundBuffer && ((frameOfRefreshRate % (frameOfRefreshRateLimit/soundBufferDivide)) == 0)) {
+	if (rvidHasSound && ((frameOfRefreshRate % (frameOfRefreshRateLimit/soundBufferDivide)) == 0)) {
 		const u16 lenUpdate = soundBufferReadLen/soundBufferDivide;
-		if (rvidAudioIs16bit) {
-			soundBufferPos[0] += lenUpdate;
-			soundBufferPos[1] += lenUpdate;
-		} else {
-			soundBufferPos8[0] += lenUpdate;
-			soundBufferPos8[1] += lenUpdate;
-		}
-		soundBufferLen -= lenUpdate;
+		soundBufferPos += lenUpdate;
 		if (videoPausedPrior) {
-			sharedAddr[0] = rvidAudioIs16bit ? (u32)soundBufferPos[0] : (u32)soundBufferPos8[0];
-			sharedAddr[1] = rvidAudioIs16bit ? (u32)soundBufferPos[1] : (u32)soundBufferPos8[1];
-			sharedAddr[2] = (soundBufferLen*(rvidAudioIs16bit ? 2 : 1)) >> 2;
-			sharedAddr[3] = rvidSampleRate;
-			sharedAddr[4] = rvidAudioIs16bit;
-			fifoSendValue32(FIFO_USER_03, 1);
+			playSoundSamples((void*)rvidSoundOffset + soundBufferPos);
 			videoPausedPrior = false;
 		}
-	} */
+	}
 	if (displayFrame) {
 		// displaySavedFrameBuffer = false;
 		if (currentFrame < rvidFrames) {
 			dmaFrameToScreen();
 		}
-		/* if (rvidHasSound && (currentFrame % rvidFps) == 0) {
-			sharedAddr[0] = (u32)soundBuffer[0][useSoundBufferHalf];
-			sharedAddr[1] = (u32)soundBuffer[rvidSoundRightOffset ? 1 : 0][useSoundBufferHalf];
-			sharedAddr[2] = (soundBufferReadLen*(rvidAudioIs16bit ? 2 : 1)) >> 2;
-			sharedAddr[3] = rvidSampleRate;
-			sharedAddr[4] = rvidAudioIs16bit;
-			fifoSendValue32(FIFO_USER_03, 1);
-
-			if (rvidAudioIs16bit) {
-				soundBufferPos[0] = (u16*)sharedAddr[0];
-				soundBufferPos[1] = (u16*)sharedAddr[1];
-			} else {
-				soundBufferPos8[0] = (u8*)sharedAddr[0];
-				soundBufferPos8[1] = (u8*)sharedAddr[1];
-			}
-			soundBufferLen = rvidSampleRate;
-			updateSoundBuffer = true;
-		} */
+		if (rvidHasSound && (currentFrame % rvidFps) == 0) {
+			soundBufferPos = soundBufferReadLen * currentFrame/rvidFps;
+			playSoundSamples((void*)rvidSoundOffset + soundBufferPos);
+		} 
 
 		if (rvidInterlaced) {
 			bottomField = !bottomField;
@@ -284,6 +292,8 @@ void playerControls(void) {
 	const u16 held = keysHeld();
 	if (pressed & KEY_A) {
 		if (videoPlaying) {
+			soundKill();
+
 			videoPlaying = false;
 		} else {
 			videoPlaying = true;
@@ -386,6 +396,24 @@ int main(void)
 		irqEnable(IRQ_HBLANK);
 	}
 
+	if (rvidHasSound) {
+		soundBufferReadLen = rvidSampleRate;
+		if (rvidNativeRefreshRate) {
+			// Ensure video and audio stay in sync
+			for (int i = 0; i < rvidSampleRate; i += 350) {
+				soundBufferReadLen++;
+			}
+		} else if (rvidReduceFpsBy01) {
+			// Ensure video and audio stay in sync
+			for (int i = 0; i < rvidSampleRate; i += 1000) {
+				soundBufferReadLen++;
+			}
+		}
+		// soundBufferDivide = ((rvidFps % 25) == 0) ? 5 : 6;
+
+		init_sound();
+	}
+
 	frameOfRefreshRateLimit = 60;
 	frameOfRefreshRate = frameOfRefreshRateLimit-1;
 	frameDelay = (frameOfRefreshRateLimit/rvidFps)-1;
@@ -393,6 +421,7 @@ int main(void)
 	if (rvidCompressed) {
 		loadFrame();
 	}
+
 	videoPlaying = true;
 
 	while (1) {
@@ -444,6 +473,10 @@ int main(void)
 			frameDelay = (frameOfRefreshRateLimit/rvidFps)-1;
 			frameDelayEven = true;
 			bottomField = (currentFrame % 2) == 1;
+
+			if (rvidHasSound) {
+				soundKill();
+			}
 
 			if (rvidCompressed) {
 				loadFrame();
