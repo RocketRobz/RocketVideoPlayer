@@ -143,7 +143,7 @@ void readRvidHeader(
 			rvidOver256Colors = rvidHeader4.bmpMode;
 			#ifdef __GBA__
 			rvidFramesOffset = ((u32)rvid) + rvidFramesOffset;
-			frameOffsets = (u32*)frameOffsets;
+			frameOffsets = (u32*)rvidFramesOffset;
 			rvidFramesOffset = *(u32*)rvidFramesOffset;
 			#endif
 			rvidCompressedFrameSizeTableOffset = rvidHeader4.compressedFrameSizeTableOffset;
