@@ -236,7 +236,7 @@ void VblankInterrupt()
 			bottomField = !bottomField;
 		}
 		currentFrame++;
-		decompressedFrameBuffer = (u8*)EWRAM+0x12C00 ? (u8*)EWRAM : (u8*)EWRAM+0x12C00;
+		decompressedFrameBuffer = (currentFrame % 2) == 0 ? (u8*)EWRAM : (u8*)EWRAM+0x12C00;
 		frameDisplayed = true;
 		switch (rvidFps) {
 			case 24:
@@ -387,7 +387,6 @@ int main(void)
 
 	if (rvidCompressed) {
 		decompressedFrameBuffer = (u8*)EWRAM;
-
 		loadFrame();
 	}
 	videoPlaying = true;
@@ -441,7 +440,7 @@ int main(void)
 			frameDelay = (frameOfRefreshRateLimit/rvidFps)-1;
 			frameDelayEven = true;
 			bottomField = false;
-			decompressedFrameBuffer = (u8*)EWRAM;
+			decompressedFrameBuffer = (currentFrame % 2) == 0 ? (u8*)EWRAM : (u8*)EWRAM+0x12C00;
 
 			if (rvidCompressed) {
 				loadFrame();
