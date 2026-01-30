@@ -76,6 +76,9 @@ void readRvidHeader(
 
 	rvidFramesOffset = 0x200;
 
+	#ifndef __GBA__
+	fseek(rvid, 0, SEEK_SET);
+	#endif
 	switch (rvidHeaderCheck.ver) {
 		#ifndef __GBA__
 		case 1:
