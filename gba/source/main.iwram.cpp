@@ -61,7 +61,7 @@ void fillBordersInterlaced(void) {
 void HBlank_dmaFrameToScreen(void) {
 	int scanline = REG_VCOUNT;
 	scanline++;
-	const u8* src = rvidCompressed ? (u8*)EWRAM : (u8*)rvidPos + rvidFrameOffset;
+	const u8* src = (rvidCompressed && !forceUncompressedFrame) ? (u8*)EWRAM : (u8*)rvidPos + rvidFrameOffset;
 	if (rvidVRes < 160 && scanline > videoYpos+rvidVRes) {
 		return;
 	} else if (rvidVRes == 160 && scanline == 227) {
@@ -84,7 +84,7 @@ void HBlank_dmaFrameToScreenInterlaced(void) {
 		check1++;
 	}
 	const int check2 = (rvidVRes*2);
-	const u8* src = rvidCompressed ? (u8*)EWRAM : (u8*)rvidPos + rvidFrameOffset;
+	const u8* src = (rvidCompressed && !forceUncompressedFrame) ? (u8*)EWRAM : (u8*)rvidPos + rvidFrameOffset;
 	if (check2 < 160 && scanline > check1+check2) {
 		return;
 	} else if (check2 == 160 && scanline == 227) {
