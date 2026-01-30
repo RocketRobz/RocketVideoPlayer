@@ -827,7 +827,9 @@ int playRvid(const char* filename) {
 
 	readRvidHeader(rvid[0]);
 
-	if (isGbMacro && rvidDualScreen) {
+	if (rvidForGba) {
+		return 7;
+	} else if (isGbMacro && rvidDualScreen) {
 		return 6;
 	} else if (rvidFps > 60 && is3DS) {
 		return 5;
@@ -1597,7 +1599,10 @@ int main(int argc, char **argv) {
 						}
 						consoleClear();
 					}
-					if (err == 6) {
+					if (err == 7) {
+						printf("Videos made for GBA are\n"
+								"not compatible.\n");
+					} else if (err == 6) {
 						printf("Cannot play dual-screen\n"
 								"videos on a single screen.\n");
 					} else if (err == 5) {

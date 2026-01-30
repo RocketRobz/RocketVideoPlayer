@@ -1,7 +1,7 @@
 #ifndef RVIDHEADER_H
 #define RVIDHEADER_H
 
-#define latestRvidVer 4
+#define latestRvidVer 5
 
 typedef struct rvidHeaderCheckInfo {
 	u32 formatString;	// "RVID" string
@@ -40,7 +40,7 @@ typedef struct rvidHeaderInfo4 {
 	u8 fps;					// Frames per second
 	u8 vRes;				// Vertical resolution
 	u8 interlaced;			// Is interlaced
-	u8 dualScreen;			// Is dual screen video
+	u8 dualScreen;			// Is dual screen video, 2 = Video is for GBA
 	u16 sampleRate;			// Audio sample rate
 	u8 audioBitMode;		// 0 = 8-bit, 1 = 16-bit
 	u8 bmpMode;				// 0 = 8 BPP (RGB565), 1 = 16 BPP (RGB555), 2 = 16 BPP (RGB565)
@@ -66,7 +66,10 @@ extern bool rvidNativeRefreshRate;
 extern int rvidHRes;
 extern int rvidVRes;
 extern bool rvidInterlaced;
+#ifndef __GBA__
 extern bool rvidDualScreen;
+extern bool rvidForGba;
+#endif
 extern int rvidOver256Colors;
 extern bool rvidHasSound;
 extern u16 rvidSampleRate;

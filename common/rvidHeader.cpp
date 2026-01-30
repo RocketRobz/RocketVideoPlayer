@@ -34,7 +34,10 @@ bool rvidNativeRefreshRate = false;
 int rvidHRes = 0;
 int rvidVRes = 0;
 bool rvidInterlaced = false;
+#ifndef __GBA__
 bool rvidDualScreen = false;
+bool rvidForGba = false;
+#endif
 int rvidOver256Colors = 0;
 bool rvidHasSound = false;
 u16 rvidSampleRate = 0;
@@ -66,6 +69,8 @@ void readRvidHeader(
 		return;
 	}
 	#else
+	rvidForGba = false;
+
 	u32
 	#endif
 
@@ -116,8 +121,9 @@ void readRvidHeader(
 			rvidHRes = width16;
 			break;
 		case 3:
+		case 4:
 		#endif
-		case 4: {
+		case 5: {
 			rvidHeaderInfo4 rvidHeader4;
 			#ifdef __GBA__
 			tonccpy(&rvidHeader4, rvid, sizeof(rvidHeader4));
@@ -140,7 +146,13 @@ void readRvidHeader(
 			}
 			rvidVRes = rvidHeader4.vRes;
 			rvidInterlaced = rvidHeader4.interlaced;
-			rvidDualScreen = rvidHeader4.dualScreen;
+			#ifndef __GBA__
+			if (rvidHeaderCheck.ver > 4 && rvidHeader4.dualScreen == 2) {
+				rvidForGba = true;
+			} else {
+				rvidDualScreen = (rvidHeader4.dualScreen == 1);
+			}
+			#endif
 			rvidSampleRate = rvidHeader4.sampleRate;
 			#ifndef __GBA__
 			rvidAudioIs16bit = rvidHeader4.audioBitMode;
