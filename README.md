@@ -47,4 +47,4 @@ Touch controls not available in the GBA version
 
 ## GBA version
 - [devkitPro](https://github.com/devkitPro): libgba and sound frequency code from libnds
-- [pinobatch](https://github.com/pinobatch) Sound sample playback code from [gsmplayer-gba](https://github.com/pinobatch/gsmplayer-gba)
+- [pinobatch](https://github.com/pinobatch): Sound sample playback code from [gsmplayer-gba](https://github.com/pinobatch/gsmplayer-gba)
