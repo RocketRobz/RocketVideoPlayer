@@ -643,7 +643,7 @@ ITCM_CODE void loadFrame(const int num) {
 			for (int b = 0; b < 2; b++) {
 				const int pos = (num*2)+b;
 				const u32 frameOffset = getFrameOffset(loadedSingleFrames);
-				const u32 size = rvidCompressed ? getCompressedFrameSize(loadedSingleFrames) : 0;
+				const u32 size = getCompressedFrameSize(loadedSingleFrames);
 				const int rvidPart = (rvidHeaderCheck.ver >= 4) ? (frameOffset % 4) : 0;
 				const u32 frameOffsetSeek = frameOffset - rvidPart;
 				fseek(rvid[rvidPart], frameOffsetSeek, SEEK_SET);

@@ -333,7 +333,7 @@ int main(void)
 
 	readRvidHeader((const void*)0x08002000);
 
-	if (rvidHeaderCheck.formatString != 0x44495652 || rvidHeaderCheck.ver < 5) { // Old versions are not supported
+	if (rvidHeaderCheck.formatString != 0x44495652 || rvidHeaderCheck.ver < latestRvidVer || rvidHeaderCheck.ver > latestRvidVer) { // Old RVID versions (and versions later than the current player version) are not supported
 		SetMode( MODE_4 | BG2_ON );
 
 		*(vu16*)BG_PALETTE = 0x001F; // Red screen
