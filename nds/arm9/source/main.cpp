@@ -1260,20 +1260,6 @@ int playRvid(const char* filename) {
 					}
 				}
 
-				int hourMarkDisplay = hourMark;
-				int minuteMarkDisplay = minuteMark;
-				int secondMarkDisplay = secondMark;
-
-				secondMarkDisplay++;
-				if (secondMarkDisplay == 60) {
-					secondMarkDisplay = 0;
-					minuteMarkDisplay++;
-					if (minuteMarkDisplay == 60) {
-						minuteMarkDisplay = 0;
-						hourMarkDisplay++;
-					}
-				}
-
 				// Current time stamp
 				sprintf(timeStamp, "%02i:%02i:%02i/%02i:%02i:%02i",
 				hourMark, minuteMark, secondMark, videoHourMark, videoMinuteMark, videoSecondMark);
