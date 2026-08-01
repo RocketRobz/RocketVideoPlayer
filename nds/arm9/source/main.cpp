@@ -1225,7 +1225,7 @@ int playRvid(const char* filename) {
 			}
 			if (confirmStop || currentFrame < 0) {
 				currentFrame = 0;
-			} else if (currentFrame > (int)rvidFrames) {
+			} else if (currentFrame >= (int)rvidFrames) {
 				currentFrame = currentFrameBak;
 			}
 			currentFrameInBuffer = 0;
