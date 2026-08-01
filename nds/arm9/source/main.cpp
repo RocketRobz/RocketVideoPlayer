@@ -1178,7 +1178,7 @@ int playRvid(const char* filename) {
 			}
 		}
 		playerControls();
-		if (currentFrame > (int)rvidFrames) {
+		if (currentFrame >= (int)rvidFrames) {
 			confirmStop = true;
 		}
 		if (confirmStop || videoJump != 0) {
