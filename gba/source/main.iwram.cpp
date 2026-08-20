@@ -425,7 +425,7 @@ int main(void)
 			frameDisplayed = false;
 		}
 		playerControls();
-		if (currentFrame > (int)rvidFrames) {
+		if (currentFrame >= (int)rvidFrames) {
 			confirmStop = true;
 		}
 		if (confirmStop || videoJump != 0) {
