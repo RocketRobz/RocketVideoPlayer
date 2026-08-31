@@ -191,7 +191,7 @@ void IPCSyncHandler(void) {
 	if (startFpsa) {
 		const u32 num = sharedAddr[0];
 		const u32 den = sharedAddr[1];
-		const int max = (num / den > 62) ? 74 : 62;
+		const int max = (num / den > 62) ? 77 : 62;
 
 		int vblankCount = 1;
 		while (num * (vblankCount + 1) / den < max)

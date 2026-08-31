@@ -1120,9 +1120,9 @@ int playRvid(const char* filename) {
 	// Enable frame rate adjustment
 	frameOfRefreshRateLimit = 60;
 	if (!rvidNativeRefreshRate) {
-		const int fpsMultiList[4] = {72, 60, 50, 48};
-		const int iStart = is3DS ? 1 : 0; // Start at 1 if using a 3DS/2DS
-		for (int i = iStart; i < 4; i++) {
+		const int fpsMultiList[5] = {75, 72, 60, 50, 48};
+		const int iStart = is3DS ? 2 : 0; // Start at 2 if using a 3DS/2DS
+		for (int i = iStart; i < 5; i++) {
 			int fpsMulti = rvidFps;
 			while (fpsMulti < fpsMultiList[i]) {
 				fpsMulti += rvidFps;
