@@ -44,7 +44,7 @@ Touch controls not available in the GBA version
 - [Gericom](https://github.com/Gericom):
 	- Frame rate + play bar adjustment code from [FastVideoDSPlayer](https://github.com/Gericom/FastVideoDSPlayer)
 	- NDMA code from [libtwl](https://github.com/Gericom/libtwl)
-- Nintendo: DSi font and graphical assets from *Nintendo DSi + Internet*
+- Nintendo: DSi text font and graphical assets from *Nintendo DSi + Internet*
 
 ## GBA version
 - [devkitPro](https://github.com/devkitPro): libgba and sound frequency code from libnds
